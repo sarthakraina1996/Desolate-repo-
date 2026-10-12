@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Inbox, LoaderCircle, Ellipsis, X } from 'lucide-react';
 import { colorFor, initials } from '../lib/format.js';
+import { photoUrl } from '../lib/api.js';
 import { useClickOutside } from '../lib/hooks.js';
 import { useApp } from '../context.jsx';
 
@@ -68,10 +69,11 @@ export function StatusDot({ status }) {
 
 export function Avatar({ name = '', id, hasPhoto, size = 36, online, square }) {
   const [broken, setBroken] = useState(false);
+  const src = hasPhoto && id ? photoUrl(id) : null;
   const style = { width: size, height: size, fontSize: Math.max(11, size * 0.38), background: colorFor(name), borderRadius: square ? 12 : '50%' };
   return (
     <span className="avatar" style={style}>
-      {hasPhoto && id && !broken ? <img src={`/api/files/photo/${id}`} alt="" onError={() => setBroken(true)} /> : initials(name)}
+      {src && !broken ? <img src={src} alt="" onError={() => setBroken(true)} /> : initials(name)}
       {online && <span className="online" />}
     </span>
   );

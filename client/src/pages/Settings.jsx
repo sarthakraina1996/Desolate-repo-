@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Save, Plus, Trash2, KeyRound, Download, TriangleAlert, Pencil, Bot, Database } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { useApi, useAction } from '../lib/hooks.js';
@@ -280,6 +280,7 @@ function Audit() {
 
 function DataTab() {
   const { toast, loadMe, info } = useApp();
+  const navigate = useNavigate();
   const [run, busy] = useAction(toast);
   const [modal, setModal] = useState(null);
   const [text, setText] = useState('');
@@ -290,7 +291,7 @@ function DataTab() {
   const go = async () => {
     const path = fresh ? '/settings/start-fresh' : '/settings/reset-demo';
     const body = fresh ? { confirm: text, email: login.email, password: login.password } : { confirm: text };
-    if (await run(() => api.post(path, body), fresh ? 'All demo data removed' : 'Demo data restored')) { setModal(null); setText(''); window.location.assign('/'); loadMe(); }
+    if (await run(() => api.post(path, body), fresh ? 'All demo data removed' : 'Demo data restored')) { setModal(null); setText(''); navigate('/'); loadMe(); }
   };
   return (
     <div className="grid">

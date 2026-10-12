@@ -12,7 +12,8 @@
     "build": "vite build --config client/vite.config.js",
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/index.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"tests/*.test.js\"",
-    "reset-demo": "node --disable-warning=ExperimentalWarning server/reset.js"
+    "reset-demo": "node --disable-warning=ExperimentalWarning server/reset.js",
+    "build:demo": "vite build --config demo/vite.config.js && node demo/inline.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
@@ -26,5 +27,9 @@
     "react-router-dom": "^7.18.4",
     "unpdf": "^1.8.1",
     "vite": "^6.4.4"
+  },
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "sql.js": "^1.13.0"
   }
 }

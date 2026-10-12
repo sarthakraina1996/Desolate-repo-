@@ -104,7 +104,7 @@ export default function Screener() {
           <Button variant="primary" className="block mt-16" size="lg" icon={CloudUpload} loading={busy} disabled={!job} onClick={() => fileRef.current?.click()}>Upload Resumes</Button>
           <div className="xs muted center mt-8">PDF, DOCX, TXT (max 10 MB each, up to 25 at a time)</div>
           <div className={`alert ${data.ai ? 'success' : 'info'} mt-12`} style={{ fontSize: 12 }}>
-            {data.ai ? <><Bot size={16} />Scoring with Claude ({data.model}).</> : <><Bot size={16} /><span>Rule-based scoring is active. Add an <code>ANTHROPIC_API_KEY</code> on the server to screen with Claude.</span></>}
+            {data.ai ? <><Bot size={16} />Scoring with Claude{data.model && data.model !== 'Claude' ? ` (${data.model})` : ''}.</> : <><Bot size={16} /><span>{window.hrmsDemo ? 'Rule-based scoring is active. Open this demo on claude.ai and allow Claude to screen with AI.' : <>Rule-based scoring is active. Add an <code>ANTHROPIC_API_KEY</code> on the server to screen with Claude.</>}</span></>}
           </div>
         </Card>
       </div>

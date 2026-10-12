@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { LogIn, LogOut, House, CalendarCheck, FileText, User, Download, Plus, Cake, PartyPopper, CircleAlert, CircleCheck, ArrowRight, Receipt, Wallet, Trash2 } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { useApi, useAction } from '../lib/hooks.js';
-import { api } from '../lib/api.js';
+import { api, download } from '../lib/api.js';
 import { greeting, fmtDate, fmtShort, fmtTime, inr, fmtMonth, fmtDay } from '../lib/format.js';
 import { Card, Badge, Button, Empty, Loading, ErrorBox, Progress, Tabs, Person, Avatar, Modal, SimpleMarkdown, useConfirm } from '../components/ui.jsx';
 import { ApplyLeaveModal, RaiseRequestModal, ClaimModal } from '../components/forms.jsx';
@@ -172,7 +172,7 @@ export function PolicyModal({ id, onClose, onDone }) {
   return (
     <Modal title={data ? `${data.title} · v${data.version}` : 'Policy'} size="wide" onClose={onClose}
       footer={data && <>
-        {data.hasFile && <a className="btn" href={`/api/policies/${id}/file`}><Download size={16} />Download document</a>}
+        {data.hasFile && <Button icon={Download} onClick={() => download(`/policies/${id}/file`)}>Download document</Button>}
         {data.requires_ack && user.employeeId ? (data.myAck ? <span className="row gap-6 green b6"><CircleCheck size={18} />Acknowledged {fmtDate(data.myAck)}</span>
           : <Button variant="primary" loading={busy} onClick={async () => { if (await run(() => api.post(`/policies/${id}/ack`), 'Thank you for acknowledging')) { onDone?.(); onClose(); } }}>I have read and agree</Button>) : <Button onClick={onClose}>Close</Button>}
       </>}>

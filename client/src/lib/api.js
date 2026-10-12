@@ -20,8 +20,17 @@ api.put = (p, body = {}) => api(p, { method: 'PUT', body });
 api.del = (p) => api(p, { method: 'DELETE' });
 api.upload = (p, form, method = 'POST') => api(p, { method, form });
 
+// The claude.ai demo (demo/main.jsx) runs the server inside the page and sets
+// window.hrmsDemo so photos and downloads go through it instead of HTTP.
+const demo = () => window.hrmsDemo;
+
+export function photoUrl(employeeId) {
+  return demo() ? demo().photoUrl(employeeId) : `/api/files/photo/${employeeId}`;
+}
+
 // Opens a GET download (CSV, documents) using the session cookie.
 export function download(path) {
+  if (demo()) return demo().download(path);
   const a = document.createElement('a');
   a.href = `/api${path}`;
   a.rel = 'noopener';
@@ -38,6 +47,7 @@ export async function postDownload(path, body, filename) {
     throw new Error(j.error || 'Download failed');
   }
   const blob = await res.blob();
+  if (demo()) return demo().saveFile(blob, filename);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

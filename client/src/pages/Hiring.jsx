@@ -23,6 +23,7 @@ const STAGE_STYLE = {
 
 export default function Hiring() {
   const { meta, vertical, isHR } = useApp();
+  const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
   const [f, setF] = useState({ department: '', location: '', type: '', from: '', to: '' });
   const qs = new URLSearchParams({ ...(vertical ? { vertical } : {}), ...Object.fromEntries(Object.entries(f).filter(([, v]) => v)), ...(sp.get('job') ? { job: sp.get('job') } : {}) });
@@ -101,7 +102,7 @@ export default function Hiring() {
                   <td><Badge>{j.status}</Badge></td>
                   <td><Menu items={[
                     { label: 'View candidates', onClick: () => setModal({ type: 'all', job: j.id }) },
-                    isHR && { label: 'Screen resumes', onClick: () => window.location.assign(`/screener?job=${j.id}`) },
+                    isHR && { label: 'Screen resumes', onClick: () => navigate(`/screener?job=${j.id}`) },
                     isHR && { label: 'Edit job', onClick: () => setModal({ type: 'job', job: j }) },
                     isHR && j.status !== 'Active' && { label: 'Mark Active', onClick: () => api.put(`/jobs/${j.id}`, { status: 'Active' }).then(reload) },
                     isHR && j.status === 'Active' && { label: 'Put on hold', onClick: () => api.put(`/jobs/${j.id}`, { status: 'On Hold' }).then(reload) },
