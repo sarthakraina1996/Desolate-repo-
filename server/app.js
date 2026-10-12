@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import multer from 'multer';
 import { openDb } from './db.js';
 import { sessionMiddleware } from './auth.js';
-import { HttpError, fail } from './core.js';
+import { HttpError, fail, today as companyToday } from './core.js';
+import { generateShortfalls } from './services/workday.js';
 import { seedDemo, seedEmpty, hasData } from './seed.js';
 import authRoutes from './routes/auth.js';
 import metaRoutes from './routes/meta.js';
@@ -27,8 +28,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, today } = {}) {
   const db = openDb(dbFile);
+  const uploads = path.join(dataDir, 'uploads');
+  // Lets the demo seed store sample files (employee documents).
+  const saveFile = (kind, name, bytes) => {
+    fs.mkdirSync(path.join(uploads, kind), { recursive: true });
+    fs.writeFileSync(path.join(uploads, kind, path.basename(name)), bytes);
+  };
   if (!hasData(db) && !db.value('SELECT COUNT(*) FROM users')) {
-    if (seed === 'demo') seedDemo(db, { today });
+    if (seed === 'demo') seedDemo(db, { today, saveFile });
     else {
       const adminEmail = (process.env.ADMIN_EMAIL || 'admin@brainadz.com').toLowerCase();
       const adminPassword = process.env.ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');
@@ -37,7 +44,14 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
     }
   }
 
-  const uploads = path.join(dataDir, 'uploads');
+  // Closes work clocks left running overnight and raises short-hours alerts
+  // for earlier days. Runs at start and every 30 minutes.
+  const shortHoursCheck = () => {
+    try { generateShortfalls(db, { today: companyToday(db) }); } catch (e) { console.error('Short-hours check failed', e); }
+  };
+  shortHoursCheck();
+  setInterval(shortHoursCheck, 30 * 60000).unref();
+
   fs.mkdirSync(uploads, { recursive: true });
   // Multer instance per upload kind; files land in data/uploads/<kind>/ with random names.
   const upload = (kind, { maxMb = 10, exts = null } = {}) => {
@@ -56,7 +70,7 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
       },
     });
   };
-  const ctx = { db, uploads, upload, here };
+  const ctx = { db, uploads, upload, here, saveFile };
 
   const app = express();
   app.disable('x-powered-by');

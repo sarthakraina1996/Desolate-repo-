@@ -48,6 +48,16 @@ export function nowTimeIn(timeZone = 'Asia/Kolkata') {
   }).format(new Date());
 }
 
+// ISO timestamp for a wall-clock time ("18:30") on a date in a time zone.
+export function zonedIso(date, hm, timeZone = 'Asia/Kolkata') {
+  const guess = Date.parse(`${date}T${hm}:00Z`);
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(new Date(guess)).map((p) => [p.type, p.value]));
+  const shown = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute));
+  return new Date(guess - (shown - guess)).toISOString();
+}
+
 export const monthOf = (s) => s.slice(0, 7);
 export const yearOf = (s) => Number(s.slice(0, 4));
 

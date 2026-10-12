@@ -1,6 +1,9 @@
-import { today, isHR, scopeIds, requireHR, fullName, date, oneOf, id, fail, getSettings, sendCsv, str, audit } from '../core.js';
+import { today, isHR, isAdmin, scopeIds, requireHR, fullName, date, oneOf, id, fail, notFound, getSettings, sendCsv, str, audit, notifyUsers, userIdForEmployee } from '../core.js';
 import * as D from '../lib/dates.js';
 import { dayStatuses } from '../services/calendar.js';
+import {
+  GAP_REASONS, workdaySummary, startSession, endSession, generateShortfalls, shortfallRow, approverUserIds, canDecideShortfall, fmtMinutes, dayLabel,
+} from '../services/workday.js';
 
 const MARKS = ['P', 'WFH', 'HD', 'A'];
 
@@ -64,29 +67,100 @@ export default function attendanceRoutes(r, { db }) {
     res.json(out);
   });
 
+  // ---------- work clock ----------
+  // Today's sessions for the signed-in employee, plus what needs their
+  // attention (short days to explain) or their approval (team short days).
+  r.get('/attendance/workday', (req, res) => {
+    const T = today(db);
+    const s = settings();
+    const out = { today: T, serverNow: new Date().toISOString(), gapReasons: GAP_REASONS, workday: null, toExplain: 0, toApprove: 0, workdayEnd: s.workdayEnd };
+    if (req.user.employeeId) {
+      generateShortfalls(db, { today: T, employeeIds: [req.user.employeeId], settings: s });
+      out.workday = workdaySummary(db, req.user.employeeId, T, s);
+      out.dayStatus = dayStatuses(db, [db.get('SELECT * FROM employees WHERE id = ?', req.user.employeeId)], T, T, T, s).get(req.user.employeeId).get(T).code;
+      out.toExplain = db.value("SELECT COUNT(*) FROM hour_shortfalls WHERE employee_id = ? AND status = 'Awaiting explanation'", req.user.employeeId);
+    }
+    if (isAdmin(req.user)) out.toApprove = db.value("SELECT COUNT(*) FROM hour_shortfalls WHERE status = 'Pending approval' AND employee_id != ?", req.user.employeeId || 0);
+    else if (req.user.employeeId) out.toApprove = db.value("SELECT COUNT(*) FROM hour_shortfalls s JOIN employees e ON e.id = s.employee_id WHERE s.status = 'Pending approval' AND e.manager_id = ?", req.user.employeeId);
+    res.json(out);
+  });
+
   r.post('/attendance/check-in', (req, res) => {
     if (!req.user.employeeId) fail(400, 'Your login is not linked to an employee record');
-    const T = today(db);
     const mode = oneOf(req.body.mode || 'office', ['office', 'wfh'], { name: 'Mode' });
-    const rec = db.get('SELECT * FROM attendance WHERE employee_id = ? AND date = ?', req.user.employeeId, T);
-    if (rec?.check_in) fail(409, 'You have already checked in today');
-    const now = new Date().toISOString();
-    db.run(`INSERT INTO attendance (employee_id, date, status, check_in, updated_by) VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(employee_id, date) DO UPDATE SET status = excluded.status, check_in = excluded.check_in, updated_by = excluded.updated_by`,
-    req.user.employeeId, T, mode === 'wfh' ? 'WFH' : 'P', now, req.user.id);
-    res.json({ ok: true, at: now });
+    const gapReason = req.body.gap_reason ? oneOf(req.body.gap_reason, GAP_REASONS, { name: 'Reason' }) : null;
+    const gapNote = str(req.body.gap_note, { max: 300 });
+    if (gapReason === 'Other' && !gapNote) fail(400, 'Add a short note for "Other"');
+    const out = startSession(db, { employeeId: req.user.employeeId, date: today(db), mode, gapReason, gapNote, userId: req.user.id });
+    if (out.error) fail(out.needsReason ? 400 : 409, out.error);
+    res.json(out);
   });
 
   r.post('/attendance/check-out', (req, res) => {
     if (!req.user.employeeId) fail(400, 'Your login is not linked to an employee record');
-    const T = today(db);
-    const rec = db.get('SELECT * FROM attendance WHERE employee_id = ? AND date = ?', req.user.employeeId, T);
-    if (!rec?.check_in) fail(400, 'Check in first');
-    if (rec.check_out) fail(409, 'You have already checked out today');
-    const now = new Date().toISOString();
-    const hours = (Date.parse(now) - Date.parse(rec.check_in)) / 3600000;
-    db.run('UPDATE attendance SET check_out = ?, status = ? WHERE employee_id = ? AND date = ?', now, rec.status === 'P' && hours < 4 ? 'HD' : rec.status, req.user.employeeId, T);
-    res.json({ ok: true, at: now, hours: Math.round(hours * 10) / 10 });
+    const out = endSession(db, { employeeId: req.user.employeeId, date: today(db), by: 'checkout', userId: req.user.id });
+    if (!out) fail(400, 'Your work clock is not running');
+    res.json({ ok: true, at: out.at, workedMinutes: out.workedMinutes, worked: fmtMinutes(out.workedMinutes), hours: Math.round((out.workedMinutes / 60) * 10) / 10 });
+  });
+
+  // ---------- short hours ----------
+  // view=mine: the employee's own days. view=team: days the user can approve
+  // (direct reports; administrators see everyone). HR can view everyone.
+  r.get('/attendance/short-hours', (req, res) => {
+    const view = req.query.view === 'team' ? 'team' : 'mine';
+    const where = [];
+    const params = [];
+    if (view === 'mine') {
+      if (!req.user.employeeId) return res.json({ items: [], view });
+      where.push('s.employee_id = ?');
+      params.push(req.user.employeeId);
+    } else if (!isHR(req.user)) {
+      if (!req.user.employeeId) return res.json({ items: [], view });
+      where.push('e.manager_id = ?');
+      params.push(req.user.employeeId);
+    } else if (req.user.employeeId) {
+      where.push('s.employee_id != ?');
+      params.push(req.user.employeeId);
+    }
+    if (req.query.status === 'open') where.push("s.status IN ('Awaiting explanation','Pending approval')");
+    else if (req.query.status) { where.push('s.status = ?'); params.push(String(req.query.status)); }
+    if (req.query.vertical) { where.push('e.vertical_id = ?'); params.push(Number(req.query.vertical)); }
+    const rows = db.all(`SELECT s.* FROM hour_shortfalls s JOIN employees e ON e.id = s.employee_id
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY CASE s.status WHEN 'Pending approval' THEN 0 WHEN 'Awaiting explanation' THEN 1 ELSE 2 END, s.date DESC LIMIT 300`, ...params);
+    res.json({ view, items: rows.map((s) => shortfallRow(db, s, req.user)), required: fmtMinutes(Math.round(Number(settings().workHours || 8) * 60)) });
+  });
+
+  r.post('/attendance/short-hours/:id/explain', (req, res) => {
+    const s = db.get('SELECT * FROM hour_shortfalls WHERE id = ?', id(req.params.id)) || notFound('Short-hours record');
+    if (s.employee_id !== req.user.employeeId) fail(403, 'You can only explain your own hours');
+    if (!['Awaiting explanation', 'Pending approval'].includes(s.status)) fail(409, `This day is already ${s.status.toLowerCase()}`);
+    const reason = str(req.body.reason, { required: true, max: 1000, name: 'Reason' });
+    db.update('hour_shortfalls', s.id, { reason, status: 'Pending approval', explained_at: new Date().toISOString() });
+    notifyUsers(db, approverUserIds(db, s.employee_id), `${req.user.name} explained short hours on ${dayLabel(s.date)} (${fmtMinutes(s.worked_minutes)} of ${fmtMinutes(s.required_minutes)})`, '/attendance?tab=short');
+    res.json({ ok: true });
+  });
+
+  r.post('/attendance/short-hours/:id/decide', (req, res) => {
+    const s = db.get('SELECT * FROM hour_shortfalls WHERE id = ?', id(req.params.id)) || notFound('Short-hours record');
+    if (!canDecideShortfall(db, req.user, s.employee_id)) fail(403, 'Only the reporting manager or the CEO can approve this');
+    if (!['Awaiting explanation', 'Pending approval'].includes(s.status)) fail(409, `This day is already ${s.status.toLowerCase()}`);
+    const action = oneOf(req.body.action, ['approve', 'reject'], { required: true, name: 'Action' });
+    const note = str(req.body.note, { max: 500 });
+    const att = db.get('SELECT * FROM attendance WHERE employee_id = ? AND date = ?', s.employee_id, s.date);
+    db.tx(() => {
+      db.update('hour_shortfalls', s.id, { status: action === 'approve' ? 'Approved' : 'Rejected', decided_by: req.user.id, decided_at: new Date().toISOString(), decision_note: note });
+      if (att) {
+        const base = db.value('SELECT mode FROM work_sessions WHERE employee_id = ? AND date = ? ORDER BY start_at LIMIT 1', s.employee_id, s.date) === 'wfh' || att.status === 'WFH' ? 'WFH' : 'P';
+        const status = action === 'approve' ? (att.status === 'HD' ? base : att.status) : 'HD';
+        db.run('UPDATE attendance SET status = ?, note = ?, updated_by = ? WHERE employee_id = ? AND date = ?', status, `Short hours ${action === 'approve' ? 'approved' : 'rejected'} by ${req.user.name}`, req.user.id, s.employee_id, s.date);
+      }
+    });
+    audit(db, req.user, `shortfall.${action}`, 'employee', s.employee_id, { date: s.date, note });
+    notifyUsers(db, [userIdForEmployee(db, s.employee_id)], action === 'approve'
+      ? `${req.user.name} approved your short hours on ${dayLabel(s.date)}. The day counts in full.`
+      : `${req.user.name} did not approve your short hours on ${dayLabel(s.date)}; it is marked as a half day.${note ? ` Note: ${note}` : ''}`, '/attendance?tab=short');
+    res.json({ ok: true });
   });
 
   r.get('/attendance/register', (req, res) => {

@@ -7,7 +7,7 @@ const MASTERS = { verticals: ['name', 'short', 'tagline', 'color'], departments:
 const MASTER_REFS = { verticals: ['employees.vertical_id', 'jobs.vertical_id'], departments: ['employees.department_id', 'jobs.department_id'], locations: ['employees.location_id', 'jobs.location_id'] };
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export default function settingsRoutes(r, { db }) {
+export default function settingsRoutes(r, { db, saveFile }) {
   r.get('/settings', (req, res) => {
     requireHR(req);
     res.json({
@@ -160,7 +160,7 @@ export default function settingsRoutes(r, { db }) {
   // ---------- data management (admin) ----------
   const TABLES = ['notifications', 'sessions', 'audit_log', 'candidate_activity', 'interviews', 'onboarding_tasks', 'candidates', 'jobs', 'payslips', 'payroll_runs', 'payroll_adjustments',
     'resignations', 'goals', 'reviews', 'review_cycles', 'assets', 'documents', 'requests', 'posh_complaints', 'posh_training', 'policy_acks', 'policies', 'notices',
-    'attendance', 'leave_requests', 'holidays', 'leave_types', 'users', 'employees', 'verticals', 'departments', 'locations', 'settings'];
+    'hour_shortfalls', 'work_sessions', 'attendance', 'leave_requests', 'holidays', 'leave_types', 'users', 'employees', 'verticals', 'departments', 'locations', 'settings'];
 
   function wipe(keepUserId = null) {
     db.exec('PRAGMA foreign_keys = OFF');
@@ -181,7 +181,7 @@ export default function settingsRoutes(r, { db }) {
     requireAdmin(req);
     if (req.body.confirm !== 'RESET') fail(400, 'Type RESET to confirm');
     wipe();
-    seedDemo(db);
+    seedDemo(db, { saveFile });
     res.json({ ok: true });
   });
 

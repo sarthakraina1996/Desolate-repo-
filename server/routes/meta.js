@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getSettings, isHR, today, str, oneOf, id, fail, notFound, requireHR, fullName, notifyUsers, scopeIds } from '../core.js';
+import { getSettings, isHR, today, str, oneOf, id, fail, notFound, requireHR, fullName, notifyUsers, scopeIds, DOC_CATEGORIES } from '../core.js';
 import { aiEnabled } from '../services/ai.js';
 
 export default function metaRoutes(r, { db, uploads }) {
@@ -8,7 +8,8 @@ export default function metaRoutes(r, { db, uploads }) {
     const s = getSettings(db);
     res.json({
       today: today(db),
-      settings: { companyName: s.companyName, weeklyOffs: s.weeklyOffs, timezone: s.timezone, noticePeriodDays: s.noticePeriodDays, noticePeriodSeniorDays: s.noticePeriodSeniorDays, demo: Boolean(s.demo) },
+      settings: { companyName: s.companyName, weeklyOffs: s.weeklyOffs, timezone: s.timezone, noticePeriodDays: s.noticePeriodDays, noticePeriodSeniorDays: s.noticePeriodSeniorDays, demo: Boolean(s.demo), workHours: s.workHours, requiredDocuments: s.requiredDocuments },
+      documentCategories: DOC_CATEGORIES,
       verticals: db.all('SELECT * FROM verticals ORDER BY id'),
       departments: db.all('SELECT * FROM departments ORDER BY name'),
       locations: db.all('SELECT * FROM locations ORDER BY name'),

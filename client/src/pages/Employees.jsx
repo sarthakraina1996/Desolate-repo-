@@ -328,9 +328,9 @@ export function Onboarding({ tasks, reload, canEdit }) {
 }
 
 function Documents({ data, reload }) {
-  const { isHR, toast, user } = useApp();
+  const { isHR, toast, user, meta } = useApp();
   const e = data.employee;
-  const [cat, setCat] = useState('ID Proof');
+  const [cat, setCat] = useState(meta.documentCategories?.[0] || 'Other');
   const [run, busy] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
   const canUpload = isHR || user.employeeId === e.id;
@@ -347,7 +347,7 @@ function Documents({ data, reload }) {
     <div>
       {canUpload && (
         <div className="row wrap mb-16" style={{ gap: 12, alignItems: 'stretch' }}>
-          <Field label="Category" className="" ><Select value={cat} onChange={(ev) => setCat(ev.target.value)} options={['ID Proof', 'Address Proof', 'Education', 'Experience', 'Offer Letter', 'Payslip', 'Other']} /></Field>
+          <Field label="Category" className="" ><Select value={cat} onChange={(ev) => setCat(ev.target.value)} options={meta.documentCategories || ['Other']} /></Field>
           <div className="grow" style={{ minWidth: 220 }}>
             <FileDrop onFiles={upload} accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt">
               <div className="row" style={{ justifyContent: 'center', gap: 8 }}><Upload size={18} className="blue" /><b>{busy ? 'Uploading…' : 'Drop files or click to upload'}</b><span className="small muted">PDF, images, Office · 10 MB max</span></div>

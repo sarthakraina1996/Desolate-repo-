@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './lib/api.js';
 import { setTimeZone } from './lib/format.js';
+import { clearWorkday } from './lib/workday.js';
 
 const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -58,8 +59,10 @@ export function AppProvider({ children }) {
     } catch { /* storage unavailable */ }
   }, []);
 
-  const logout = useCallback(async () => {
-    try { await api.post('/auth/logout'); } catch { /* ignore */ }
+  // pause: stop the work clock; the next sign-in asks the reason for the gap.
+  const logout = useCallback(async ({ pause = false } = {}) => {
+    try { await api.post('/auth/logout', { pause }); } catch { /* ignore */ }
+    clearWorkday();
     setUser(null);
     setMeta(null);
   }, []);

@@ -1,5 +1,6 @@
 import { createSession, destroySession, verifyPassword, hashPassword, checkPasswordStrength, loginThrottle } from '../auth.js';
-import { getSettings, str, fail, audit } from '../core.js';
+import { getSettings, str, fail, audit, today } from '../core.js';
+import { endSession } from '../services/workday.js';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../seed.js';
 import { aiEnabled } from '../services/ai.js';
 
@@ -28,9 +29,12 @@ export default function authRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // pause: true stops the work clock; the next sign-in asks why the employee was away.
   r.post('/auth/logout', (req, res) => {
+    let paused = null;
+    if (req.user?.employeeId && req.body?.pause) paused = endSession(db, { employeeId: req.user.employeeId, date: today(db), by: 'signout', userId: req.user.id });
     destroySession(db, req, res);
-    res.json({ ok: true });
+    res.json({ ok: true, paused: Boolean(paused) });
   });
 
   r.get('/auth/me', (req, res) => {

@@ -19,6 +19,8 @@ const Resignation = lazy(() => import('./pages/Resignation.jsx'));
 const Reports = lazy(() => import('./pages/Reports.jsx'));
 const SettingsPage = lazy(() => import('./pages/Settings.jsx'));
 const Print = lazy(() => import('./pages/Print.jsx'));
+const Documents = lazy(() => import('./pages/Documents.jsx'));
+const HolidayCalendar = lazy(() => import('./pages/HolidayCalendar.jsx'));
 
 function Guard({ roles, children }) {
   const { user } = useApp();
@@ -45,7 +47,9 @@ export default function App() {
                 <Route path="/screener" element={<Guard roles={HR}><Screener /></Guard>} />
                 <Route path="/employees" element={<Employees />} />
                 <Route path="/employees/:id" element={<Employees />} />
+                <Route path="/documents" element={<Documents />} />
                 <Route path="/leave" element={<Leave />} />
+                <Route path="/calendar" element={<HolidayCalendar />} />
                 <Route path="/payroll" element={<Guard roles={HR}><Payroll /></Guard>} />
                 <Route path="/performance" element={<Performance />} />
                 <Route path="/attendance" element={<Attendance />} />

@@ -107,6 +107,35 @@ CREATE TABLE IF NOT EXISTS attendance (
 );
 CREATE INDEX IF NOT EXISTS idx_att_date ON attendance(date);
 
+-- A day can have several work sessions (check in, step out, check in again).
+-- gap_reason/gap_note explain the time away before the session started.
+CREATE TABLE IF NOT EXISTS work_sessions (
+  id INTEGER PRIMARY KEY,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  start_at TEXT NOT NULL, end_at TEXT,
+  mode TEXT NOT NULL DEFAULT 'office',
+  ended_by TEXT,
+  gap_reason TEXT, gap_note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ws_emp_date ON work_sessions(employee_id, date);
+
+-- Days worked short of the required hours, explained by the employee and
+-- approved or rejected by their reporting manager or an administrator.
+CREATE TABLE IF NOT EXISTS hour_shortfalls (
+  id INTEGER PRIMARY KEY,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  worked_minutes INTEGER NOT NULL,
+  required_minutes INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Awaiting explanation',
+  reason TEXT, explained_at TEXT,
+  decided_by INTEGER REFERENCES users(id), decided_at TEXT, decision_note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (employee_id, date)
+);
+CREATE INDEX IF NOT EXISTS idx_short_status ON hour_shortfalls(status);
+
 CREATE TABLE IF NOT EXISTS policies (
   id INTEGER PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'General',
   version TEXT NOT NULL DEFAULT '1.0', summary TEXT, content TEXT,

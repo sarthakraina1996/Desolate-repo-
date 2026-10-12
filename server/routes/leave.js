@@ -3,7 +3,7 @@ import {
   notifyUsers, hrUserIds, managerUserId, userIdForEmployee, audit, getSettings,
 } from '../core.js';
 import * as D from '../lib/dates.js';
-import { leaveDaysByYear } from '../lib/leave.js';
+import { leaveDaysByYear, isWorkingDay } from '../lib/leave.js';
 import { balances, leaveTypesFor } from '../services/leave.js';
 import { calendarCtx } from '../services/calendar.js';
 
@@ -224,6 +224,35 @@ export default function leaveRoutes(r, { db }) {
     const year = Number(req.query.year) || D.yearOf(today(db));
     res.json({ items: db.all('SELECT * FROM holidays WHERE date BETWEEN ? AND ? ORDER BY date', `${year}-01-01`, `${year}-12-31`) });
   });
+  // Year view for the holiday calendar: holidays, weekly offs and the
+  // signed-in employee's own leave (approved and pending), day by day.
+  r.get('/holidays/calendar', (req, res) => {
+    const T = today(db);
+    const year = Number(req.query.year) || D.yearOf(T);
+    if (year < 2000 || year > 2100) fail(400, 'Choose a year between 2000 and 2100');
+    const from = `${year}-01-01`;
+    const to = `${year}-12-31`;
+    const settings = getSettings(db);
+    const ctx = calendarCtx(db, settings);
+    const myLeave = [];
+    if (req.user.employeeId) {
+      const rows = db.all(`SELECT r.from_date, r.to_date, r.half_day, r.status, t.name, t.code, t.color, t.calendar_days FROM leave_requests r JOIN leave_types t ON t.id = r.leave_type_id
+        WHERE r.employee_id = ? AND r.status IN ('Approved','Pending') AND r.from_date <= ? AND r.to_date >= ?`, req.user.employeeId, to, from);
+      for (const r of rows) {
+        for (const d of D.eachDay(r.from_date < from ? from : r.from_date, r.to_date > to ? to : r.to_date)) {
+          if (!r.calendar_days && !isWorkingDay(d, ctx)) continue;
+          myLeave.push({ date: d, name: r.name, code: r.code, color: r.color, status: r.status, half: Boolean(r.half_day) });
+        }
+      }
+    }
+    res.json({
+      year, today: T, weeklyOffs: settings.weeklyOffs,
+      holidays: db.all('SELECT * FROM holidays WHERE date BETWEEN ? AND ? ORDER BY date', from, to),
+      years: db.all("SELECT DISTINCT substr(date, 1, 4) AS y FROM holidays ORDER BY y").map((x) => Number(x.y)),
+      myLeave,
+    });
+  });
+
   r.post('/holidays', (req, res) => {
     requireHR(req);
     const hid = db.insert('holidays', {

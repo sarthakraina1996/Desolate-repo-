@@ -127,9 +127,10 @@ function makeUpload(uploads) {
 
 export function createDemoServer() {
   const db = openDb(':memory:');
-  seedDemo(db);
   const uploads = '/data/uploads';
-  const ctx = { db, uploads, upload: makeUpload(uploads), here: '/server' };
+  const saveFile = (kind, name, bytes) => fs.writeFileSync(path.join(uploads, kind, path.basename(name)), bytes);
+  seedDemo(db, { saveFile });
+  const ctx = { db, uploads, upload: makeUpload(uploads), here: '/server', saveFile };
 
   const pub = new Router();
   authRoutes(pub, ctx);

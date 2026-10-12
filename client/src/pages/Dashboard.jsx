@@ -8,6 +8,7 @@ import { fmtShort, fmtTime, greeting, fmtMonth, fmtDate } from '../lib/format.js
 import { Card, Kpi, Person, Button, Badge, Empty, Loading, ErrorBox, Seg, Modal, Field, Input, Textarea, Select, DateBox, Menu, useConfirm } from '../components/ui.jsx';
 import { Donut, Legend, Funnel, PipelineDots, Bars, HBars, Ring, STATUS } from '../components/charts.jsx';
 import { BrandBanner } from '../components/Layout.jsx';
+import { AttentionBanner } from '../components/WorkClock.jsx';
 
 const NOTICE_ICON = { health: HeartPulse, policy: FileText, award: Trophy, event: Megaphone, general: Megaphone };
 const NOTICE_TONE = { health: 'var(--red)', policy: 'var(--blue)', award: 'var(--green)', event: 'var(--purple)', general: 'var(--amber)' };
@@ -94,6 +95,7 @@ export default function Dashboard() {
         </div>
         <BrandBanner />
       </div>
+      <AttentionBanner />
 
       <div className="kpis">
         <Kpi icon={Users} tone="blue" label={data.scope === 'team' ? 'Team Members' : 'Total Employees'} value={k.headcount} delta={k.headcountChange} onClick={() => nav('/employees')} />

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   today, isHR, canSeeEmployee, assertCanSee, requireHR, fullName, str, num, date, oneOf, email, id, strList,
-  fail, notFound, getSettings, audit, notifyUsers, reportIds, sendCsv,
+  fail, notFound, getSettings, audit, notifyUsers, reportIds, sendCsv, DOC_CATEGORIES,
 } from '../core.js';
 import { json } from '../db.js';
 import { hashPassword, tempPassword } from '../auth.js';
@@ -314,7 +314,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     const eid = id(req.params.id);
     if (!isHR(req.user) && req.user.employeeId !== eid) fail(403, 'You can only upload your own documents');
     if (!req.file) fail(400, 'Choose a file to upload');
-    const category = oneOf(req.body.category || 'Other', ['ID Proof', 'Address Proof', 'Education', 'Experience', 'Offer Letter', 'Payslip', 'Other'], { name: 'Category' });
+    const category = oneOf(req.body.category || 'Other', DOC_CATEGORIES, { name: 'Category' });
     const did = db.insert('documents', { employee_id: eid, name: str(req.body.name, { max: 120 }) || req.file.originalname.slice(0, 120), category, file: req.file.filename, mime: req.file.mimetype, size: req.file.size, uploaded_by: req.user.id });
     res.json({ id: did });
   });
@@ -325,6 +325,77 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     if (!fs.existsSync(file)) notFound('File');
     res.download(file, doc.name.includes('.') ? doc.name : `${doc.name}${path.extname(doc.file)}`);
   });
+  // Every employee's documents (HR) or your own (everyone else).
+  r.get('/documents', (req, res) => {
+    const where = [];
+    const params = [];
+    if (!isHR(req.user)) {
+      where.push('d.employee_id = ?');
+      params.push(req.user.employeeId || 0);
+    } else if (req.query.employee) {
+      where.push('d.employee_id = ?');
+      params.push(id(req.query.employee));
+    }
+    if (req.query.category) { where.push('d.category = ?'); params.push(String(req.query.category)); }
+    if (req.query.vertical) { where.push('e.vertical_id = ?'); params.push(Number(req.query.vertical)); }
+    if (req.query.department) { where.push('e.department_id = ?'); params.push(Number(req.query.department)); }
+    if (req.query.search) {
+      const like = `%${String(req.query.search).replace(/[%_]/g, '')}%`;
+      where.push("(d.name LIKE ? OR e.first_name || ' ' || e.last_name LIKE ? OR e.code LIKE ?)");
+      params.push(like, like, like);
+    }
+    const sql = `FROM documents d JOIN employees e ON e.id = d.employee_id LEFT JOIN departments dp ON dp.id = e.department_id
+      LEFT JOIN users u ON u.id = d.uploaded_by LEFT JOIN employees ue ON ue.id = u.employee_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`;
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const items = db.all(`SELECT d.id, d.name, d.category, d.mime, d.size, d.uploaded_at, d.employee_id, e.first_name, e.last_name, e.code, e.designation, e.photo IS NOT NULL AS has_photo,
+      dp.name AS department, ue.first_name AS up_first, ue.last_name AS up_last ${sql} ORDER BY d.uploaded_at DESC, d.id DESC LIMIT ? OFFSET ?`, ...params, limit, (page - 1) * limit)
+      .map((x) => ({ ...x, employee: fullName(x), uploadedBy: x.up_first ? fullName({ first_name: x.up_first, last_name: x.up_last }) : null }));
+    res.json({ items, total: db.value(`SELECT COUNT(*) ${sql}`, ...params), page, limit });
+  });
+
+  // Required documents per employee: what is on file and what is missing.
+  r.get('/documents/checklist', (req, res) => {
+    const required = getSettings(db).requiredDocuments || [];
+    const where = ["e.status != 'Exited'"];
+    const params = [];
+    if (!isHR(req.user)) { where.push('e.id = ?'); params.push(req.user.employeeId || 0); }
+    if (req.query.vertical) { where.push('e.vertical_id = ?'); params.push(Number(req.query.vertical)); }
+    if (req.query.department) { where.push('e.department_id = ?'); params.push(Number(req.query.department)); }
+    if (req.query.search) {
+      const like = `%${String(req.query.search).replace(/[%_]/g, '')}%`;
+      where.push("(e.first_name || ' ' || e.last_name LIKE ? OR e.code LIKE ?)");
+      params.push(like, like);
+    }
+    const emps = db.all(`SELECT e.id, e.first_name, e.last_name, e.code, e.designation, e.join_date, e.photo IS NOT NULL AS has_photo, d.name AS department
+      FROM employees e LEFT JOIN departments d ON d.id = e.department_id WHERE ${where.join(' AND ')} ORDER BY e.first_name, e.last_name`, ...params);
+    const docs = new Map();
+    if (emps.length) {
+      for (const d of db.all(`SELECT id, employee_id, category, name FROM documents WHERE employee_id IN (${emps.map(() => '?').join(',')}) ORDER BY uploaded_at DESC`, ...emps.map((e) => e.id))) {
+        const m = docs.get(d.employee_id) || {};
+        if (!m[d.category]) m[d.category] = { id: d.id, name: d.name };
+        docs.set(d.employee_id, m);
+      }
+    }
+    const rows = emps.map((e) => {
+      const have = docs.get(e.id) || {};
+      const missing = required.filter((c) => !have[c]);
+      return { id: e.id, name: fullName(e), code: e.code, designation: e.designation, department: e.department, has_photo: Boolean(e.has_photo), join_date: e.join_date, docs: have, missing };
+    });
+    const onlyMissing = req.query.missing === '1';
+    res.json({
+      required,
+      rows: onlyMissing ? rows.filter((r) => r.missing.length) : rows,
+      summary: {
+        employees: rows.length,
+        complete: rows.filter((r) => !r.missing.length).length,
+        missingDocs: rows.reduce((t, r) => t + r.missing.length, 0),
+        byCategory: required.map((c) => ({ category: c, missing: rows.filter((r) => !r.docs[c]).length })),
+        totalDocs: db.value(`SELECT COUNT(*) FROM documents d JOIN employees e ON e.id = d.employee_id WHERE ${where.join(' AND ')}`, ...params),
+      },
+    });
+  });
+
   r.delete('/documents/:id', (req, res) => {
     requireHR(req);
     const doc = db.get('SELECT * FROM documents WHERE id = ?', id(req.params.id)) || notFound('Document');

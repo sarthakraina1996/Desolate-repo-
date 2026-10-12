@@ -1,29 +1,34 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { UserCheck, House, Clock, UserX, CalendarX, AlarmClock, CircleDashed, Download, LogIn, LogOut, CheckCheck } from 'lucide-react';
+import { UserCheck, House, Clock, UserX, CalendarX, AlarmClock, CircleDashed, Download, CheckCheck } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { useApi, useAction, useClickOutside } from '../lib/hooks.js';
 import { api, download } from '../lib/api.js';
 import { fmtTime, fmtDay, addMonths, fmtMonth, dowOf } from '../lib/format.js';
-import { Card, Kpi, Badge, Button, Tabs, Empty, Loading, ErrorBox, Person, Select, Input } from '../components/ui.jsx';
+import { Card, Kpi, Badge, Button, Tabs, Empty, Loading, ErrorBox, Person, Select, Input, Modal, Field, Textarea, Progress, Seg } from '../components/ui.jsx';
 import { VerticalFilterNote } from './Dashboard.jsx';
+import { ClockActions, SessionList, ExplainModal } from '../components/WorkClock.jsx';
+import { useWorkday, useNow, workedNow, clockText, useOnWorkdayChange, refreshWorkday } from '../lib/workday.js';
 
 const LABEL = { P: 'Present', WFH: 'WFH', HD: 'Half day', A: 'Absent', L: 'On leave', H: 'Holiday', WO: 'Weekly off', U: 'Not marked', F: 'Not marked yet', NA: '—' };
 const TONE = { P: 'green', WFH: 'amber', HD: 'amber', A: 'red', L: 'purple', H: 'blue', WO: 'gray', U: 'gray', F: 'gray' };
 
 export default function Attendance() {
   const [sp, setSp] = useSearchParams();
-  const { isHR, isManager } = useApp();
+  const { isHR, isManager, isAdmin } = useApp();
+  const s = useWorkday();
   const team = isHR || isManager;
   const tab = sp.get('tab') || (team ? 'today' : 'month');
+  const shortCount = (s?.toExplain || 0) + (s?.toApprove || 0);
   return (
     <div>
       <div className="page-head">
         <div><h1>Attendance</h1><div className="sub">Check-ins, work from home and the monthly register that feeds payroll. <VerticalFilterNote /></div></div>
       </div>
-      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ value: 'today', label: 'Today' }, { value: 'month', label: team ? 'Monthly Register' : 'My Attendance' }]} />
+      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ value: 'today', label: 'Today' }, { value: 'month', label: team ? 'Monthly Register' : 'My Attendance' }, { value: 'short', label: shortCount ? `Short hours (${shortCount})` : 'Short hours' }]} />
       {tab === 'today' && <Today />}
       {tab === 'month' && <Register />}
+      {tab === 'short' && <ShortHours team={team || isAdmin} />}
     </div>
   );
 }
@@ -33,6 +38,9 @@ function Today() {
   const { data, error, reload } = useApi(`/attendance/today${vertical ? `?vertical=${vertical}` : ''}`);
   const [run, busy] = useAction(toast);
   const [filter, setFilter] = useState('');
+  const clock = useWorkday();
+  const now = useNow(1000);
+  useOnWorkdayChange(reload);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
   const me = data.me;
@@ -46,15 +54,15 @@ function Today() {
         <div className="card mb-16 row between wrap" style={{ gap: 14 }}>
           <div>
             <div className="small muted">{fmtDay(data.today)} · Late after {fmtTime(me.lateAfter)}</div>
-            <div className="b7" style={{ fontSize: 20, marginTop: 4 }}>
+            <div className="b7" style={{ fontSize: 20, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
               {me.record?.check_in ? <>Checked in at {fmtTime(me.record.check_in)}{me.record.check_out && <> · out at {fmtTime(me.record.check_out)}</>} {me.late && <Badge tone="amber">Late</Badge>}</> : ['H', 'WO'].includes(me.status.code) ? LABEL[me.status.code] : me.status.code === 'L' ? `On ${me.status.leave?.name}` : 'You have not checked in'}
             </div>
+            {clock?.workday?.sessions.length > 0 && <>
+              <div className="small muted mt-8">{clock.workday.openSince ? 'Working' : 'Paused'} · {clockText(workedNow(clock, now), false)} of {clockText(clock.workday.requiredMinutes, false)} today</div>
+              <SessionList w={clock.workday} />
+            </>}
           </div>
-          <div className="row">
-            {!me.record?.check_in && <><Button variant="primary" icon={LogIn} loading={busy} onClick={async () => { if (await run(() => api.post('/attendance/check-in', { mode: 'office' }), 'Checked in')) reload(); }}>Check in</Button>
-              <Button icon={House} loading={busy} onClick={async () => { if (await run(() => api.post('/attendance/check-in', { mode: 'wfh' }), 'Checked in from home')) reload(); }}>Work from home</Button></>}
-            {me.record?.check_in && !me.record.check_out && <Button icon={LogOut} loading={busy} onClick={async () => { if (await run(() => api.post('/attendance/check-out'), (r) => `Checked out after ${r.hours} hours`)) reload(); }}>Check out</Button>}
-          </div>
+          <ClockActions />
         </div>
       )}
       {s && (
@@ -173,6 +181,105 @@ function Register() {
         </div>
       )}
       <div className="small muted mt-12"><Clock size={13} style={{ verticalAlign: -2 }} /> LOP = loss-of-pay days used by payroll (absent, half days, unpaid leave).</div>
+    </div>
+  );
+}
+
+// ---------- short hours ----------
+const SHORT_TONE = { 'Awaiting explanation': 'amber', 'Pending approval': 'blue', Approved: 'green', Rejected: 'red' };
+
+function Worked({ x }) {
+  return (
+    <div style={{ minWidth: 120 }}>
+      <div className="small b6" style={{ fontVariantNumeric: 'tabular-nums' }}>{clockText(x.worked_minutes, false)} <span className="muted" style={{ fontWeight: 400 }}>of {clockText(x.required_minutes, false)}</span></div>
+      <Progress value={(x.worked_minutes / x.required_minutes) * 100} color="var(--amber)" height={5} />
+    </div>
+  );
+}
+
+const awaySummary = (x) => x.gaps.length ? x.gaps.map((g) => `${clockText(g.minutes, false)}${g.reason ? ` ${g.reason.toLowerCase()}` : ''}`).join(', ') : x.sessions.length === 1 && x.sessions[0].end ? `Left at ${fmtTime(x.sessions[0].end)}` : '—';
+
+function DecideModal({ item, action, onClose, onDone }) {
+  const { toast } = useApp();
+  const [note, setNote] = useState('');
+  const [run, busy] = useAction(toast);
+  const approve = action === 'approve';
+  return (
+    <Modal title={`${approve ? 'Approve' : 'Reject'} short hours`} size="narrow" onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant={approve ? 'primary' : 'solid-red'} loading={busy} disabled={!approve && !note.trim()} onClick={async () => { if (await run(() => api.post(`/attendance/short-hours/${item.id}/decide`, { action, note }), approve ? 'Approved. The day counts in full.' : 'Rejected. The day is marked as a half day.')) { onDone(); onClose(); } }}>{approve ? 'Approve' : 'Reject'}</Button></>}>
+      <div className="col" style={{ gap: 12 }}>
+        <div><b>{item.name}</b> · {fmtDay(item.date)} · worked {clockText(item.worked_minutes, false)} of {clockText(item.required_minutes, false)}</div>
+        <SessionList w={{ sessions: item.sessions, gaps: item.gaps }} />
+        <div className="alert info"><span>{item.reason ? <>“{item.reason}”</> : 'No explanation yet.'}</span></div>
+        <div className="small muted">{approve ? 'The day will count as a full working day.' : 'The day will be marked as a half day (half a day of loss of pay).'}</div>
+        <Field label={approve ? 'Note (optional)' : 'Reason for rejecting'}><Textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} /></Field>
+      </div>
+    </Modal>
+  );
+}
+
+function ShortHours({ team }) {
+  const { user, isHR, isAdmin } = useApp();
+  const [status, setStatus] = useState('open');
+  const mine = useApi(user.employeeId ? '/attendance/short-hours?view=mine' : null);
+  const others = useApi(team ? `/attendance/short-hours?view=team${status === 'open' ? '&status=open' : ''}` : null);
+  const [explain, setExplain] = useState(null);
+  const [decide, setDecide] = useState(null);
+  const reloadAll = () => { mine.reload(); others.reload(); refreshWorkday().catch(() => {}); };
+  const required = mine.data?.required || others.data?.required || '8h 00m';
+  const readOnly = isHR && !isAdmin;
+  return (
+    <div>
+      <div className="alert info mb-16"><Clock size={16} /><span>A working day with less than <b>{required}</b> is flagged the next morning. The employee explains why; their reporting manager or the CEO approves it (the day counts in full) or rejects it (the day becomes a half day).</span></div>
+      {user.employeeId && (
+        <Card title="My short days" className="mb-16" flush>
+          {!mine.data ? <Loading /> : !mine.data.items.length ? <Empty icon={CheckCheck} text="No short days. Every working day met the required hours." /> : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Date</th><th>Worked</th><th className="hide-sm">Time away</th><th>Reason</th><th>Status</th><th /></tr></thead>
+                <tbody>{mine.data.items.map((x) => (
+                  <tr key={x.id}>
+                    <td className="b6" style={{ whiteSpace: 'nowrap' }}>{fmtDay(x.date)}</td>
+                    <td><Worked x={x} /></td>
+                    <td className="hide-sm small">{awaySummary(x)}</td>
+                    <td className="small" style={{ maxWidth: 320 }}>{x.reason || <span className="muted">Not explained yet</span>}{x.decision_note && <div className="xs muted mt-8">{x.decidedByName}: {x.decision_note}</div>}</td>
+                    <td><Badge tone={SHORT_TONE[x.status]}>{x.status}</Badge>{x.decidedByName && !x.decision_note && <div className="xs muted mt-8">by {x.decidedByName}</div>}</td>
+                    <td className="right">{x.canExplain && <Button size="sm" variant={x.status === 'Awaiting explanation' ? 'primary' : ''} onClick={() => setExplain(x)}>{x.reason ? 'Edit reason' : 'Explain'}</Button>}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+      {team && (
+        <Card title={readOnly ? 'Short days across the company' : isAdmin ? 'Short days to approve' : 'Your team’s short days'} sub={readOnly ? 'Reporting managers and the CEO approve these.' : undefined} flush
+          action={<Seg options={[{ value: 'open', label: 'Open' }, { value: 'all', label: 'All' }]} value={status} onChange={setStatus} />}>
+          {!others.data ? <Loading /> : !others.data.items.length ? <Empty icon={CheckCheck} text={status === 'open' ? 'Nothing waiting. All short days are settled.' : 'No short days yet.'} /> : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Employee</th><th>Date</th><th>Worked</th><th className="hide-sm">Time away</th><th>Reason</th><th>Status</th><th /></tr></thead>
+                <tbody>{others.data.items.map((x) => (
+                  <tr key={x.id}>
+                    <td><Person name={x.name} sub={x.designation} id={x.employee_id} hasPhoto={x.has_photo} size={34} /></td>
+                    <td className="b6" style={{ whiteSpace: 'nowrap' }}>{fmtDay(x.date)}</td>
+                    <td><Worked x={x} /></td>
+                    <td className="hide-sm small">{awaySummary(x)}</td>
+                    <td className="small" style={{ maxWidth: 300 }}>{x.reason || <span className="muted">Waiting for the employee</span>}</td>
+                    <td><Badge tone={SHORT_TONE[x.status]}>{x.status}</Badge>{x.decidedByName && <div className="xs muted mt-8">by {x.decidedByName}</div>}</td>
+                    <td className="right" style={{ whiteSpace: 'nowrap' }}>{x.canDecide && <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                      <Button size="sm" variant="primary" onClick={() => setDecide({ item: x, action: 'approve' })}>Approve</Button>
+                      <Button size="sm" onClick={() => setDecide({ item: x, action: 'reject' })}>Reject</Button>
+                    </div>}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+      {explain && <ExplainModal item={explain} onClose={() => setExplain(null)} onDone={reloadAll} />}
+      {decide && <DecideModal item={decide.item} action={decide.action} onClose={() => setDecide(null)} onDone={reloadAll} />}
     </div>
   );
 }

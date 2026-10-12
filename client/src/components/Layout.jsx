@@ -2,13 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   House, UserPlus, Sparkles, Users, CalendarDays, CreditCard, ChartColumnIncreasing, Clock, ShieldCheck, FileText, ChartNoAxesColumn,
-  Settings, Bell, Search, ChevronDown, Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck,
+  Settings, Bell, Search, ChevronDown, Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, FolderOpen, CalendarRange,
 } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
 import { ago } from '../lib/format.js';
 import { useClickOutside, useDebounced } from '../lib/hooks.js';
 import { Avatar, Button, Field, Input, Modal } from './ui.jsx';
+import WorkClock, { SignInPrompts, SignOutModal } from './WorkClock.jsx';
+import { useWorkday } from '../lib/workday.js';
 
 export function Logo({ size = '' }) {
   return (
@@ -62,7 +64,9 @@ const NAV = [
   { to: '/hiring', label: 'Hiring', icon: UserPlus, roles: ['admin', 'hr', 'manager'] },
   { to: '/screener', label: 'Resume Screener AI', icon: Sparkles, roles: ['admin', 'hr'] },
   { to: '/employees', label: 'Employees', icon: Users },
+  { to: '/documents', label: 'Documents', icon: FolderOpen },
   { to: '/leave', label: 'Leave & Policies', icon: CalendarDays },
+  { to: '/calendar', label: 'Holiday Calendar', icon: CalendarRange },
   { to: '/payroll', label: 'Payroll', icon: CreditCard, roles: ['admin', 'hr'] },
   { to: '/performance', label: 'Performance', icon: ChartColumnIncreasing },
   { to: '/attendance', label: 'Attendance', icon: Clock },
@@ -222,8 +226,15 @@ export function ChangePassword({ onClose, forced }) {
 
 function UserMenu() {
   const { user, logout } = useApp();
+  const workday = useWorkday();
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const signOut = () => {
+    setOpen(false);
+    if (workday?.workday?.openSince) setLeaving(true);
+    else logout();
+  };
   const nav = useNavigate();
   const ref = useClickOutside(useCallback(() => setOpen(false), []));
   return (
@@ -239,10 +250,11 @@ function UserMenu() {
           <div className="item" onClick={() => { setOpen(false); nav('/my'); }}><LayoutGrid size={16} />My Space</div>
           {user.employeeId && <div className="item" onClick={() => { setOpen(false); nav(`/employees/${user.employeeId}`); }}><User size={16} />My profile</div>}
           <div className="item" onClick={() => { setOpen(false); setPw(true); }}><KeyRound size={16} />Change password</div>
-          <div className="item" style={{ color: 'var(--red)' }} onClick={logout}><LogOut size={16} />Sign out</div>
+          <div className="item" style={{ color: 'var(--red)' }} onClick={signOut}><LogOut size={16} />Sign out</div>
         </div>
       )}
       {pw && <ChangePassword onClose={() => setPw(false)} />}
+      {leaving && <SignOutModal onClose={() => setLeaving(false)} />}
     </div>
   );
 }
@@ -264,12 +276,14 @@ export default function Layout({ children }) {
           )}
           <div className="spacer" />
           <GlobalSearch />
+          <WorkClock />
           <Notifications />
           <UserMenu />
         </header>
         <main className="content">{children}</main>
       </div>
       {user.mustChangePassword && <ChangePassword forced onClose={() => {}} />}
+      <SignInPrompts />
     </div>
   );
 }

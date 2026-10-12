@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { LogIn, LogOut, House, CalendarCheck, FileText, User, Download, Plus, Cake, PartyPopper, CircleAlert, CircleCheck, ArrowRight, Receipt, Wallet, Trash2 } from 'lucide-react';
+import { CalendarCheck, FileText, User, Download, Plus, Cake, PartyPopper, CircleAlert, CircleCheck, ArrowRight, Receipt, Wallet, Trash2 } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { useApi, useAction } from '../lib/hooks.js';
 import { api, download } from '../lib/api.js';
@@ -8,6 +8,8 @@ import { greeting, fmtDate, fmtShort, fmtTime, inr, fmtMonth, fmtDay } from '../
 import { Card, Badge, Button, Empty, Loading, ErrorBox, Progress, Tabs, Person, Avatar, Modal, SimpleMarkdown, useConfirm } from '../components/ui.jsx';
 import { ApplyLeaveModal, RaiseRequestModal, ClaimModal } from '../components/forms.jsx';
 import { NoticeBoard } from './Dashboard.jsx';
+import { ClockActions, AttentionBanner } from '../components/WorkClock.jsx';
+import { useWorkday, useNow, workedNow, clockText, useOnWorkdayChange } from '../lib/workday.js';
 import { EmployeeForm, Onboarding } from './Employees.jsx';
 
 export default function MySpace() {
@@ -27,29 +29,28 @@ export default function MySpace() {
   );
 }
 
-function CheckIn({ data, reload }) {
-  const { toast } = useApp();
-  const [run, busy] = useAction(toast);
-  const rec = data.attendance.today;
+function CheckIn({ data }) {
+  const s = useWorkday();
+  const now = useNow(1000);
   const st = data.attendance.todayStatus;
   const off = st && ['H', 'WO', 'L'].includes(st.code);
+  const w = s?.workday;
+  const running = Boolean(w?.openSince);
+  const worked = workedNow(s, now);
+  const first = w?.sessions[0];
   return (
     <div className="card" style={{ background: 'linear-gradient(135deg, #1f2b7b, #3346b8)', color: '#fff', border: 0 }}>
       <div className="row between wrap" style={{ gap: 14 }}>
         <div>
           <div style={{ opacity: 0.8, fontSize: 13 }}>{fmtDay(data.today)}</div>
-          <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
-            {rec?.check_in ? (rec.check_out ? 'Day complete' : `Checked in at ${fmtTime(rec.check_in)}`) : off ? (st.code === 'L' ? `On ${st.leave?.name || 'leave'} today` : st.code === 'H' ? 'Holiday today' : 'Weekly off today') : 'Not checked in yet'}
+          <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+            {running ? `Working · ${clockText(worked)}` : w?.sessions.length ? `Paused · ${clockText(worked, false)} worked` : off ? (st.code === 'L' ? `On ${st.leave?.name || 'leave'} today` : st.code === 'H' ? 'Holiday today' : 'Weekly off today') : 'Not checked in yet'}
           </div>
-          {rec?.check_out && <div style={{ opacity: 0.85, marginTop: 4 }}>{fmtTime(rec.check_in)} – {fmtTime(rec.check_out)} · {rec.status === 'WFH' ? 'Work from home' : rec.status === 'HD' ? 'Half day' : 'Office'}</div>}
+          {first && <div style={{ opacity: 0.85, marginTop: 4 }}>
+            Checked in at {fmtTime(first.start)}{w.sessions.length > 1 ? ` · ${w.sessions.length} sessions` : ''}{!running && w.awaySince ? ` · away since ${fmtTime(w.awaySince)}` : ''}{first.mode === 'wfh' ? ' · Work from home' : ''}
+          </div>}
         </div>
-        <div className="row">
-          {!rec?.check_in && <>
-            <Button variant="primary" icon={LogIn} loading={busy} onClick={async () => { if (await run(() => api.post('/attendance/check-in', { mode: 'office' }), 'Checked in. Have a great day!')) reload(); }}>Check in</Button>
-            <Button icon={House} loading={busy} onClick={async () => { if (await run(() => api.post('/attendance/check-in', { mode: 'wfh' }), 'Checked in (work from home)')) reload(); }}>WFH</Button>
-          </>}
-          {rec?.check_in && !rec.check_out && <Button icon={LogOut} loading={busy} onClick={async () => { if (await run(() => api.post('/attendance/check-out'), (r) => `Checked out · ${r.hours} hours`)) reload(); }}>Check out</Button>}
-        </div>
+        <ClockActions light />
       </div>
       <div className="row wrap mt-16" style={{ gap: 18, fontSize: 13, opacity: 0.9 }}>
         <span>This month:</span>
@@ -68,14 +69,16 @@ function Overview() {
   const [modal, setModal] = useState(null);
   const [policy, setPolicy] = useState(null);
   const [run] = useAction(toast);
+  useOnWorkdayChange(reload);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
   if (!data.employee) return <Card><Empty text="Your login is not linked to an employee record. HR can link it in Settings → Users." /></Card>;
   const e = data.employee;
   return (
     <div>
+      <AttentionBanner />
       <div className="grid">
-        <div className="span-8"><CheckIn data={data} reload={reload} /></div>
+        <div className="span-8"><CheckIn data={data} /></div>
         <Card className="span-4" title="Quick actions">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 0 }}>
             <Button icon={CalendarCheck} onClick={() => setModal('leave')}>Apply leave</Button>

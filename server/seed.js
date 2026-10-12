@@ -1,13 +1,15 @@
 // Demo data for BrainADZ HRMS. Deterministic (seeded PRNG) but anchored to
 // "today", so dashboards always look current. All people are fictional.
 import { hashPassword } from './auth.js';
-import { setSetting, DEFAULT_SETTINGS } from './core.js';
+import { setSetting, DEFAULT_SETTINGS, fullName } from './core.js';
 import * as D from './lib/dates.js';
 import { estimateMonthlyTds } from './lib/payroll.js';
 import { countLeaveDays } from './lib/leave.js';
 import { calendarCtx } from './services/calendar.js';
 import { processRun } from './services/payroll.js';
 import { heuristicScreen } from './lib/screener.js';
+import { syncAttendance, generateShortfalls, approverUserIds, fmtMinutes, dayLabel } from './services/workday.js';
+import { textPdf } from './lib/pdf.js';
 
 export const DEMO_PASSWORD = 'Brainadz@2026';
 export const DEMO_ACCOUNTS = [
@@ -116,7 +118,7 @@ const BANKS = [['HDFC Bank', 'HDFC'], ['ICICI Bank', 'ICIC'], ['State Bank of In
 const COMPANIES = ['Infosys', 'TCS', 'Wipro', 'Zoho', 'Accenture', 'Ogilvy', 'DDB Mudra', 'Dentsu', 'Wizcraft', 'Percept', 'Publicis', 'Havas', 'Leo Burnett', 'Flipkart', 'Swiggy', 'Razorpay', 'Freshworks', 'PeopleStrong', 'Cvent', 'Mindtree', 'Madison World', 'Encompass Events'];
 const INSTITUTES = ['NIT Trichy', 'Pune University', 'DU', 'Anna University', 'VIT', 'Christ University', 'Mumbai University', 'NIFT Delhi', 'MICA Ahmedabad', 'Symbiosis Pune', 'Manipal University', 'IIT Bombay', 'BITS Pilani', 'Osmania University'];
 
-export function seedDemo(db, { today } = {}) {
+export function seedDemo(db, { today, saveFile = null } = {}) {
   const T = today || D.todayIn('Asia/Kolkata');
   const rand = mulberry32(20261012);
   const pick = (a) => a[Math.floor(rand() * a.length)];
@@ -672,6 +674,100 @@ export function seedDemo(db, { today } = {}) {
     n(users[aarav.id], 'Your Casual Leave request is awaiting approval', '/leave', 0);
     n(users[aarav.id], 'Leave Policy v3.2 needs your acknowledgement', '/leave?tab=policies', 4);
     n(users[byName['Vikram Patel'].id], 'Arjun Nair is on your team calendar this week', '/leave', 1, 1);
+
+    // ---------- employee documents ----------
+    // Sample PDFs for each employee's joining documents. About a quarter of
+    // people are missing one or two, recent joiners more, so the checklist
+    // shows what HR still has to collect. Aarav has not sent his address proof.
+    if (saveFile) {
+      const DEGREES = { Technology: 'B.Tech Degree Certificate', Design: 'B.Des Degree Certificate', Creative: 'BFA Degree Certificate', Finance: 'B.Com Degree Certificate', Sales: 'MBA Degree Certificate', 'Business Development': 'MBA Degree Certificate', Marketing: 'MBA Degree Certificate', HR: 'MBA (HR) Degree Certificate' };
+      const specimen = 'SPECIMEN - sample document for the BrainADZ HRMS demo. Not a real record.';
+      let fileSeq = 0;
+      const addDoc = (e, category, name, heading, lines, by) => {
+        const file = `demo-${String(++fileSeq).padStart(4, '0')}.pdf`;
+        const bytes = textPdf(heading, lines, { footer: specimen });
+        saveFile('documents', file, bytes);
+        const up = D.addDays(e.join_date, int(-6, 6));
+        db.insert('documents', { employee_id: e.id, name, category, file, mime: 'application/pdf', size: bytes.length, uploaded_by: by, uploaded_at: isoAt(up < T ? up : T, '11:30') });
+      };
+      for (const e of all.filter((x) => x.status !== 'Exited')) {
+        const name = `${e.first_name} ${e.last_name}`;
+        const recent = D.diffDays(e.join_date, T) < 60;
+        const skip = new Set();
+        if (e === aarav) skip.add('Address Proof');
+        else if (recent) ['Bank Proof', 'Education', 'Appointment Letter'].filter(() => chance(0.6)).forEach((c) => skip.add(c));
+        else if (chance(0.22)) skip.add(pick(['Address Proof', 'Education', 'Bank Proof', 'PAN Card', 'Appointment Letter']));
+        const by = hrUser;
+        const plan = [
+          ['Aadhaar Card', 'Aadhaar Card', 'Aadhaar - Unique Identification Authority of India', [`Name: ${name}`, `Date of birth: ${e.dob}`, `Aadhaar number: XXXX XXXX ${int(1000, 9999)}`, `Gender: ${e.gender === 'F' ? 'Female' : 'Male'}`]],
+          ['PAN Card', 'PAN Card', 'Income Tax Department - Permanent Account Number', [`Name: ${name.toUpperCase()}`, `PAN: ${e.pan}`, `Date of birth: ${e.dob}`]],
+          ['Address Proof', pick(['Rent Agreement', 'Electricity Bill', 'Passport (address page)']), 'Proof of Address', [`Name: ${name}`, `Address: ${e.address}`]],
+          ['Education', DEGREES[e.d] || 'Graduation Degree Certificate', DEGREES[e.d] || 'Degree Certificate', [`This is to certify that ${name}`, 'has been awarded the degree after completing all requirements.', `Year: ${Number(e.join_date.slice(0, 4)) - int(1, 8)}`]],
+          ...(e.grade !== 'Executive' || chance(0.6) ? [['Experience', 'Relieving Letter - Previous Employer', 'Relieving Letter', [`${name} has been relieved from their duties`, 'with effect from the close of business on the last working day.', 'We wish them the very best.']]] : []),
+          ['Offer Letter', 'Offer Letter', 'BrainADZ - Offer of Employment', [`Dear ${e.first_name},`, `We are pleased to offer you the role of ${e.designation}.`, `Annual CTC: Rs ${Number(e.ctc).toLocaleString('en-IN')}`, `Date of joining: ${e.join_date}`, 'Welcome to BrainADZ - People | Process | Possibilities.']],
+          ['Appointment Letter', 'Appointment Letter', 'BrainADZ - Letter of Appointment', [`Employee: ${name} (${e.code})`, `Designation: ${e.designation}`, `Date of joining: ${e.join_date}`, 'Probation: 6 months. Notice period as per company policy.']],
+          ['Bank Proof', 'Cancelled Cheque', 'Cancelled Cheque', [`Account holder: ${name}`, `Bank: ${e.bank_name}`, `Account: XXXXXXXX${String(e.bank_account).slice(-4)}`, `IFSC: ${e.ifsc}`]],
+        ];
+        for (const [cat, docName, heading, lines] of plan) if (!skip.has(cat)) addDoc(e, cat, docName, heading, lines, by);
+      }
+    }
+
+    // ---------- work sessions and short hours ----------
+    // People who stepped out during the past week: Aarav's client meeting
+    // left him short on the last working day and he has not explained it
+    // yet; other short days are explained, decided, or waiting on a manager.
+    const setSessions = (emp, d, parts, mode = 'office') => {
+      db.run('DELETE FROM work_sessions WHERE employee_id = ? AND date = ?', emp.id, d);
+      parts.forEach(([a, b, reason, note], i) => db.insert('work_sessions', {
+        employee_id: emp.id, date: d, start_at: isoAt(d, a), end_at: isoAt(d, b), mode,
+        ended_by: i < parts.length - 1 ? 'signout' : 'checkout', gap_reason: i ? reason : null, gap_note: i ? note || null : null,
+      }));
+      syncAttendance(db, emp.id, d, null);
+    };
+    const recentDays = (emp, k) => db.all("SELECT date FROM attendance WHERE employee_id = ? AND date < ? AND date >= ? AND status = 'P' ORDER BY date DESC LIMIT ?", emp.id, T, D.addDays(T, -7), k).map((r) => r.date);
+    const explain = (emp, reason, daysAgo = 0) => {
+      const s = db.get("SELECT * FROM hour_shortfalls WHERE employee_id = ? ORDER BY date DESC LIMIT 1", emp.id);
+      if (!s) return;
+      db.update('hour_shortfalls', s.id, { status: 'Pending approval', reason, explained_at: isoAt(D.addDays(T, -daysAgo), '10:15') });
+      for (const uid of approverUserIds(db, emp.id)) n(uid, `${fullName(emp)} explained short hours on ${dayLabel(s.date)} (${fmtMinutes(s.worked_minutes)} of ${fmtMinutes(s.required_minutes)})`, '/attendance?tab=short', daysAgo);
+    };
+    const scripted = [];
+    const [aDay, , aEarlier] = recentDays(aarav, 3);
+    if (aDay) { setSessions(aarav, aDay, [['09:18', '13:02'], ['15:20', '18:05', 'Client meeting', 'Brand review with Raymond at Thane']]); scripted.push(aarav); }
+    if (aEarlier) setSessions(aarav, aEarlier, [['09:25', '13:30'], ['14:10', '18:40', 'Lunch break']]);
+    const vikram = byName['Vikram Patel'];
+    const vReports = current.filter((e) => e.manager_id === vikram.id);
+    const scriptedPlans = [
+      [vReports[0], [['09:40', '12:10'], ['14:45', '17:55', 'Site / field visit', 'Stall measurements at Bombay Exhibition Centre']], 'Went to BEC for the expo stall measurements; travel back took longer than planned.'],
+      [vReports[1], [['09:35', '16:50']], "Left early for my daughter's school annual day. I will cover the time on Friday."],
+      [current.find((e) => e.manager_id === ceo.id), [['08:50', '15:30']], 'Evening flight to Delhi for the Auto Expo pitch; worked on the deck at the airport.'],
+    ];
+    for (const [emp, parts] of scriptedPlans) {
+      const d = emp && recentDays(emp, 2)[1];
+      if (d) { setSessions(emp, d, parts); scripted.push(emp); }
+    }
+    generateShortfalls(db, { today: T, notify: false });
+    for (const [emp, , reason] of scriptedPlans) if (emp && scripted.includes(emp)) explain(emp, reason, 0);
+    const aShort = aDay && db.get('SELECT * FROM hour_shortfalls WHERE employee_id = ? AND date = ?', aarav.id, aDay);
+    if (aShort) n(users[aarav.id], `You worked ${fmtMinutes(aShort.worked_minutes)} of ${fmtMinutes(aShort.required_minutes)} on ${dayLabel(aDay)}. Please tell your manager why.`, '/attendance?tab=short', 0);
+    const lastWorking = db.value('SELECT MAX(date) FROM hour_shortfalls');
+    const reasons = ['Doctor appointment in the evening.', 'Stuck in traffic after heavy rain; worked from home in the evening.', 'Bank work for a home loan; will make up the hours this week.', 'Client call ran from the car on the way back from a site visit.', 'Felt unwell and left early.', 'Family function in the evening.'];
+    const scriptedIds = new Set(scripted.map((e) => e.id));
+    for (const s of db.all("SELECT * FROM hour_shortfalls WHERE status = 'Awaiting explanation'")) {
+      if (scriptedIds.has(s.employee_id)) continue;
+      if (s.date === lastWorking && chance(0.5)) continue;
+      const r = rand();
+      const decided = s.date !== lastWorking && r < 0.7;
+      const reject = decided && r < 0.12 && D.monthOf(s.date) === thisMonth;
+      const approver = approverUserIds(db, s.employee_id)[0] || ceoUser;
+      db.update('hour_shortfalls', s.id, {
+        reason: pick(reasons), explained_at: isoAt(D.addDays(s.date, 1), '10:00'),
+        status: decided ? (reject ? 'Rejected' : 'Approved') : 'Pending approval',
+        decided_by: decided ? approver : null, decided_at: decided ? isoAt(D.addDays(s.date, 1), '16:00') : null,
+      });
+      if (reject) db.run("UPDATE attendance SET status = 'HD', note = 'Short hours not approved' WHERE employee_id = ? AND date = ?", s.employee_id, s.date);
+      else if (decided) db.run("UPDATE attendance SET status = CASE status WHEN 'HD' THEN 'P' ELSE status END WHERE employee_id = ? AND date = ?", s.employee_id, s.date);
+    }
   });
 }
 

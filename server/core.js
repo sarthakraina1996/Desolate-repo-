@@ -65,13 +65,20 @@ export const id = (v) => {
   return n;
 };
 
+// ---------- documents ----------
+export const DOC_CATEGORIES = ['Aadhaar Card', 'PAN Card', 'Address Proof', 'Education', 'Experience', 'Offer Letter', 'Appointment Letter', 'Bank Proof', 'ID Proof', 'Payslip', 'Other'];
+
 // ---------- settings ----------
 export const DEFAULT_SETTINGS = {
   companyName: 'BrainADZ',
   timezone: 'Asia/Kolkata',
   weeklyOffs: [0, 6],
   workdayStart: '09:30',
+  workdayEnd: '18:30',
   lateAfter: '10:00',
+  workHours: 8,
+  shortHoursGraceMinutes: 15,
+  requiredDocuments: ['Aadhaar Card', 'PAN Card', 'Address Proof', 'Education', 'Offer Letter', 'Appointment Letter', 'Bank Proof'],
   employeeCodePrefix: 'BZ',
   noticePeriodDays: 30,
   noticePeriodSeniorDays: 60,
