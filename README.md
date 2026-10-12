@@ -75,6 +75,29 @@ Two ways:
 
 Before the first real payroll, check **Settings → Payroll Rules** (Basic %, HRA %, PF, ESI, professional tax and LWF differ by state) and **Leave & Policies → Leave Management → Holidays** (festival dates change every year; only 2026 festivals are pre-filled). TDS is an estimate under the new tax regime; enter each employee's actual monthly TDS on their profile once they declare investments.
 
+## Run it on the office network
+
+One computer in the office runs the HRMS; everyone on the same Wi-Fi or LAN opens it in their browser. No hosting account needed.
+
+1. On that computer, install **Node.js** (LTS version from [nodejs.org](https://nodejs.org)).
+2. Copy this project folder onto it (download the ZIP from GitHub and unzip it).
+3. Double-click **`start-office.bat`** (Windows) or **`start-office.command`** (Mac; the first time, right-click → Open). The first run installs and builds, which takes a few minutes.
+4. The window prints the address to share, for example:
+
+   ```
+   On the office Wi-Fi: http://192.168.1.25:3000
+   ```
+
+   Colleagues open that address in their browser. Keep the window open; closing it stops the HRMS.
+
+Things to know:
+
+- **Windows firewall:** the first time, Windows asks whether Node.js may use the network. Tick **Private networks** and click Allow. If you missed it, allow Node.js under Windows Security → Firewall → Allow an app.
+- **Keep the computer on** and stop it from sleeping (Settings → Power → Sleep: Never). If it is off, nobody can use the HRMS.
+- **Same address every day:** routers can hand the computer a new address after a restart. Ask whoever manages the router to reserve its address (DHCP reservation).
+- **Working from home:** the address only works inside the office network. For remote access, use the office VPN, or a tunnel such as Tailscale or Cloudflare Tunnel, rather than opening a port on the router.
+- **Backups:** the `data` folder inside the project holds everything. Copy it somewhere safe regularly (stop the HRMS with Ctrl+C first for a clean copy).
+
 ## Put it online
 
 The app is one Node.js process plus a data folder. Any host that runs Docker or Node 22 and gives you a **persistent disk** works (Render with a disk, Railway with a volume, a VPS, AWS Lightsail, an office server).
@@ -94,6 +117,7 @@ Environment variables:
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | Port to listen on |
+| `HOST` | `0.0.0.0` | Network interface; `127.0.0.1` keeps it to this computer only |
 | `DATA_DIR` | `./data` | Database (`hrms.db`) and uploads. **Must be on a persistent disk.** |
 | `SEED` | `demo` | `demo` or `empty` for the first start |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | | First administrator when `SEED=empty` |
