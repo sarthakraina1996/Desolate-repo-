@@ -1,2 +1,128 @@
-# Desolate-repo-
-Just a management person doing vibe coding 
+# BrainADZ HRMS
+
+People operations for **BrainADZ Live, BrainADZ Marketing and BrainADZ Exhibits** in one web app: hiring, AI resume screening, employee records, attendance, leave, Indian payroll, performance, POSH, resignations and reports.
+
+It is a complete application: a Node.js server with a SQLite database, real logins with roles, file uploads, and a React interface that follows the BrainADZ HRMS designs.
+
+## What's inside
+
+| Module | What it does |
+|---|---|
+| **Dashboard** | Headcount, open positions, joiners, people on leave, vertical split, hiring funnel, upcoming interviews, leave approvals, payroll status, attrition trend, people analytics, policy and POSH compliance, notice board. Click a vertical logo in the top bar to filter by vertical. |
+| **My Space** | Every employee's home: check in / check out (office or WFH), leave balances, apply leave, payslips, reimbursement claims, goals, team calendar, birthdays and work anniversaries, helpdesk requests. |
+| **Hiring** | Job requisitions, a 7-stage candidate pipeline, interview scheduling, interviewer feedback and scorecards, offers, source performance, and "Convert to employee" with an onboarding checklist. |
+| **Resume Screener AI** | Upload PDF, DOCX or TXT resumes against a job. Each resume is read, scored for match %, skill by skill, with matched and missing criteria, knockout answers and a summary. Shortlist, hold, reject or move to interview. Detect duplicates, compare up to 3 candidates, and "Ask AI" about any candidate. Uses Claude when an API key is set, otherwise rule-based scoring. |
+| **Employees** | Directory with filters, full profiles (overview, documents, attendance, leave, performance, compensation, assets), org structure, logins, document uploads, asset tracking, helpdesk requests. |
+| **Leave & Policies** | Leave balances (EL accrues monthly with carry forward; CL, SL, maternity, paternity, WFH, loss of pay), approvals, team leave calendar, holiday calendar, leave policy builder, policy library with versioned acknowledgements. |
+| **Attendance** | Today's board, check-in times with late flags, and a monthly register HR and managers can correct. Feeds loss-of-pay into payroll. |
+| **Payroll** | Monthly run: Basic / HRA / special allowance from CTC, PF (with wage ceiling), ESI, professional tax, LWF, TDS, loss of pay from attendance and leave, bonuses and reimbursements. Workflow: run → finance review → management approval → bank transfer → paid. Payslips (print / save as PDF), bank transfer CSV, payroll register, statutory dues, exceptions (missing attendance, KYC, bank details, pending claims). |
+| **Performance** | Review cycles, weighted goals with progress, self review, manager review, rating distribution, top performers. |
+| **POSH** | Internal Committee, confidential (optionally anonymous) complaints visible only to the ICC, case log with 90-day due dates, awareness training and policy acknowledgement tracking. |
+| **Resignation** | Submit → manager approval → HR acceptance → offboarding checklist, clearance matrix, exit interview, full & final settlement, experience and relieving letters, rehire eligibility. |
+| **Reports** | Headcount, attrition, payroll cost and leave trends, plus CSV downloads of every register. |
+| **Settings** | Company rules, weekly offs, payroll rules, verticals / departments / locations, leave types, users and roles, audit log, and data reset. |
+
+### Roles
+
+- **Employee**: self-service only.
+- **Manager**: their team's leave, attendance, reviews and resignations, plus jobs they hire for.
+- **HR**: everything except administrator-only actions.
+- **Administrator**: everything, including the management approval step for payroll and data reset.
+
+## Run it on your computer
+
+You need **Node.js 22.13 or newer** ([download](https://nodejs.org)).
+
+```bash
+npm install
+npm run build
+npm start
+```
+
+Open http://localhost:3000. The first start creates a demo company with about 100 fictional employees, six months of attendance and payroll, candidates, reviews and resignations.
+
+Demo logins (password `Brainadz@2026` for all):
+
+| Email | Role |
+|---|---|
+| priya.sharma@brainadz.com | HR Manager |
+| rajiv.malhotra@brainadz.com | CEO, Administrator |
+| vikram.patel@brainadz.com | Sales Manager |
+| aarav.mehta@brainadz.com | Employee |
+
+Every team lead and vertical head also has a manager login with the same password (for example `nandini.joshi@brainadz.com`).
+
+To start the demo again from scratch: stop the server, run `npm run reset-demo`, and start it again.
+
+## Turn on Claude for resume screening
+
+Set an Anthropic API key before starting the server:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... npm start
+```
+
+or put it in a `.env` file (copy `.env.example`). The screener then sends each resume (PDF files as documents, DOCX as text) and the job requirement to **Claude Opus 5.5** (`claude-opus-5-5`) and gets back a structured result: overall match, per-skill scores with evidence, matched and missing criteria, knockout answers, extracted contact and career details, and a summary. "Ask AI" answers questions about a candidate from their resume. Server-side refusal fallback is enabled (`fallbacks: "default"`), so if the model declines a request the API retries it on Anthropic's recommended fallback model.
+
+Each screened resume is one API call billed to your Anthropic account. Without a key, the screener uses keyword and rule-based scoring and "Ask AI" quotes the matching lines of the resume. Set `HRMS_AI_MODEL` to use a different Claude model.
+
+## Start using it with real data
+
+Two ways:
+
+1. **From the demo:** sign in as the administrator, go to **Settings → Data → Remove demo data**. Everything fictional is deleted; your admin login, verticals, departments, locations, leave types, holidays and policy library stay. Then add employees (**Employees → Add**, or convert hires from **Hiring**) and create their logins in **Settings → Users & Roles** ("Create missing logins" downloads a CSV of one-time passwords).
+2. **Empty from day one:** start with `SEED=empty ADMIN_EMAIL=you@brainadz.com ADMIN_PASSWORD=ChooseAStrongOne1 npm start`. You'll be asked to change the password at first sign-in. Add yourself as an employee with the same email and your login is linked automatically.
+
+Before the first real payroll, check **Settings → Payroll Rules** (Basic %, HRA %, PF, ESI, professional tax and LWF differ by state) and **Leave & Policies → Leave Management → Holidays** (festival dates change every year; only 2026 festivals are pre-filled). TDS is an estimate under the new tax regime; enter each employee's actual monthly TDS on their profile once they declare investments.
+
+## Put it online
+
+The app is one Node.js process plus a data folder. Any host that runs Docker or Node 22 and gives you a **persistent disk** works (Render with a disk, Railway with a volume, a VPS, AWS Lightsail, an office server).
+
+With Docker:
+
+```bash
+docker build -t brainadz-hrms .
+docker run -d -p 3000:3000 -v hrms-data:/app/data \
+  -e ANTHROPIC_API_KEY=sk-ant-... -e COOKIE_SECURE=true brainadz-hrms
+```
+
+Without Docker: build command `npm install && npm run build`, start command `npm start`, and mount the persistent disk at the folder named in `DATA_DIR`.
+
+Environment variables:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3000` | Port to listen on |
+| `DATA_DIR` | `./data` | Database (`hrms.db`) and uploads. **Must be on a persistent disk.** |
+| `SEED` | `demo` | `demo` or `empty` for the first start |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | | First administrator when `SEED=empty` |
+| `ANTHROPIC_API_KEY` | | Enables Claude resume screening |
+| `HRMS_AI_MODEL` | `claude-opus-5-5` | Claude model for screening |
+| `TRUST_PROXY` | | Set to `1` behind a load balancer / HTTPS proxy |
+| `COOKIE_SECURE` | | Set to `true` when served over HTTPS |
+
+**Backups:** copy the whole `DATA_DIR` folder (it holds the database and every uploaded resume, document and photo). A nightly copy is enough for most teams.
+
+## Security notes
+
+- Passwords are hashed with scrypt; sessions are HTTP-only cookies; repeated failed logins are throttled.
+- Every state-changing request needs a custom header the browser can't send cross-site (CSRF protection), and the server sends a strict Content Security Policy.
+- Access is enforced on the server for every endpoint: employees see only their own HR data, managers only their team's, and POSH complaints only the ICC and administrators.
+- Uploaded files are stored with random names outside the web root and are only served to people allowed to see them.
+- Change the demo password or remove demo data before inviting real users; the login page lists the demo accounts while demo data is loaded.
+
+## For developers
+
+```bash
+npm run dev     # API on :3000 with auto-restart + Vite dev server on :5173
+npm test        # unit and API tests (node:test)
+```
+
+- `server/`: Express 5 API on Node's built-in SQLite (`node:sqlite`, no native build step)
+  - `lib/`: pure rules (payroll, leave, dates, resume scoring), covered by tests
+  - `services/`: calendar/attendance derivation, payroll runs, leave balances, Claude client, resume text extraction
+  - `routes/`: one file per module
+  - `seed.js`: demo company
+- `client/`: React 19 + Vite. `src/pages/` has one file per module; `src/components/` holds the UI kit and hand-drawn SVG charts.
+- `tests/`: payroll, leave and screener rules; end-to-end API flows across roles; the Claude request format against a local stand-in for the API.
