@@ -1,5 +1,5 @@
-import { getSettings, setSetting, requireHR, requireAdmin, isAdmin, str, num, oneOf, id, fail, notFound, audit, fullName, sendCsv, DEFAULT_SETTINGS } from '../core.js';
-import { hashPassword, tempPassword } from '../auth.js';
+import { getSettings, setSetting, requireHR, requireAdmin, isAdmin, str, num, oneOf, id, email, fail, notFound, audit, fullName, sendCsv, DEFAULT_SETTINGS } from '../core.js';
+import { hashPassword, tempPassword, checkPasswordStrength } from '../auth.js';
 import { seedDemo, LEAVE_TYPES, holidaysFor, policyLibrary } from '../seed.js';
 import * as D from '../lib/dates.js';
 
@@ -186,14 +186,17 @@ export default function settingsRoutes(r, { db }) {
   });
 
   // Removes all demo records and keeps only the current administrator, so a
-  // company can start entering its real data.
+  // company can start entering its real data. The demo password is public,
+  // so the administrator must choose their own email and password here.
   r.post('/settings/start-fresh', (req, res) => {
     requireAdmin(req);
     if (req.body.confirm !== 'START FRESH') fail(400, 'Type START FRESH to confirm');
+    const adminEmail = email(req.body.email, { required: true });
+    checkPasswordStrength(req.body.password);
     const keep = req.user.id;
     wipe(keep);
     db.tx(() => {
-      db.run('UPDATE users SET employee_id = NULL WHERE id = ?', keep);
+      db.run('UPDATE users SET employee_id = NULL, email = ?, password_hash = ?, must_change_password = 0 WHERE id = ?', adminEmail, hashPassword(req.body.password), keep);
       setSetting(db, 'demo', false);
       setSetting(db, 'companyName', getSettings(db).companyName || DEFAULT_SETTINGS.companyName);
       for (const v of [['BrainADZ Live', 'Live', 'From Vision to Visibility', '#E5243B'], ['BrainADZ Marketing', 'Marketing', 'Ideas That Spark Momentum', '#1FB2D6'], ['BrainADZ Exhibits', 'Exhibits', 'Where Elegance Meets Execution', '#8CC63F'], ['Corporate', 'Corporate', 'Shared services', '#7C5CFC']]) {

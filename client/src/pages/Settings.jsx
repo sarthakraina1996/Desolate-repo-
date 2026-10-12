@@ -283,9 +283,14 @@ function DataTab() {
   const [run, busy] = useAction(toast);
   const [modal, setModal] = useState(null);
   const [text, setText] = useState('');
+  const [login, setLogin] = useState({ email: '', password: '', repeat: '' });
+  const fresh = modal === 'fresh';
+  const mismatch = fresh && login.repeat && login.password !== login.repeat;
+  const ready = text === (fresh ? 'START FRESH' : 'RESET') && (!fresh || (login.email && login.password && login.password === login.repeat));
   const go = async () => {
-    const path = modal === 'fresh' ? '/settings/start-fresh' : '/settings/reset-demo';
-    if (await run(() => api.post(path, { confirm: text }), modal === 'fresh' ? 'All demo data removed' : 'Demo data restored')) { setModal(null); setText(''); window.location.assign('/'); loadMe(); }
+    const path = fresh ? '/settings/start-fresh' : '/settings/reset-demo';
+    const body = fresh ? { confirm: text, email: login.email, password: login.password } : { confirm: text };
+    if (await run(() => api.post(path, body), fresh ? 'All demo data removed' : 'Demo data restored')) { setModal(null); setText(''); window.location.assign('/'); loadMe(); }
   };
   return (
     <div className="grid">
@@ -299,9 +304,15 @@ function DataTab() {
       </Card>
       {modal && (
         <Modal title={modal === 'fresh' ? 'Remove all demo data?' : 'Reset to demo data?'} size="narrow" onClose={() => setModal(null)}
-          footer={<><Button onClick={() => setModal(null)}>Cancel</Button><Button variant="solid-red" loading={busy} disabled={text !== (modal === 'fresh' ? 'START FRESH' : 'RESET')} onClick={go}>Confirm</Button></>}>
+          footer={<><Button onClick={() => setModal(null)}>Cancel</Button><Button variant="solid-red" loading={busy} disabled={!ready} onClick={go}>Confirm</Button></>}>
           <div className="col" style={{ gap: 12 }}>
             <div className="alert error"><TriangleAlert size={16} />This cannot be undone.</div>
+            {fresh && <>
+              <div className="small muted">Set the email and password you will sign in with from now on. The demo password stops working.</div>
+              <Field label="Your email"><Input type="email" value={login.email} onChange={(e) => setLogin({ ...login, email: e.target.value })} placeholder="you@brainadz.com" autoComplete="username" /></Field>
+              <Field label="New password" hint="At least 8 characters, with letters and numbers."><Input type="password" value={login.password} onChange={(e) => setLogin({ ...login, password: e.target.value })} autoComplete="new-password" /></Field>
+              <Field label="Repeat password" error={mismatch ? "Passwords don't match" : null}><Input type="password" value={login.repeat} onChange={(e) => setLogin({ ...login, repeat: e.target.value })} autoComplete="new-password" /></Field>
+            </>}
             <Field label={`Type ${modal === 'fresh' ? 'START FRESH' : 'RESET'} to confirm`}><Input value={text} onChange={(e) => setText(e.target.value)} /></Field>
             {modal === 'reset' && <div className="small muted">You will be signed out. Sign back in with a demo account.</div>}
           </div>

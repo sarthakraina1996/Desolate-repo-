@@ -70,7 +70,7 @@ Each screened resume is one API call billed to your Anthropic account. Without a
 
 Two ways:
 
-1. **From the demo:** sign in as the administrator, go to **Settings → Data → Remove demo data**. Everything fictional is deleted; your admin login, verticals, departments, locations, leave types, holidays and policy library stay. Then add employees (**Employees → Add**, or convert hires from **Hiring**) and create their logins in **Settings → Users & Roles** ("Create missing logins" downloads a CSV of one-time passwords).
+1. **From the demo:** sign in as the administrator, go to **Settings → Data → Remove demo data** and choose the email and password you will sign in with. Everything fictional is deleted, including every demo login; your administrator account, verticals, departments, locations, leave types, holidays and policy library stay. Then add employees (**Employees → Add**, or convert hires from **Hiring**) and create their logins in **Settings → Users & Roles** ("Create missing logins" downloads a CSV of one-time passwords).
 2. **Empty from day one:** start with `SEED=empty ADMIN_EMAIL=you@brainadz.com ADMIN_PASSWORD=ChooseAStrongOne1 npm start`. You'll be asked to change the password at first sign-in. Add yourself as an employee with the same email and your login is linked automatically.
 
 Before the first real payroll, check **Settings → Payroll Rules** (Basic %, HRA %, PF, ESI, professional tax and LWF differ by state) and **Leave & Policies → Leave Management → Holidays** (festival dates change every year; only 2026 festivals are pre-filled). TDS is an estimate under the new tax regime; enter each employee's actual monthly TDS on their profile once they declare investments.
@@ -102,7 +102,20 @@ Things to know:
 
 The app is one Node.js process plus a data folder. Any host that runs Docker or Node 22 and gives you a **persistent disk** works (Render with a disk, Railway with a volume, a VPS, AWS Lightsail, an office server).
 
-With Docker:
+### On Render (recommended, about 10 minutes)
+
+The repository includes `render.yaml`, which sets up everything: the web service, a 1 GB persistent disk for the database and uploads, HTTPS, and health checks. It runs in Render's Singapore region on the Starter instance (about US$7 a month plus US$0.25 for the disk; the free instance has no disk, so data would be lost on every restart).
+
+1. Sign up at [render.com](https://render.com) with GitHub, and add a payment card under Billing.
+2. Click **New → Blueprint**, connect GitHub if asked, and pick this repository and the branch to deploy.
+3. Render asks for `ANTHROPIC_API_KEY`. Paste a key to turn on Claude resume screening, or leave it blank (you can add it later under the service's Environment tab).
+4. Click **Apply**. The first build takes about 5 minutes. Your HRMS is then live at `https://brainadz-hrms.onrender.com` (or a similar address shown on the service page). Share that link.
+
+Every push to that branch redeploys automatically; the data on the disk is kept. To use your own address such as `hr.brainadz.com`, add it under the service's **Settings → Custom Domains** and create the DNS record Render shows.
+
+**Before real data goes in:** the demo logins are public, so anyone with the link can sign in while the demo is loaded. When you're ready, sign in as the administrator and use **Settings → Data → Remove demo data**. It deletes every demo account and makes you set your own email and password.
+
+### With Docker
 
 ```bash
 docker build -t brainadz-hrms .
@@ -110,7 +123,9 @@ docker run -d -p 3000:3000 -v hrms-data:/app/data \
   -e ANTHROPIC_API_KEY=sk-ant-... -e COOKIE_SECURE=true brainadz-hrms
 ```
 
-Without Docker: build command `npm install && npm run build`, start command `npm start`, and mount the persistent disk at the folder named in `DATA_DIR`.
+### Other hosts
+
+Build command `npm install && npm run build`, start command `npm start`, and mount the persistent disk at the folder named in `DATA_DIR`.
 
 Environment variables:
 

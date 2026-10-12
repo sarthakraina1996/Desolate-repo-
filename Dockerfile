@@ -8,6 +8,5 @@ ENV NODE_ENV=production \
     PORT=3000 \
     DATA_DIR=/app/data \
     TRUST_PROXY=1
-VOLUME /app/data
 EXPOSE 3000
 CMD ["npm", "start"]

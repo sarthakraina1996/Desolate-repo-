@@ -166,3 +166,20 @@ test('every main read endpoint answers for HR', async () => {
     assert.equal(r.status, 200, `${p}: ${JSON.stringify(r.body).slice(0, 200)}`);
   }
 });
+
+test('removing demo data requires the administrator to set their own login', async () => {
+  const { base, close } = await boot();
+  try {
+    const admin = await as(base, ADMIN);
+    assert.equal((await admin.post('/settings/start-fresh', { confirm: 'START FRESH' })).status, 400);
+    assert.equal((await admin.post('/settings/start-fresh', { confirm: 'START FRESH', email: 'owner@brainadz.com', password: 'short' })).status, 400);
+    const ok = await admin.post('/settings/start-fresh', { confirm: 'START FRESH', email: 'Owner@BrainADZ.com', password: 'RealPass2026' });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.equal((await admin.get('/auth/me')).body.user.email, 'owner@brainadz.com');
+    assert.equal((await client(base).post('/auth/login', { email: ADMIN, password: 'Brainadz@2026' })).status, 401);
+    await client(base).login('owner@brainadz.com', 'RealPass2026');
+    assert.deepEqual((await client(base).get('/auth/config')).body.demoAccounts, []);
+  } finally {
+    await close();
+  }
+});
