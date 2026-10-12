@@ -29,7 +29,9 @@ export default function settingsRoutes(r, { db, saveFile }) {
       if (offs.length > 3) fail(400, 'At most three weekly offs');
       setSetting(db, 'weeklyOffs', [...new Set(offs)]);
     }
-    for (const k of ['workdayStart', 'lateAfter']) {
+    if (b.workHours !== undefined) setSetting(db, 'workHours', num(b.workHours, { min: 1, max: 14, name: 'Working hours per day' }));
+    if (b.shortHoursGraceMinutes !== undefined) setSetting(db, 'shortHoursGraceMinutes', num(b.shortHoursGraceMinutes, { min: 0, max: 120, int: true, name: 'Grace minutes' }));
+    for (const k of ['workdayStart', 'workdayEnd', 'lateAfter']) {
       if (b[k] !== undefined) {
         if (!TIME_RE.test(b[k])) fail(400, 'Times must be HH:MM');
         setSetting(db, k, b[k]);

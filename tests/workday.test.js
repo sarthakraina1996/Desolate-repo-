@@ -119,3 +119,13 @@ test('a clock left running overnight is closed at the end of that workday', asyn
 test('anonymous users cannot reach the work clock', async () => {
   assert.equal((await client(ctx.base).get('/attendance/workday')).status, 401);
 });
+
+test('HR sets the working hours per day used for short-hours checks', async () => {
+  const hr = await as(ctx.base, HR);
+  assert.equal((await hr.put('/settings', { workHours: 9, shortHoursGraceMinutes: 10, workdayEnd: '19:00' })).status, 200);
+  const emp = await as(ctx.base, EMP);
+  assert.equal((await emp.get('/attendance/workday')).body.workday.requiredMinutes, 540);
+  assert.equal((await hr.put('/settings', { workHours: 30 })).status, 400);
+  assert.equal((await hr.put('/settings', { workdayEnd: '7pm' })).status, 400);
+  assert.equal((await hr.put('/settings', { workHours: 8, shortHoursGraceMinutes: 15, workdayEnd: '18:30' })).status, 200);
+});

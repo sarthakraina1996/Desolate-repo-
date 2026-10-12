@@ -4,6 +4,7 @@ import { Save, Plus, Trash2, KeyRound, Download, TriangleAlert, Pencil, Bot, Dat
 import { useApp } from '../context.jsx';
 import { useApi, useAction } from '../lib/hooks.js';
 import { api, postDownload } from '../lib/api.js';
+import { refreshWorkday } from '../lib/workday.js';
 import { fmtDateTime } from '../lib/format.js';
 import { Card, Badge, Button, Tabs, Empty, Loading, ErrorBox, Field, Input, Select, Modal, Toggle, useConfirm, Textarea } from '../components/ui.jsx';
 import { TempPasswordModal } from '../components/forms.jsx';
@@ -52,6 +53,9 @@ function Company() {
           <Field label="Time zone"><Input value={f.timezone} onChange={set('timezone')} /></Field>
           <Field label="Work day starts"><Input type="time" value={f.workdayStart} onChange={set('workdayStart')} /></Field>
           <Field label="Late after" hint="Check-ins after this time are flagged late"><Input type="time" value={f.lateAfter} onChange={set('lateAfter')} /></Field>
+          <Field label="Work day ends" hint="A clock left running overnight stops at this time"><Input type="time" value={f.workdayEnd || '18:30'} onChange={set('workdayEnd')} /></Field>
+          <Field label="Working hours per day" hint="Days below this need the manager's approval"><Input type="number" min="1" max="14" step="0.5" value={f.workHours ?? 8} onChange={set('workHours')} /></Field>
+          <Field label="Short-hours grace (minutes)" hint="Days within this of the target are not flagged"><Input type="number" min="0" max="120" value={f.shortHoursGraceMinutes ?? 15} onChange={set('shortHoursGraceMinutes')} /></Field>
           <Field label="Weekly offs" className="full">
             <div className="row wrap" style={{ gap: 14 }}>{days.map((d, i) => <label key={d} className="check"><input type="checkbox" checked={f.weeklyOffs.includes(i)} onChange={(e) => setF({ ...f, weeklyOffs: e.target.checked ? [...f.weeklyOffs, i] : f.weeklyOffs.filter((x) => x !== i) })} />{d}</label>)}</div>
           </Field>
@@ -61,8 +65,8 @@ function Company() {
           <Field label="Notice period for managers+ (days)"><Input type="number" value={f.noticePeriodSeniorDays} onChange={set('noticePeriodSeniorDays')} /></Field>
         </div>
         <Button variant="primary" icon={Save} className="mt-16" loading={busy} onClick={async () => {
-          const { companyName, timezone, workdayStart, lateAfter, weeklyOffs, employeeCodePrefix, bankName, noticePeriodDays, noticePeriodSeniorDays } = f;
-          if (await run(() => api.put('/settings', { companyName, timezone, workdayStart, lateAfter, weeklyOffs, employeeCodePrefix, bankName, noticePeriodDays, noticePeriodSeniorDays }), 'Settings saved')) { refreshMeta(); loadMe(); }
+          const { companyName, timezone, workdayStart, workdayEnd, lateAfter, workHours, shortHoursGraceMinutes, weeklyOffs, employeeCodePrefix, bankName, noticePeriodDays, noticePeriodSeniorDays } = f;
+          if (await run(() => api.put('/settings', { companyName, timezone, workdayStart, workdayEnd, lateAfter, workHours, shortHoursGraceMinutes, weeklyOffs, employeeCodePrefix, bankName, noticePeriodDays, noticePeriodSeniorDays }), 'Settings saved')) { refreshMeta(); loadMe(); refreshWorkday().catch(() => {}); }
         }}>Save</Button>
       </Card>
       <Card className="span-4" title="AI resume screening">
