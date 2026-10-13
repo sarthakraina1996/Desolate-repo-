@@ -7,6 +7,7 @@ import {
   Loading, ErrorNote, Empty, VChip, StatusBadge, HealthBadge, Progress, Avatar, Seg, PriorityFlag, PROJECT_STATUS, HEALTH, alpha,
 } from '../ui.jsx';
 import { fmtDate, relDay, daysFrom, addDays, MONTHS, inrShort } from '../format.js';
+import { Board, Cover, Labels, Badges, DueBadge, labelColor } from '../board.jsx';
 import { ProjectForm } from './ProjectForm.jsx';
 import { NoAccess } from './Dashboard.jsx';
 
@@ -67,7 +68,7 @@ function ProjectTable({ items, showVertical, onOpen, today }) {
                     {p.task_overdue > 0 && <div className="xs red mt-4">{p.task_overdue} overdue</div>}
                   </td>
                   <td><HealthBadge health={p.health} /></td>
-                  <td><StatusBadge status={p.status} /></td>
+                  <td><StatusBadge status={p.status} readyLabel={p.ready_label} /></td>
                 </tr>
               );
             })}
@@ -78,37 +79,88 @@ function ProjectTable({ items, showVertical, onOpen, today }) {
   );
 }
 
-const BOARD = ['planning', 'active', 'on_hold', 'completed'];
+// Board columns. "ready" only exists for verticals with a final board column
+// (Exhibits: Ready for Event / Exhibition); the others end at Delivered.
+function boardColumns(verticalsInView) {
+  const readyV = verticalsInView.filter((v) => v.ready_label);
+  const others = verticalsInView.filter((v) => !v.ready_label);
+  const cols = [
+    { key: 'planning', title: 'Planning', color: '#7c5cfc', canAdd: true },
+    { key: 'active', title: 'Active', color: '#1a6df0', canAdd: true },
+    { key: 'on_hold', title: 'On hold', color: '#f2a600', canAdd: true },
+  ];
+  if (readyV.length) {
+    cols.push({
+      key: 'ready', title: readyV[0].ready_label, color: readyV[0].color,
+      accepts: (p) => !!p.ready_label,
+      blockedText: `Only ${readyV.map((v) => v.short).join(', ')} projects end here`,
+      note: others.length ? `${readyV.map((v) => v.short).join(', ')} projects only` : null,
+      empty: 'Drag a project here when the stall is built and handed over',
+    });
+  }
+  if (others.length) {
+    cols.push({
+      key: 'completed', title: 'Delivered', color: '#1fa855',
+      accepts: (p) => !p.ready_label,
+      blockedText: `${readyV.map((v) => v.short).join(', ')} projects end at ${readyV[0]?.ready_label}`,
+      note: readyV.length ? `${others.map((v) => v.short).join(', ')} projects` : null,
+      empty: 'Drop a project here when it is delivered. It moves to Past Projects.',
+    });
+  }
+  return cols;
+}
 
-function ProjectBoard({ items, onOpen, onMove, canEdit, today }) {
-  const [over, setOver] = useState(null);
-  const cols = BOARD.map((s) => ({ s, items: items.filter((p) => p.status === s) }));
+const healthLabel = { at_risk: { text: 'At risk', color: '#f2a600' }, off_track: { text: 'Off track', color: '#e31b3b' } };
+
+function ProjectCard({ p, today, showVertical }) {
+  const date = p.key_date || p.due_date;
   return (
-    <div className="pboard">
-      {cols.map(({ s, items: list }) => (
-        <div key={s} className={`pcol ${over === s ? 'over' : ''}`}
-          onDragOver={(e) => { e.preventDefault(); setOver(s); }}
-          onDragLeave={() => setOver(null)}
-          onDrop={(e) => { e.preventDefault(); setOver(null); const id = Number(e.dataTransfer.getData('text/plain')); if (id) onMove(id, s); }}>
-          <h4><span>{PROJECT_STATUS[s].label}</span><span className="pill-num">{list.length}</span></h4>
-          {s === 'completed' && list.length === 0 && <div className="xs muted center" style={{ padding: '10px 4px' }}>Drop a project here to close it. Closed projects move to Past Projects.</div>}
-          {list.map((p) => (
-            <div key={p.id} className="pcard" draggable={canEdit(p)} onDragStart={(e) => e.dataTransfer.setData('text/plain', String(p.id))} onClick={() => onOpen(p)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen(p)}
-              style={{ borderTopColor: p.vertical_color }}>
-              <div className="row between xs muted"><span>{p.code}</span><HealthBadge health={p.health} compact /></div>
-              <div className="b6 mt-4" style={{ lineHeight: 1.3 }}>{p.name}</div>
-              {p.client && <div className="small muted">{p.client}</div>}
-              <div className="mt-8"><Progress value={p.progress} color={p.vertical_color} height={6} /></div>
-              <div className="row between mt-8">
-                <Avatar name={p.owner_name} color={p.owner_color} size={24} />
-                <span className="xs muted">{p.stage}</span>
-                <span className={`xs nowrap ${p.late ? 'red b6' : 'muted'}`}>{p.key_date || p.due_date ? fmtDate(p.key_date || p.due_date, { today }) : ''}</span>
-              </div>
-            </div>
-          ))}
+    <>
+      <Cover file={p.cover} color={p.vertical_color} />
+      <div className="kb-body">
+        <Labels items={[
+          showVertical && { text: p.vertical, color: p.vertical_color, solid: true },
+          healthLabel[p.health] && { ...healthLabel[p.health], solid: true },
+          p.priority === 'urgent' && { text: 'Urgent', color: '#e31b3b' },
+          ...p.tags.slice(0, 3).map((t) => ({ text: t, color: labelColor(t) })),
+        ]} />
+        <div className="kb-title">{p.name}</div>
+        <div className="kb-sub">{p.client ? `${p.client} · ` : ''}{p.code}</div>
+        <div className="kb-meta">
+          <Badges files={p.file_count} checklist={{ done: p.task_done, total: p.task_total }}>
+            <DueBadge date={date} today={today} done={!p.open} icon={Diamond} label={p.key_date ? p.key_date_label : 'Due'} />
+          </Badges>
+          <span className="kb-people"><Avatar name={p.owner_name} color={p.owner_color} size={26} /></span>
         </div>
-      ))}
-    </div>
+        {p.task_total > 0 && <div className="kb-progress"><i style={{ width: `${p.progress}%`, background: p.vertical_color }} /></div>}
+      </div>
+    </>
+  );
+}
+
+function ProjectBoard({ items, onOpen, onMove, onAdd, onSort, canEdit, today, verticalsInView, manageable }) {
+  const [addV, setAddV] = useState(manageable[0]?.id || '');
+  const columns = boardColumns(verticalsInView).map((c) => ({
+    ...c,
+    canAdd: c.canAdd && manageable.length > 0,
+    addPlaceholder: 'Project name, e.g. Pharma Expo stall',
+    cards: items
+      .filter((p) => p.status === c.key)
+      .sort((a, b) => (a.board_sort ?? 1e9) - (b.board_sort ?? 1e9) || (a.key_date || a.due_date || '9').localeCompare(b.key_date || b.due_date || '9'))
+      .map((p, i) => ({ ...p, sort: p.board_sort ?? i + 1 })),
+  }));
+  return (
+    <Board id="projects" columns={columns} today={today}
+      renderCard={(p) => <ProjectCard p={p} today={today} showVertical={verticalsInView.length > 1} />}
+      onOpen={onOpen} onMove={onMove} canDrag={canEdit}
+      onAdd={(col, name) => onAdd(col, name, Number(addV))}
+      onSort={onSort}
+      sortOptions={[{ value: 'date', label: 'key date' }, { value: 'name', label: 'name' }, { value: 'client', label: 'client' }]}
+      composerExtra={manageable.length > 1 && (
+        <select className="select sm" value={addV} onChange={(e) => setAddV(e.target.value)} aria-label="Vertical">
+          {manageable.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+      )} />
   );
 }
 
@@ -193,7 +245,7 @@ export default function Projects() {
     let list = data?.items || [];
     if (view === 'board') {
       // Board shows open work plus projects closed in the last 45 days.
-      list = list.filter((p) => p.status !== 'cancelled' && (p.status !== 'completed' || (p.completed_at && p.completed_at.slice(0, 10) >= addDays(today, -45))));
+      list = list.filter((p) => p.status !== 'cancelled' && (p.status !== 'completed' || (!p.ready_label && p.completed_at && p.completed_at.slice(0, 10) >= addDays(today, -45))));
     }
     const term = q.trim().toLowerCase();
     if (term) list = list.filter((p) => [p.name, p.code, p.client, p.city, p.venue, ...p.tags].join(' ').toLowerCase().includes(term));
@@ -203,19 +255,48 @@ export default function Projects() {
   if (!verticals.length) return <NoAccess />;
   const owners = users.filter((u) => (data?.items || []).some((p) => p.owner_id === u.id) || u.id === Number(owner));
   const canEdit = (p) => canManage(p.vertical_id) || p.owner_id === me.id;
-  const move = async (id, s) => {
-    const p = data.items.find((x) => x.id === id);
-    if (!p || p.status === s) return;
-    if (!canEdit(p)) return toast('Only the project owner or a vertical manager can change the status', 'error');
-    setData((d) => ({ ...d, items: d.items.map((x) => (x.id === id ? { ...x, status: s } : x)) }));
+  const statusName = (p, st) => (st === 'ready' ? p.ready_label : st === 'completed' ? 'Delivered' : PROJECT_STATUS[st].label);
+  const move = async (card, st, sort) => {
+    const p = data.items.find((x) => x.id === card.id);
+    if (!p) return;
+    if (!canEdit(p)) return toast('Only the project owner or a vertical manager can move this project', 'error');
+    const body = st === p.status ? { board_sort: sort } : { status: st, board_sort: sort };
+    setData((d) => ({ ...d, items: d.items.map((x) => (x.id === p.id ? { ...x, ...body, completed_at: st === 'completed' ? new Date().toISOString() : x.completed_at } : x)) }));
     try {
-      await api.patch(`/projects/${id}`, { status: s });
-      toast(`${p.code} moved to ${PROJECT_STATUS[s].label}`, 'success');
+      await api.patch(`/projects/${p.id}`, body);
+      if (body.status) toast(`${p.code} moved to ${statusName(p, st)}`, 'success');
       reload({ quiet: true });
     } catch (e) {
       toast(e.message, 'error');
       reload({ quiet: true });
     }
+  };
+  const addCard = async (col, name, verticalId) => {
+    const vId = verticalId || vertical || manageableVerticals[0]?.id;
+    try {
+      const p = await api.post('/projects', { vertical_id: vId, name, status: col.key, owner_id: me.id });
+      toast(`${p.code} added. Open it to add dates, team and tasks.`, 'success');
+      reload({ quiet: true });
+      return true;
+    } catch (e) {
+      toast(e.message, 'error');
+      return false;
+    }
+  };
+  const sortColumn = async (col, by) => {
+    const cmp = {
+      date: (a, b) => (a.key_date || a.due_date || '9').localeCompare(b.key_date || b.due_date || '9'),
+      name: (a, b) => a.name.localeCompare(b.name),
+      client: (a, b) => (a.client || '~').localeCompare(b.client || '~'),
+    }[by];
+    const sorted = [...col.cards].sort(cmp).filter(canEdit);
+    setData((d) => ({ ...d, items: d.items.map((x) => { const i = sorted.findIndex((c) => c.id === x.id); return i === -1 ? x : { ...x, board_sort: i + 1 }; }) }));
+    try {
+      for (const [i, c] of sorted.entries()) await api.patch(`/projects/${c.id}`, { board_sort: i + 1 });
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+    reload({ quiet: true });
   };
   const totalBudget = items.reduce((a, p) => a + (p.budget || 0), 0);
   const filtersOn = status || owner || health || mine || q;
@@ -252,6 +333,7 @@ export default function Projects() {
           <select id="projects-status" className="select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
             <option value="">All open statuses</option>
             {['planning', 'active', 'on_hold'].map((s) => <option key={s} value={s}>{PROJECT_STATUS[s].label}</option>)}
+            {verticals.filter((v) => v.ready_label && (!vertical || v.id === vertical)).slice(0, 1).map((v) => <option key="ready" value="ready">{v.ready_label}</option>)}
           </select>
         )}
         <select id="projects-health" className="select" value={health} onChange={(e) => setHealth(e.target.value)} aria-label="Health">
@@ -268,7 +350,7 @@ export default function Projects() {
       </div>
 
       <ErrorNote error={error} retry={reload} />
-      {loading && !data ? <Loading /> : items.length === 0 ? (
+      {loading && !data ? <Loading /> : items.length === 0 && view !== 'board' ? (
         <div className="card">
           <Empty icon={FolderKanban} title={filtersOn ? 'No projects match these filters' : 'No open projects yet'}
             action={!filtersOn && manageableVerticals.length > 0 && <button type="button" className="btn primary" onClick={() => setCreating(true)}><Plus size={17} />Create the first one</button>}>
@@ -278,7 +360,9 @@ export default function Projects() {
       ) : view === 'list' ? (
         <ProjectTable items={items} showVertical={!vertical && verticals.length > 1} onOpen={(p) => navigate(`/projects/${p.id}`)} today={today} />
       ) : view === 'board' ? (
-        <ProjectBoard items={items} onOpen={(p) => navigate(`/projects/${p.id}`)} onMove={move} canEdit={canEdit} today={today} />
+        <ProjectBoard items={items} onOpen={(p) => navigate(`/projects/${p.id}`)} onMove={move} onAdd={addCard} onSort={sortColumn} canEdit={canEdit} today={today}
+          verticalsInView={vertical ? verticals.filter((v) => v.id === vertical) : verticals}
+          manageable={vertical ? manageableVerticals.filter((v) => v.id === vertical) : manageableVerticals} />
       ) : (
         <Timeline items={items} onOpen={(p) => navigate(`/projects/${p.id}`)} today={today} />
       )}

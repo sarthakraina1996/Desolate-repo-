@@ -180,14 +180,14 @@ function Templates() {
 
 function VerticalForm({ vertical, onClose, onSaved }) {
   const { toast } = useApp();
-  const [f, setF] = useState(() => ({ name: '', short: '', code: '', tagline: '', color: '#7c5cfc', key_date_label: 'Key date', ...vertical, active: vertical ? !!vertical.active : true }));
+  const [f, setF] = useState(() => ({ name: '', short: '', code: '', tagline: '', color: '#7c5cfc', key_date_label: 'Key date', ready_label: '', ...vertical, active: vertical ? !!vertical.active : true }));
   const [err, setErr] = useState(null);
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
   const submit = async (e) => {
     e.preventDefault();
     setErr(null);
     try {
-      const body = { name: f.name, short: f.short, code: f.code, tagline: f.tagline, color: f.color, key_date_label: f.key_date_label, active: f.active };
+      const body = { name: f.name, short: f.short, code: f.code, tagline: f.tagline, color: f.color, key_date_label: f.key_date_label, ready_label: f.ready_label || '', active: f.active };
       const saved = vertical ? await api.patch(`/admin/verticals/${vertical.id}`, body) : await api.post('/admin/verticals', body);
       toast('Vertical saved', 'success');
       onSaved(saved);
@@ -204,6 +204,9 @@ function VerticalForm({ vertical, onClose, onSaved }) {
         <Field label="Short name" htmlFor="vf-short"><input id="vf-short" className="input" value={f.short} onChange={set('short')} required placeholder="Retail" maxLength={30} /></Field>
         <Field label="Project code prefix" htmlFor="vf-code" hint="2 to 6 letters, used in codes like RTL-26-001"><input id="vf-code" className="input" value={f.code} onChange={set('code')} required maxLength={6} placeholder="RTL" /></Field>
         <Field label="Name of the key date" htmlFor="vf-key" hint="e.g. Event date, Show opens, Launch date, Go-live"><input id="vf-key" className="input" value={f.key_date_label} onChange={set('key_date_label')} maxLength={40} /></Field>
+        <Field label="Last board column before Delivered" htmlFor="vf-ready" className="full" hint="Optional. For example Ready for Event / Exhibition. Only people with access to this vertical see this column. Leave empty and projects go from Active to Delivered.">
+          <input id="vf-ready" className="input" value={f.ready_label || ''} onChange={set('ready_label')} maxLength={60} placeholder="Ready for Event / Exhibition" />
+        </Field>
         <Field label="Tagline" htmlFor="vf-tag" className="full"><input id="vf-tag" className="input" value={f.tagline} onChange={set('tagline')} maxLength={120} /></Field>
         <Field label="Colour" htmlFor="vf-color"><input id="vf-color" type="color" className="input" value={f.color} onChange={set('color')} style={{ padding: 4 }} /></Field>
         {vertical && <label className="check" style={{ alignSelf: 'end', paddingBottom: 10 }}><input id="vf-active" type="checkbox" checked={f.active} onChange={(e) => setF((x) => ({ ...x, active: e.target.checked }))} />Active</label>}
@@ -227,13 +230,14 @@ function Verticals() {
         <div className="card flush">
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Vertical</th><th>Code</th><th>Key date</th><th className="num">People</th><th className="num">Projects</th><th /></tr></thead>
+              <thead><tr><th>Vertical</th><th>Code</th><th>Key date</th><th>Board ends at</th><th className="num">People</th><th className="num">Projects</th><th /></tr></thead>
               <tbody>
                 {data.items.map((v) => (
                   <tr key={v.id} style={!v.active ? { opacity: 0.55 } : undefined}>
                     <td><div className="row" style={{ gap: 12 }}><span className="vbadge" style={{ background: alpha(v.color, 0.15), color: ink(v.color) }}>{v.code}</span><div><div className="b6">{v.name}</div><div className="xs muted">{v.tagline}</div></div></div></td>
                     <td>{v.code}</td>
                     <td className="small">{v.key_date_label}</td>
+                    <td className="small">{v.ready_label || 'Delivered'}</td>
                     <td className="num">{v.people}</td>
                     <td className="num">{v.projects}</td>
                     <td className="right"><button type="button" className="btn xs" onClick={() => setEditing(v)}><Pencil size={13} />Edit</button></td>

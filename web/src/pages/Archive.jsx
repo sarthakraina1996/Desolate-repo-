@@ -46,7 +46,7 @@ export default function Archive() {
       <div className="page-head">
         <div>
           <h1>Past Projects</h1>
-          <div className="sub">Completed and cancelled projects with their full plan, files and history. Run a repeat job again in one click.</div>
+          <div className="sub">Delivered and cancelled projects with their full plan, files and history. Run a repeat job again in one click.</div>
         </div>
         <div className="head-actions">
           <Seg value={view} onChange={setView} label="View" options={[{ value: 'projects', label: 'Projects' }, { value: 'clients', label: 'Clients' }]} />
@@ -91,7 +91,7 @@ export default function Archive() {
               <option value="">Any city</option>{facets?.cities.map((c) => <option key={c}>{c}</option>)}
             </select>
             <select id="archive-status" className="select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Outcome">
-              <option value="">Completed and cancelled</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+              <option value="">Delivered and cancelled</option><option value="completed">Delivered</option><option value="cancelled">Cancelled</option>
             </select>
             {filtersOn && <button type="button" className="btn ghost sm" onClick={() => { setQ(''); setYear(''); setClient(''); setCity(''); setStatus(''); }}><X size={15} />Clear</button>}
           </div>

@@ -16,8 +16,12 @@ import {
 } from './access.js';
 import { FILE_CATEGORIES } from './schema.js';
 
-export const PROJECT_STATUSES = ['planning', 'active', 'on_hold', 'completed', 'cancelled'];
-export const OPEN_STATUSES = ['planning', 'active', 'on_hold'];
+export const PROJECT_STATUSES = ['planning', 'active', 'on_hold', 'ready', 'completed', 'cancelled'];
+export const OPEN_STATUSES = ['planning', 'active', 'on_hold', 'ready'];
+const OPEN_IN = "('planning','active','on_hold','ready')";
+// Comments can be deleted this long after posting; later a head has to approve it.
+export const DELETE_WINDOW_MS = 15000;
+const DELETE_GRACE_MS = 5000; // allows for network delay between the click and the request
 export const HEALTH = ['on_track', 'at_risk', 'off_track'];
 export const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 export const TASK_STATUSES = ['todo', 'in_progress', 'review', 'blocked', 'done'];
@@ -72,20 +76,30 @@ function scopeVerticals(ctx) {
   return visible;
 }
 
-const PROJECT_COLS = `p.*, v.short AS vertical, v.name AS vertical_name, v.color AS vertical_color, v.key_date_label,
+const PROJECT_COLS = `p.*, v.short AS vertical, v.name AS vertical_name, v.color AS vertical_color, v.key_date_label, v.ready_label,
   o.name AS owner_name, o.color AS owner_color,
   (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS task_total,
   (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.status = 'done') AS task_done,
   (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.status != 'done' AND t.due_date < ?) AS task_overdue,
   (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id) AS file_count,
-  (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id AND f.is_final = 1) AS final_count`;
+  (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id AND f.is_final = 1) AS final_count,
+  (SELECT f.id || '|' || COALESCE(f.storage_key, '') || '|' || f.mime FROM files f
+    WHERE f.project_id = p.id AND f.mime LIKE 'image/%' ORDER BY f.is_final DESC, f.id DESC LIMIT 1) AS cover`;
 const PROJECT_FROM = 'FROM projects p JOIN verticals v ON v.id = p.vertical_id LEFT JOIN users o ON o.id = p.owner_id';
+
+// "12|key|image/png" -> { id, storage_key, mime }, the image shown on board cards.
+function parseCover(c) {
+  if (!c) return null;
+  const [id, storage_key, mime] = String(c).split('|');
+  return { id: Number(id), storage_key, mime, kind: 'file' };
+}
 
 function shapeProject(row, today) {
   if (!row) return row;
   const open = OPEN_STATUSES.includes(row.status);
   return {
     ...row,
+    cover: parseCover(row.cover),
     stages: parseJSON(row.stages, []),
     tags: row.tags ? row.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
     progress: row.task_total ? Math.round((row.task_done / row.task_total) * 100) : row.status === 'completed' ? 100 : 0,
@@ -151,6 +165,7 @@ const anchorOf = (p) => p.key_date || p.due_date || p.start_date || null;
 function shapeTask(t, today) {
   return {
     ...t,
+    cover: parseCover(t.cover),
     checklist: parseJSON(t.checklist, []),
     overdue: t.status !== 'done' && !!t.due_date && t.due_date < today,
   };
@@ -158,7 +173,9 @@ function shapeTask(t, today) {
 
 const TASK_COLS = `t.*, u.name AS assignee_name, u.color AS assignee_color,
   (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id) AS comment_count,
-  (SELECT COUNT(*) FROM files f WHERE f.task_id = t.id) AS file_count`;
+  (SELECT COUNT(*) FROM files f WHERE f.task_id = t.id) AS file_count,
+  (SELECT f.id || '|' || COALESCE(f.storage_key, '') || '|' || f.mime FROM files f
+    WHERE f.task_id = t.id AND f.mime LIKE 'image/%' ORDER BY f.is_final DESC, f.id DESC LIMIT 1) AS cover`;
 
 function readProjectFields(body, { creating = false } = {}) {
   const f = {
@@ -187,6 +204,11 @@ function readProjectFields(body, { creating = false } = {}) {
       f.budget = n;
     }
   }
+  if (body.board_sort !== undefined) {
+    const n = Number(body.board_sort);
+    if (!Number.isFinite(n)) throw bad('Invalid board position');
+    f.board_sort = n;
+  }
   if (body.stages !== undefined) {
     if (!Array.isArray(body.stages)) throw bad('Stages must be a list');
     const stages = body.stages.map((s) => String(s).trim()).filter(Boolean).slice(0, 15);
@@ -194,6 +216,12 @@ function readProjectFields(body, { creating = false } = {}) {
     f.stages = JSON.stringify(stages);
   }
   return f;
+}
+
+function assertStatusFits(status, vertical) {
+  if (status === 'ready' && !vertical?.ready_label) {
+    throw bad(`${vertical?.short || 'This vertical'} projects go from Active straight to Delivered`);
+  }
 }
 
 function checkDates(p) {
@@ -291,11 +319,11 @@ route('GET', '/dashboard', (ctx) => {
   const empty = { kpis: { active: 0, planning: 0, due_week: 0, overdue: 0, delivered: 0, at_risk: 0 }, my_tasks: [], attention: [], upcoming: [], by_vertical: [], activity: [] };
   if (!vids.length) return empty;
   const inV = `p.vertical_id IN (${placeholders(vids)})`;
-  const openP = `p.status IN ('planning','active','on_hold')`;
+  const openP = `p.status IN ${OPEN_IN}`;
 
   const k = db.get(
     `SELECT
-      SUM(CASE WHEN p.status = 'active' THEN 1 ELSE 0 END) AS active,
+      SUM(CASE WHEN p.status IN ('active','ready') THEN 1 ELSE 0 END) AS active,
       SUM(CASE WHEN p.status IN ('planning','on_hold') THEN 1 ELSE 0 END) AS planning,
       SUM(CASE WHEN ${openP} AND p.health != 'on_track' THEN 1 ELSE 0 END) AS at_risk,
       SUM(CASE WHEN p.status = 'completed' AND substr(p.completed_at, 1, 4) = ? THEN 1 ELSE 0 END) AS delivered
@@ -349,11 +377,11 @@ route('GET', '/dashboard', (ctx) => {
 
   const by_vertical = db.all(
     `SELECT v.id, v.short, v.name, v.color,
-      SUM(CASE WHEN p.status IN ('planning','active','on_hold') THEN 1 ELSE 0 END) AS open,
-      SUM(CASE WHEN p.status = 'active' THEN 1 ELSE 0 END) AS active,
-      SUM(CASE WHEN p.status IN ('planning','active','on_hold') AND p.health != 'on_track' THEN 1 ELSE 0 END) AS at_risk,
+      SUM(CASE WHEN p.status IN ${OPEN_IN} THEN 1 ELSE 0 END) AS open,
+      SUM(CASE WHEN p.status IN ('active','ready') THEN 1 ELSE 0 END) AS active,
+      SUM(CASE WHEN p.status IN ${OPEN_IN} AND p.health != 'on_track' THEN 1 ELSE 0 END) AS at_risk,
       SUM(CASE WHEN p.status = 'completed' AND substr(p.completed_at, 1, 4) = ? THEN 1 ELSE 0 END) AS delivered,
-      SUM(CASE WHEN p.status IN ('planning','active','on_hold') THEN COALESCE(p.budget, 0) ELSE 0 END) AS open_budget
+      SUM(CASE WHEN p.status IN ${OPEN_IN} THEN COALESCE(p.budget, 0) ELSE 0 END) AS open_budget
      FROM verticals v LEFT JOIN projects p ON p.vertical_id = v.id
      WHERE v.id IN (${placeholders(vids)}) AND v.active = 1 GROUP BY v.id ORDER BY v.sort, v.id`,
     year, ...vids,
@@ -393,7 +421,7 @@ route('GET', '/projects', (ctx) => {
   const where = [`p.vertical_id IN (${placeholders(vids)})`];
   const params = [...vids];
   const scope = q.scope || 'open';
-  if (scope === 'open') where.push(`p.status IN ('planning','active','on_hold')`);
+  if (scope === 'open') where.push(`p.status IN ${OPEN_IN}`);
   else if (scope === 'past') where.push(`p.status IN ('completed','cancelled')`);
   if (q.status && PROJECT_STATUSES.includes(q.status)) { where.push('p.status = ?'); params.push(q.status); }
   if (q.health && HEALTH.includes(q.health)) { where.push('p.health = ?'); params.push(q.health); }
@@ -440,6 +468,7 @@ route('POST', '/projects', (ctx) => {
   if (!canManageVertical(ctx.user, verticalId)) throw forbidden(`Only ${vertical.short} managers can create projects`);
   const f = readProjectFields(body, { creating: true });
   checkDates(f);
+  assertStatusFits(f.status, vertical);
   const ownerId = f.owner_id || uid(ctx);
   assertAssignable(ctx, ownerId, verticalId);
 
@@ -575,6 +604,9 @@ route('PATCH', '/projects/:id', (ctx) => {
   }
   const merged = { ...p, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined)) };
   checkDates(merged);
+  if (f.status !== undefined || f.vertical_id !== undefined) {
+    assertStatusFits(merged.status, db.get('SELECT short, ready_label FROM verticals WHERE id = ?', vId));
+  }
   if (f.stages !== undefined) {
     const st = JSON.parse(f.stages);
     if (!st.includes(merged.stage)) f.stage = st[0];
@@ -601,7 +633,7 @@ route('PATCH', '/projects/:id', (ctx) => {
       const v = db.get('SELECT short FROM verticals WHERE id = ?', f.vertical_id);
       log(ctx, p.id, 'moved', v?.short || '');
     }
-    const other = changed.filter((k) => !['status', 'stage', 'health', 'owner_id', 'vertical_id'].includes(k));
+    const other = changed.filter((k) => !['status', 'stage', 'health', 'owner_id', 'vertical_id', 'board_sort'].includes(k));
     if (other.length) log(ctx, p.id, 'updated', other.map((k) => FIELD_LABELS[k] || k).join(', '));
     return getProjectFull(ctx, p.id);
   });
@@ -638,11 +670,12 @@ route('PUT', '/projects/:id/members', (ctx) => {
 route('GET', '/projects/:id/activity', (ctx) => {
   const p = getProjectRaw(ctx, ctx.params.id);
   const comments = ctx.db.all(
-    `SELECT c.*, u.name AS user_name, u.color AS user_color, t.title AS task_title FROM comments c
-     LEFT JOIN users u ON u.id = c.user_id LEFT JOIN tasks t ON t.id = c.task_id WHERE c.project_id = ? ORDER BY c.id DESC LIMIT 200`,
+    `SELECT ${COMMENT_COLS}, t.title AS task_title FROM comments c
+     LEFT JOIN users u ON u.id = c.user_id LEFT JOIN users d ON d.id = c.delete_decided_by LEFT JOIN tasks t ON t.id = c.task_id
+     WHERE c.project_id = ? ORDER BY c.id DESC LIMIT 200`,
     p.id,
   );
-  return { comments, activity: recentActivity(ctx, null, p.id, 200) };
+  return { comments: comments.map((c) => shapeComment(ctx, c, p)), activity: recentActivity(ctx, null, p.id, 200) };
 });
 
 // ---------------------------------------------------------------- tasks
@@ -714,9 +747,9 @@ function taskDetail(ctx, id) {
 route('GET', '/tasks/:id', (ctx) => {
   const { task, project } = getTaskRaw(ctx, ctx.params.id);
   const comments = ctx.db.all(
-    'SELECT c.*, u.name AS user_name, u.color AS user_color FROM comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.task_id = ? ORDER BY c.id',
+    `SELECT ${COMMENT_COLS} FROM comments c LEFT JOIN users u ON u.id = c.user_id LEFT JOIN users d ON d.id = c.delete_decided_by WHERE c.task_id = ? ORDER BY c.id`,
     task.id,
-  );
+  ).map((c) => shapeComment(ctx, c, project));
   const files = ctx.db.all('SELECT f.*, u.name AS uploader_name FROM files f LEFT JOIN users u ON u.id = f.uploaded_by WHERE f.task_id = ? ORDER BY f.id DESC', task.id);
   const history = ctx.db.all(
     'SELECT a.*, u.name AS user_name FROM activity a LEFT JOIN users u ON u.id = a.user_id WHERE a.task_id = ? ORDER BY a.id DESC LIMIT 30',
@@ -799,7 +832,7 @@ route('GET', '/tasks', (ctx) => {
   if (q.created === 'me') { where.push('t.created_by = ?'); params.push(uid(ctx)); }
   if (q.project) { where.push('t.project_id = ?'); params.push(Number(q.project)); }
   const scope = q.scope || 'open';
-  if (scope === 'open') where.push(`t.status != 'done' AND p.status IN ('planning','active','on_hold')`);
+  if (scope === 'open') where.push(`t.status != 'done' AND p.status IN ${OPEN_IN}`);
   else if (scope === 'done') where.push(`t.status = 'done'`);
   if (q.from && isDate(q.from)) { where.push('t.due_date >= ?'); params.push(q.from); }
   if (q.to && isDate(q.to)) { where.push('t.due_date <= ?'); params.push(q.to); }
@@ -956,7 +989,7 @@ route('GET', '/files', (ctx) => {
   else if (q.kind === 'doc') where.push("f.kind = 'file' AND f.mime NOT LIKE 'image/%' AND f.mime NOT LIKE 'video/%'");
   else if (q.kind === 'link') where.push("f.kind = 'link'");
   if (q.scope === 'past') where.push(`p.status IN ('completed','cancelled')`);
-  else if (q.scope === 'open') where.push(`p.status IN ('planning','active','on_hold')`);
+  else if (q.scope === 'open') where.push(`p.status IN ${OPEN_IN}`);
   if (q.year && /^\d{4}$/.test(q.year)) { where.push('substr(COALESCE(p.key_date, p.due_date, p.start_date, f.created_at), 1, 4) = ?'); params.push(q.year); }
   if (q.client) { where.push('p.client = ?'); params.push(q.client); }
   if (q.q) {
@@ -971,6 +1004,33 @@ route('GET', '/files', (ctx) => {
 });
 
 // ---------------------------------------------------------------- comments
+
+const COMMENT_COLS = 'c.*, u.name AS user_name, u.color AS user_color, d.name AS decided_by_name';
+
+// Vertical managers and admins: the people who approve deleting old comments.
+function headsOf(db, verticalId) {
+  const ids = new Set(db.all("SELECT id FROM users WHERE role = 'admin' AND active = 1").map((r) => r.id));
+  for (const r of db.all("SELECT uv.user_id FROM user_verticals uv JOIN users u ON u.id = uv.user_id WHERE uv.vertical_id = ? AND uv.level = 'manager' AND u.active = 1", verticalId)) ids.add(r.user_id);
+  return [...ids];
+}
+
+function shapeComment(ctx, c, project) {
+  const mine = c.user_id === uid(ctx);
+  const left = Math.max(0, DELETE_WINDOW_MS - (Date.parse(ctx.now) - Date.parse(c.created_at)));
+  return {
+    ...c,
+    mine,
+    delete_ms_left: mine ? left : 0,
+    can_delete: mine && (left > 0 || c.delete_status === 'approved'),
+    can_request_delete: mine && left === 0 && c.delete_status !== 'requested' && c.delete_status !== 'approved',
+    can_decide: !mine && c.delete_status === 'requested' && canManageVertical(ctx.user, project.vertical_id),
+  };
+}
+
+function commentById(ctx, id, project) {
+  const c = ctx.db.get(`SELECT ${COMMENT_COLS} FROM comments c LEFT JOIN users u ON u.id = c.user_id LEFT JOIN users d ON d.id = c.delete_decided_by WHERE c.id = ?`, id);
+  return shapeComment(ctx, c, project);
+}
 
 route('POST', '/projects/:id/comments', (ctx) => {
   const { db } = ctx;
@@ -996,17 +1056,62 @@ route('POST', '/projects/:id/comments', (ctx) => {
   }
   if (task?.assignee_id && !told.has(task.assignee_id)) { notify(ctx, task.assignee_id, p.id, `${ctx.user.name} commented ${where}`, task.id); told.add(task.assignee_id); }
   if (p.owner_id && !told.has(p.owner_id)) notify(ctx, p.owner_id, p.id, `${ctx.user.name} commented ${where}`, task?.id);
-  return db.get('SELECT c.*, u.name AS user_name, u.color AS user_color FROM comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.id = ?', id);
+  return commentById(ctx, id, p);
 });
 
-route('DELETE', '/comments/:id', (ctx) => {
+// Comments are permanent records once the 15-second window has passed: the author
+// can ask a head (vertical manager or admin) to approve the deletion, and only then delete it.
+function getComment(ctx) {
   const c = ctx.db.get('SELECT * FROM comments WHERE id = ?', toId(ctx.params.id, 'Comment'));
   if (!c) throw notFound('Comment');
   const p = ctx.db.get('SELECT * FROM projects WHERE id = ?', c.project_id);
   if (!canView(ctx.user, p)) throw notFound('Comment');
-  if (c.user_id !== uid(ctx) && !isAdmin(ctx.user)) throw forbidden('You can only delete your own comments');
-  ctx.db.run('DELETE FROM comments WHERE id = ?', c.id);
+  return { c, p };
+}
+
+route('DELETE', '/comments/:id', async (ctx) => {
+  const { c, p } = getComment(ctx);
+  if (c.user_id !== uid(ctx)) throw forbidden('You can only delete your own comments');
+  const age = Date.parse(ctx.now) - Date.parse(c.created_at);
+  if (age > DELETE_WINDOW_MS + DELETE_GRACE_MS && c.delete_status !== 'approved') {
+    throw forbidden('Comments can only be deleted within 15 seconds of posting. Ask a head to approve the deletion.');
+  }
+  const approver = c.delete_status === 'approved' ? userBrief(ctx.db, c.delete_decided_by) : null;
+  ctx.db.tx(() => {
+    ctx.db.run('DELETE FROM comments WHERE id = ?', c.id);
+    if (approver) log(ctx, p.id, 'comment_deleted', approver.name, c.task_id);
+  });
   return { ok: true };
+});
+
+route('POST', '/comments/:id/delete-request', (ctx) => {
+  const { c, p } = getComment(ctx);
+  if (c.user_id !== uid(ctx)) throw forbidden('You can only ask to delete your own comments');
+  if (c.delete_status === 'requested') throw bad('A head has already been asked to approve this');
+  if (c.delete_status === 'approved') throw bad('Deletion is already approved. You can delete the comment now.');
+  ctx.db.tx(() => {
+    ctx.db.run("UPDATE comments SET delete_status = 'requested', delete_requested_at = ?, delete_decided_by = NULL, delete_decided_at = NULL WHERE id = ?", ctx.now, c.id);
+    const snippet = c.body.length > 60 ? c.body.slice(0, 57) + '…' : c.body;
+    for (const h of headsOf(ctx.db, p.vertical_id)) {
+      notify(ctx, h, p.id, `${ctx.user.name} asks to delete a comment in ${p.code}: “${snippet}”`, c.task_id);
+    }
+  });
+  return commentById(ctx, c.id, p);
+});
+
+route('POST', '/comments/:id/delete-decision', (ctx) => {
+  const { c, p } = getComment(ctx);
+  if (!canManageVertical(ctx.user, p.vertical_id)) throw forbidden('Only a head of this vertical can approve deleting comments');
+  if (c.user_id === uid(ctx)) throw forbidden('Another head has to approve deleting your own comment');
+  if (c.delete_status !== 'requested') throw bad('There is no pending request for this comment');
+  const approve = !!ctx.body.approve;
+  ctx.db.tx(() => {
+    ctx.db.run('UPDATE comments SET delete_status = ?, delete_decided_by = ?, delete_decided_at = ? WHERE id = ?', approve ? 'approved' : 'declined', uid(ctx), ctx.now, c.id);
+    notify(ctx, c.user_id, p.id, approve
+      ? `${ctx.user.name} approved deleting your comment in ${p.code}. You can delete it now.`
+      : `${ctx.user.name} asked to keep your comment in ${p.code}.`, c.task_id);
+  });
+  return commentById(ctx, c.id, p);
 });
 
 // ---------------------------------------------------------------- calendar, search, notifications
@@ -1032,7 +1137,7 @@ route('GET', '/calendar', (ctx) => {
      WHERE ${inV} AND p.status != 'cancelled' AND m.due_date BETWEEN ? AND ? AND (p.key_date IS NULL OR m.due_date != p.key_date)`,
     ...vids, q.from, q.to,
   )) items.push({ type: 'milestone', date: m.due_date, title: m.title, done: !!m.done, project_id: m.project_id, code: m.code, project_name: m.project_name, color: m.vertical_color, vertical: m.vertical });
-  const taskWhere = [inV, 't.due_date BETWEEN ? AND ?', "p.status IN ('planning','active','on_hold')"];
+  const taskWhere = [inV, 't.due_date BETWEEN ? AND ?', `p.status IN ${OPEN_IN}`];
   const tParams = [...vids, q.from, q.to];
   if (q.tasks === 'mine') { taskWhere.push('t.assignee_id = ?'); tParams.push(uid(ctx)); }
   if (q.tasks !== 'none') {
@@ -1176,7 +1281,7 @@ function adminUser(db, id) {
   const u = db.get('SELECT id, name, email, role, title, phone, color, active, created_at, last_login_at, must_change_password FROM users WHERE id = ?', id);
   if (!u) return null;
   u.access = Object.fromEntries(db.all('SELECT vertical_id, level FROM user_verticals WHERE user_id = ?', id).map((r) => [r.vertical_id, r.level]));
-  u.open_tasks = db.get("SELECT COUNT(*) AS n FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.assignee_id = ? AND t.status != 'done' AND p.status IN ('planning','active','on_hold')", id).n;
+  u.open_tasks = db.get(`SELECT COUNT(*) AS n FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.assignee_id = ? AND t.status != 'done' AND p.status IN ${OPEN_IN}`, id).n;
   return u;
 }
 
@@ -1276,6 +1381,7 @@ function readVertical(body, creating) {
     code: text(body.code, { max: 6, label: 'Code', required: creating })?.toUpperCase(),
     tagline: text(body.tagline, { max: 120, label: 'Tagline' }),
     key_date_label: text(body.key_date_label, { max: 40, label: 'Key date label' }),
+    ready_label: text(body.ready_label, { max: 60, label: 'Final board column' }),
     color: body.color === undefined ? undefined : /^#[0-9a-fA-F]{6}$/.test(body.color) ? body.color : '#1a6df0',
     sort: body.sort === undefined ? undefined : Number(body.sort) || 0,
     active: body.active === undefined ? undefined : body.active ? 1 : 0,
@@ -1290,8 +1396,8 @@ route('POST', '/admin/verticals', (ctx) => {
   if (ctx.db.get('SELECT 1 AS x FROM verticals WHERE code = ?', f.code)) throw bad('Another vertical already uses that code');
   const sort = (ctx.db.get('SELECT MAX(sort) AS m FROM verticals').m || 0) + 1;
   const { id } = ctx.db.run(
-    'INSERT INTO verticals (name, short, code, tagline, color, key_date_label, sort, active) VALUES (?,?,?,?,?,?,?,1)',
-    f.name, f.short, f.code, f.tagline || '', f.color || '#1a6df0', f.key_date_label || 'Key date', f.sort ?? sort,
+    'INSERT INTO verticals (name, short, code, tagline, color, key_date_label, ready_label, sort, active) VALUES (?,?,?,?,?,?,?,?,1)',
+    f.name, f.short, f.code, f.tagline || '', f.color || '#1a6df0', f.key_date_label || 'Key date', f.ready_label || '', f.sort ?? sort,
   );
   return ctx.db.get('SELECT * FROM verticals WHERE id = ?', id);
 });
@@ -1304,7 +1410,10 @@ route('PATCH', '/admin/verticals/:id', (ctx) => {
   if (f.code && ctx.db.get('SELECT 1 AS x FROM verticals WHERE code = ? AND id != ?', f.code, id)) throw bad('Another vertical already uses that code');
   for (const k of ['name', 'short', 'code']) if (f[k] === '') throw bad(`${k} is required`);
   const sets = Object.entries(f).filter(([, v]) => v !== undefined);
-  if (sets.length) ctx.db.run(`UPDATE verticals SET ${sets.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`, ...sets.map(([, v]) => v), id);
+  ctx.db.tx(() => {
+    if (sets.length) ctx.db.run(`UPDATE verticals SET ${sets.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`, ...sets.map(([, v]) => v), id);
+    if (f.ready_label === '') ctx.db.run("UPDATE projects SET status = 'active', updated_at = ? WHERE vertical_id = ? AND status = 'ready'", ctx.now, id);
+  });
   return ctx.db.get('SELECT * FROM verticals WHERE id = ?', id);
 });
 

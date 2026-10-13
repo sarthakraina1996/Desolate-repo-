@@ -140,7 +140,7 @@ export function ProjectForm({ project, copyFrom, onClose, onSaved }) {
           ) : (
             <Field label="Status" htmlFor="pf-status">
               <select id="pf-status" className="select" value={f.status} onChange={set('status')}>
-                {Object.entries(PROJECT_STATUS).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
+                {Object.entries(PROJECT_STATUS).filter(([k]) => k !== 'ready' || v?.ready_label).map(([k, s]) => <option key={k} value={k}>{k === 'ready' ? v.ready_label : s.label}</option>)}
               </select>
             </Field>
           )}

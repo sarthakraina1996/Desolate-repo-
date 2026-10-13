@@ -10,7 +10,8 @@ export const PROJECT_STATUS = {
   planning: { label: 'Planning', cls: 'b-purple' },
   active: { label: 'Active', cls: 'b-blue' },
   on_hold: { label: 'On hold', cls: 'b-amber' },
-  completed: { label: 'Completed', cls: 'b-green' },
+  ready: { label: 'Ready', cls: 'b-green' },
+  completed: { label: 'Delivered', cls: 'b-green' },
   cancelled: { label: 'Cancelled', cls: 'b-gray' },
 };
 export const HEALTH = {
@@ -92,9 +93,10 @@ export function VChip({ name, color, small }) {
   );
 }
 
-export function StatusBadge({ status }) {
+// readyLabel: the vertical's name for its "ready" column, e.g. Ready for Event / Exhibition.
+export function StatusBadge({ status, readyLabel }) {
   const s = PROJECT_STATUS[status] || PROJECT_STATUS.planning;
-  return <span className={`badge ${s.cls}`}>{s.label}</span>;
+  return <span className={`badge ${s.cls}`}>{status === 'ready' && readyLabel ? readyLabel : s.label}</span>;
 }
 
 export function HealthBadge({ health, compact }) {

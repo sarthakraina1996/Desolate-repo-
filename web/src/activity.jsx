@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { Send } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Send, Trash2, Clock, ShieldCheck, ShieldX, Hourglass } from 'lucide-react';
 import { Link } from './router.jsx';
 import { Avatar, PROJECT_STATUS, HEALTH } from './ui.jsx';
-import { timeAgo } from './format.js';
+import { timeAgo, fmtTime } from './format.js';
+import { useApp } from './store.jsx';
+import { api } from './api.js';
 
 // Turns an activity row into a readable sentence.
 export function describe(a) {
@@ -11,6 +13,7 @@ export function describe(a) {
   switch (a.action) {
     case 'created': return d ? <>created the project <span className="muted">({d})</span></> : 'created the project';
     case 'status': return <>changed the status to <b>{PROJECT_STATUS[d]?.label || d}</b></>;
+    case 'comment_deleted': return <>deleted a comment{d && <span className="muted"> (approved by {d})</span>}</>;
     case 'stage': return <>moved the project to <b>{d}</b></>;
     case 'health': return <>marked the project <b>{HEALTH[d]?.label || d}</b></>;
     case 'owner': return <>made <b>{d}</b> the project owner</>;
@@ -80,4 +83,90 @@ export function Composer({ onSend, placeholder = 'Write an update. Use @name to 
 export function CommentBody({ text }) {
   const parts = text.split(/(@[A-Z][a-z]+(?: [A-Z][a-z]+)?)/g);
   return <>{parts.map((s, i) => (s.startsWith('@') ? <b key={i} className="mention">{s}</b> : s))}</>;
+}
+
+// One comment with its delete rules: the author can delete for 15 seconds (with a
+// countdown); after that they ask a head, and can delete only once a head approves.
+export function CommentItem({ c, onChanged, taskLink, size = 34 }) {
+  const { toast, confirm } = useApp();
+  const deadline = useMemo(() => Date.now() + (c.delete_ms_left || 0), [c.id, c.delete_ms_left]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [now, setNow] = useState(() => Date.now());
+  const [busy, setBusy] = useState(false);
+  const left = Math.max(0, deadline - now);
+  useEffect(() => {
+    setNow(Date.now());
+    if (deadline <= Date.now()) return undefined;
+    const t = setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= deadline) clearInterval(t);
+    }, 250);
+    return () => clearInterval(t);
+  }, [deadline]);
+
+  const inWindow = c.mine && c.delete_ms_left > 0 && left > 0;
+  const approved = c.mine && c.delete_status === 'approved';
+  const canRequest = c.mine && !inWindow && c.delete_status !== 'requested' && !approved;
+
+  const run = async (fn, msg) => {
+    setBusy(true);
+    try {
+      await fn();
+      if (msg) toast(msg, 'success');
+      onChanged?.();
+    } catch (e) {
+      toast(e.message, 'error');
+      onChanged?.();
+    }
+    setBusy(false);
+  };
+  const del = async () => {
+    if (approved && !(await confirm({ title: 'Delete this comment?', message: 'A head approved the deletion. The comment will be removed for everyone.', confirmLabel: 'Delete comment', danger: true }))) return;
+    run(() => api.del(`/comments/${c.id}`), 'Comment deleted');
+  };
+
+  return (
+    <div className="feed-item comment">
+      <Avatar name={c.user_name} color={c.user_color} size={size} />
+      <div className="grow" style={{ minWidth: 0 }}>
+        <div className="row between">
+          <span className="small"><b>{c.user_name}</b>{taskLink}</span>
+          <span className="xs muted nowrap" title={fmtTime(c.created_at)}>{timeAgo(c.created_at)}</span>
+        </div>
+        <div className="bubble"><CommentBody text={c.body} /></div>
+        <div className="c-actions">
+          {inWindow && (
+            <button type="button" className="link xs" onClick={del} disabled={busy}>
+              <Trash2 size={12} />Delete <span className="c-count">{Math.ceil(left / 1000)}s</span>
+            </button>
+          )}
+          {canRequest && (
+            <button type="button" className="link xs muted" onClick={() => run(() => api.post(`/comments/${c.id}/delete-request`), 'Sent to your head for approval')} disabled={busy}>
+              <Clock size={12} />{c.delete_status === 'declined' ? 'Ask again to delete' : 'Request deletion'}
+            </button>
+          )}
+          {c.delete_status === 'requested' && !c.can_decide && (
+            <span className="c-chip amber"><Hourglass size={12} />{c.mine ? 'Deletion requested. Waiting for a head to approve.' : 'Deletion requested'}</span>
+          )}
+          {approved && (
+            <>
+              <span className="c-chip green"><ShieldCheck size={12} />Deletion approved{c.decided_by_name ? ` by ${c.decided_by_name}` : ''}</span>
+              <button type="button" className="link xs red" onClick={del} disabled={busy}><Trash2 size={12} />Delete</button>
+            </>
+          )}
+          {c.delete_status === 'declined' && (
+            <span className="c-chip gray"><ShieldX size={12} />Kept{c.decided_by_name ? ` by ${c.decided_by_name}` : ''}</span>
+          )}
+        </div>
+        {c.can_decide && (
+          <div className="c-request">
+            <span className="small"><b>{c.user_name.split(' ')[0]}</b> asked to delete this comment.</span>
+            <span className="row gap-6">
+              <button type="button" className="btn xs success" disabled={busy} onClick={() => run(() => api.post(`/comments/${c.id}/delete-decision`, { approve: true }), 'Deletion approved')}>Approve deletion</button>
+              <button type="button" className="btn xs" disabled={busy} onClick={() => run(() => api.post(`/comments/${c.id}/delete-decision`, { approve: false }), 'Comment kept')}>Keep comment</button>
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

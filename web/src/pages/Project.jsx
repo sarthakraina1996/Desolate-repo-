@@ -10,7 +10,8 @@ import {
   Loading, ErrorNote, Empty, VChip, StatusBadge, HealthBadge, Avatar, Ring, Menu, Seg, PriorityFlag, TaskStatusBadge, Modal, Field,
   UserSelect, Progress, TASK_STATUS, HEALTH, PRIORITY, alpha,
 } from '../ui.jsx';
-import { ActivityList, Composer, CommentBody } from '../activity.jsx';
+import { ActivityList, Composer, CommentItem } from '../activity.jsx';
+import { Board, Cover, Labels, Badges, DueBadge, labelColor } from '../board.jsx';
 import { UploadZone, LinkForm, FileCard, FileRow, FilePreview, AddLinkButton } from '../files.jsx';
 import { fmtDate, relDay, daysFrom, dueText, inr, fmtTime, timeAgo } from '../format.js';
 import { ProjectForm } from './ProjectForm.jsx';
@@ -227,7 +228,7 @@ function Overview({ p, reload }) {
             <dt>Budget</dt><dd>{p.budget ? inr(p.budget) : '—'}</dd>
             <dt>Priority</dt><dd><PriorityFlag priority={p.priority} label /></dd>
             <dt>Created</dt><dd>{fmtDate(p.created_at?.slice(0, 10), { year: true })}{p.created_by_user ? ` by ${p.created_by_user.name}` : ''}</dd>
-            {p.completed_at && <><dt>Completed</dt><dd>{fmtDate(p.completed_at.slice(0, 10), { year: true })}</dd></>}
+            {p.completed_at && <><dt>Delivered</dt><dd>{fmtDate(p.completed_at.slice(0, 10), { year: true })}</dd></>}
           </dl>
         </section>
       </div>
@@ -237,7 +238,50 @@ function Overview({ p, reload }) {
 
 // ---------------------------------------------------------------- tasks
 
-const BOARD_COLS = ['todo', 'in_progress', 'review', 'blocked', 'done'];
+const BOARD_COLS = [
+  { key: 'todo', color: '#9aa6b8' },
+  { key: 'in_progress', color: '#1a6df0' },
+  { key: 'review', color: '#7c5cfc' },
+  { key: 'blocked', color: '#e31b3b' },
+  { key: 'done', color: '#1fa855' },
+];
+
+function TaskCard({ t, today }) {
+  const pr = PRIORITY[t.priority];
+  return (
+    <>
+      <Cover file={t.cover} color="#1a6df0" />
+      <div className="kb-body">
+        <Labels items={[
+          t.stage && { text: t.stage, color: labelColor(t.stage) },
+          (t.priority === 'high' || t.priority === 'urgent') && { text: pr.label, color: pr.color, solid: true },
+        ]} />
+        <div className="kb-title">{t.title}</div>
+        <div className="kb-meta">
+          <Badges checklist={{ done: t.checklist.filter((c) => c.done).length, total: t.checklist.length }} comments={t.comment_count} files={t.file_count}>
+            <DueBadge date={t.due_date} today={today} done={t.status === 'done'} />
+          </Badges>
+          {t.assignee_name && <span className="kb-people"><Avatar name={t.assignee_name} color={t.assignee_color} size={26} /></span>}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TaskBoard({ p, tasks, today, onOpen, onMove, onAdd, onSort }) {
+  const columns = BOARD_COLS.map((c) => ({
+    ...c,
+    title: TASK_STATUS[c.key].label,
+    canAdd: p.permissions.contribute,
+    addPlaceholder: 'What needs doing?',
+    cards: tasks.filter((t) => t.status === c.key).sort((a, b) => a.sort - b.sort || a.id - b.id),
+  }));
+  return (
+    <Board id="tasks" columns={columns} renderCard={(t) => <TaskCard t={t} today={today} />} onOpen={onOpen} onMove={onMove} onAdd={onAdd} onSort={onSort}
+      canDrag={() => p.permissions.contribute}
+      sortOptions={[{ value: 'due', label: 'due date' }, { value: 'priority', label: 'priority' }, { value: 'name', label: 'name' }]} />
+  );
+}
 
 function QuickAdd({ p, onAdded, defaultStage }) {
   const { assignable, toast } = useApp();
@@ -300,8 +344,6 @@ function TasksTab({ p, reloadProject }) {
   const [who, setWho] = useState('');
   const [showDone, setShowDone] = usePref('bpm.tasks.done', true);
   const { data, loading, error, reload, setData } = useLoad(() => api.get(`/projects/${p.id}/tasks`), [p.id]);
-  const [over, setOver] = useState(null);
-
   const tasks = useMemo(() => {
     let list = data?.items || [];
     if (who === 'me') list = list.filter((t) => t.assignee_id === me.id);
@@ -357,7 +399,7 @@ function TasksTab({ p, reloadProject }) {
       </div>
       {p.permissions.contribute && <QuickAdd p={p} onAdded={() => { reload({ quiet: true }); reloadProject({ quiet: true }); }} />}
       <ErrorNote error={error} retry={reload} />
-      {loading && !data ? <Loading /> : total === 0 ? (
+      {loading && !data ? <Loading /> : total === 0 && view === 'list' ? (
         <div className="card"><Empty title="No tasks yet">{p.permissions.contribute ? 'Add the first task above. Tip: start projects from a template to get a ready-made task list.' : 'Tasks will show here once the team adds them.'}</Empty></div>
       ) : view === 'list' ? (
         <div className="col" style={{ gap: 14 }}>
@@ -381,29 +423,30 @@ function TasksTab({ p, reloadProject }) {
           })}
         </div>
       ) : (
-        <div className="kanban tboard">
-          {BOARD_COLS.map((s) => {
-            const list = tasks.filter((t) => t.status === s);
-            return (
-              <div key={s} className={`kcol ${over === s ? 'over' : ''}`} style={{ background: alpha(s === 'todo' ? '#9aa6b8' : s === 'in_progress' ? '#1a6df0' : s === 'review' ? '#7c5cfc' : s === 'blocked' ? '#e31b3b' : '#1fa855', 0.08) }}
-                onDragOver={(e) => { if (p.permissions.contribute) { e.preventDefault(); setOver(s); } }}
-                onDragLeave={() => setOver(null)}
-                onDrop={(e) => { e.preventDefault(); setOver(null); const t = tasks.find((x) => x.id === Number(e.dataTransfer.getData('text/plain'))); if (t && t.status !== s) update(t, { status: s }, `Moved to ${TASK_STATUS[s].label}`); }}>
-                <h4><span>{TASK_STATUS[s].label}</span><span className="pill-num">{list.length}</span></h4>
-                {list.map((t) => (
-                  <div key={t.id} className="kcard" draggable={p.permissions.contribute} onDragStart={(e) => e.dataTransfer.setData('text/plain', String(t.id))} onClick={() => open(t)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && open(t)}>
-                    <div className="small b6" style={{ lineHeight: 1.35 }}>{t.title}</div>
-                    <div className="xs muted mt-4">{t.stage}</div>
-                    <div className="row between mt-8">
-                      {t.assignee_name ? <Avatar name={t.assignee_name} color={t.assignee_color} size={22} /> : <span className="xs faint">—</span>}
-                      <span className="row gap-6"><PriorityFlag priority={t.priority} /><span className={`xs ${t.overdue ? 'red b6' : 'muted'}`}>{t.due_date ? fmtDate(t.due_date, { today }) : ''}</span></span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
+        <TaskBoard p={p} tasks={tasks} today={today} onOpen={open} onMove={(t, status, sort) => update(t, status === t.status ? { sort } : { status, sort }, status === t.status ? null : `Moved to ${TASK_STATUS[status].label}`)}
+          onAdd={async (col, title) => {
+            try {
+              await api.post(`/projects/${p.id}/tasks`, { title, status: col.key, assignee_id: who === 'me' ? me.id : who && who !== 'none' ? Number(who) : null });
+              reload({ quiet: true });
+              reloadProject({ quiet: true });
+              return true;
+            } catch (e) {
+              toast(e.message, 'error');
+              return false;
+            }
+          }}
+          onSort={async (col, by) => {
+            const rank = { urgent: 0, high: 1, medium: 2, low: 3 };
+            const cmp = by === 'due' ? (a, b) => (a.due_date || '9').localeCompare(b.due_date || '9') : by === 'priority' ? (a, b) => rank[a.priority] - rank[b.priority] : (a, b) => a.title.localeCompare(b.title);
+            const sorted = [...col.cards].sort(cmp);
+            setData((d) => ({ ...d, items: d.items.map((x) => { const i = sorted.findIndex((c) => c.id === x.id); return i === -1 ? x : { ...x, sort: i + 1 }; }) }));
+            try {
+              for (const [i, c] of sorted.entries()) await api.patch(`/tasks/${c.id}`, { sort: i + 1 });
+            } catch (e) {
+              toast(e.message, 'error');
+            }
+            reload({ quiet: true });
+          }} />
       )}
     </>
   );
@@ -484,21 +527,14 @@ function Discussion({ p }) {
       return false;
     }
   };
-  const remove = async (c) => {
-    try {
-      await api.del(`/comments/${c.id}`);
-      reload({ quiet: true });
-    } catch (e) {
-      toast(e.message, 'error');
-    }
-  };
   const merged = useMemo(() => {
     if (!data) return [];
     const c = data.comments.map((x) => ({ ...x, kind: 'comment' }));
     const a = data.activity.map((x) => ({ ...x, kind: 'activity' }));
-    const all = filter === 'comments' ? c : filter === 'activity' ? a : [...c, ...a];
+    const all = filter === 'comments' ? c : filter === 'activity' ? a : filter === 'requests' ? c.filter((x) => x.delete_status === 'requested') : [...c, ...a];
     return all.sort((x, y) => (y.created_at || '').localeCompare(x.created_at || ''));
   }, [data, filter]);
+  const pending = data?.comments.filter((x) => x.delete_status === 'requested').length || 0;
   return (
     <div className="grid">
       <div className="span-8">
@@ -506,6 +542,7 @@ function Discussion({ p }) {
         <div className="row between mt-16 mb-8">
           <div className="tabs pills" style={{ marginBottom: 0 }}>
             {[['all', 'Everything'], ['comments', 'Comments'], ['activity', 'Changes']].map(([k, l]) => <button key={k} type="button" className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{l}</button>)}
+            {pending > 0 && <button type="button" className={filter === 'requests' ? 'on' : ''} onClick={() => setFilter('requests')}>Delete requests <span className="pill-num">{pending}</span></button>}
           </div>
         </div>
         <ErrorNote error={error} retry={reload} />
@@ -513,17 +550,8 @@ function Discussion({ p }) {
           <div className="card">
             <div className="feed">
               {merged.map((x) => x.kind === 'comment' ? (
-                <div key={`c${x.id}`} className="feed-item comment">
-                  <Avatar name={x.user_name} color={x.user_color} size={34} />
-                  <div className="grow">
-                    <div className="row between">
-                      <span className="small"><b>{x.user_name}</b>{x.task_title && <span className="muted"> on <Link to={`/projects/${p.id}/tasks/${x.task_id}`}>{x.task_title}</Link></span>}</span>
-                      <span className="xs muted nowrap" title={fmtTime(x.created_at)}>{timeAgo(x.created_at)}</span>
-                    </div>
-                    <div className="bubble"><CommentBody text={x.body} /></div>
-                    {x.user_id === me.id && <button type="button" className="link xs muted" onClick={() => remove(x)}>Delete</button>}
-                  </div>
-                </div>
+                <CommentItem key={`c${x.id}`} c={x} onChanged={() => reload({ quiet: true })}
+                  taskLink={x.task_title && <span className="muted"> on <Link to={`/projects/${p.id}/tasks/${x.task_id}`}>{x.task_title}</Link></span>} />
               ) : (
                 <ActivityList key={`a${x.id}`} items={[x]} />
               ))}
@@ -538,6 +566,7 @@ function Discussion({ p }) {
             <li>Type <b>@</b> and a teammate's first name to send them a notification.</li>
             <li>Comments on a task also show here, so the whole story stays in one place.</li>
             <li>Every status, stage, date and file change is recorded automatically.</li>
+            <li>You can delete a comment for 15 seconds after posting. After that, ask a head of the vertical to approve the deletion.</li>
           </ul>
         </section>
       </div>
@@ -579,11 +608,11 @@ export default function Project({ id, tab = 'overview', taskId }) {
   const close = async () => {
     const open = p.task_total - p.task_done;
     const ok = await confirm({
-      title: `Mark ${p.code} as completed?`,
+      title: `Mark ${p.code} as delivered?`,
       message: `${open ? `${open} task${open > 1 ? 's are' : ' is'} still open. ` : ''}The project moves to Past Projects with all its files and history, and you can reopen it at any time.`,
-      confirmLabel: 'Mark completed',
+      confirmLabel: 'Mark delivered',
     });
-    if (ok) setStatus('completed', 'Project completed and moved to Past Projects');
+    if (ok) setStatus('completed', 'Project delivered and moved to Past Projects');
   };
   const del = async () => {
     const ok = await confirm({ title: `Delete ${p.code}?`, message: 'This permanently deletes the project with all its tasks, files and history. Close the project instead if you want to keep a record.', confirmLabel: 'Delete permanently', danger: true });
@@ -642,7 +671,7 @@ export default function Project({ id, tab = 'overview', taskId }) {
             <div className="row wrap" style={{ gap: 8 }}>
               <VChip name={p.vertical_name} color={p.vertical_color} />
               <span className="small muted b6">{p.code}</span>
-              <StatusBadge status={p.status} />
+              <StatusBadge status={p.status} readyLabel={p.ready_label} />
               {p.permissions.edit ? (
                 <select id="ph-health" className="health-select" value={p.health} onChange={(e) => setHealth(e.target.value)} aria-label="Project health" style={{ color: HEALTH[p.health].color }}>
                   {Object.entries(HEALTH).map(([k, h]) => <option key={k} value={k}>● {h.label}</option>)}
@@ -655,12 +684,17 @@ export default function Project({ id, tab = 'overview', taskId }) {
             <div className="sub">{[p.client, p.venue, p.city].filter(Boolean).join(' · ') || 'No client yet'}</div>
           </div>
           <div className="head-actions">
-            {p.permissions.edit && !closed && <button type="button" className="btn success" onClick={close}><CheckCircle2 size={17} />Complete</button>}
+            {p.permissions.edit && !closed && p.ready_label && p.status !== 'ready' && (
+              <button type="button" className="btn success" onClick={() => setStatus('ready', `Moved to ${p.ready_label}`)} title={`Move to ${p.ready_label}`}><CheckCircle2 size={17} />Mark ready</button>
+            )}
+            {p.permissions.edit && !closed && (!p.ready_label || p.status === 'ready') && <button type="button" className="btn success" onClick={close}><CheckCircle2 size={17} />Mark delivered</button>}
             {p.permissions.edit && closed && <button type="button" className="btn" onClick={() => setStatus('active', 'Project reopened')}><RotateCcw size={16} />Reopen</button>}
             {p.permissions.edit && <button type="button" className="btn" onClick={() => setEditing(true)}><Pencil size={16} />Edit</button>}
             <Menu buttonClass="btn" items={[
               canManage(p.vertical_id) && { label: 'Run again (copy project)', icon: Copy, onClick: () => setCopying(true) },
               canManage(p.vertical_id) && { label: 'Save as template', icon: LayoutTemplate, onClick: saveTemplate },
+              p.permissions.edit && !closed && p.ready_label && p.status !== 'ready' && { label: 'Mark delivered', icon: CheckCircle2, onClick: close },
+              p.permissions.edit && p.status === 'ready' && { label: 'Back to Active', icon: RotateCcw, onClick: () => setStatus('active', 'Project moved back to Active') },
               p.permissions.edit && !closed && p.status !== 'on_hold' && { label: 'Put on hold', icon: PauseCircle, onClick: () => setStatus('on_hold', 'Project put on hold') },
               p.permissions.edit && p.status === 'on_hold' && { label: 'Resume', icon: RotateCcw, onClick: () => setStatus('active', 'Project resumed') },
               p.permissions.edit && !closed && { label: 'Cancel project', icon: Ban, onClick: () => setStatus('cancelled', 'Project cancelled and moved to Past Projects') },

@@ -9,9 +9,11 @@ The main rule: **people only see the verticals they have been given.** An Exhibi
 | Area | What you get |
 | --- | --- |
 | **Dashboard** | Active projects, tasks due this week, overdue tasks, projects that need attention, upcoming event, show and launch dates, and recent activity. |
-| **Projects** | List, board (drag a project to change its status) and timeline views. Filter by status, health, owner or client. Export to CSV. |
+| **Projects** | List, board and timeline views. The board works like Trello: cards with cover images, labels and badges, drag between and within columns, **Add a card** at the bottom of each column, and a list menu to sort or collapse. Filter by status, health, owner or client. Export to CSV. |
+| **Board columns** | Planning → Active → On hold → **Delivered** for Live and Marketing. Exhibits ends at **Ready for Event / Exhibition** instead, and only people with Exhibits access see that column. An admin can give any vertical its own last column under Settings → Verticals. |
 | **Project page** | Stage tracker, owner, dates, budget in ₹, location, progress, milestones, team, brief, and tabs for tasks, files and discussion. |
-| **Tasks** | Assignee, due date, priority, stage, status (To do, In progress, In review, Blocked, Done), checklist, files, comments with @mentions, and a change history. Shown grouped by stage, or as a board. |
+| **Tasks** | Assignee, due date, priority, stage, status (To do, In progress, In review, Blocked, Done), checklist, files, comments with @mentions, and a change history. Shown grouped by stage, or as a Trello-style board. |
+| **Comments** | The author can delete a comment for 15 seconds after posting (with a countdown). After that it can only be removed if the author asks and a head of the vertical (a manager or an admin) approves; then the author gets the Delete option back. Heads cannot approve their own requests. |
 | **Files & assets** | Drag-and-drop uploads, links to Drive, Dropbox or Figma, automatic categories (Brief, Design, Contract & PO, Quotes & Invoices, Production, Photos & Videos, Final deliverables, Reports), and a star for final assets. |
 | **My Work** | Your tasks grouped into Overdue, Today, This week, Next week and Later. |
 | **Calendar** | Month view of event days, show openings, launches, milestones and task deadlines. |
@@ -27,7 +29,7 @@ The main rule: **people only see the verticals they have been given.** An Exhibi
 | --- | --- |
 | **Viewer** | See projects, tasks and files. Cannot change anything. |
 | **Member** | Work on projects: tasks, files, milestones and comments. Can edit projects they own. |
-| **Manager** | Create, edit, close, re-open and copy projects. Manage templates. |
+| **Manager** | Create, edit, close, re-open and copy projects. Manage templates. Approve or decline requests to delete old comments (the "head" of the vertical). |
 | **Admin** (company-wide) | Everything in every vertical, plus people, access, verticals and settings. |
 
 ### Works for other industries

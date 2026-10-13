@@ -1,7 +1,40 @@
 // Database schema shared by the Node server (node:sqlite) and the in-browser demo (sql.js).
 // Both run SQLite, so the same SQL works everywhere.
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
+
+// Kept as a function so a migration can rebuild the table with the same definition.
+export function projectsTable(name) {
+  return `
+CREATE TABLE IF NOT EXISTS ${name} (
+  id INTEGER PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  vertical_id INTEGER NOT NULL REFERENCES verticals(id),
+  name TEXT NOT NULL,
+  client TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'planning' CHECK (status IN ('planning','active','on_hold','ready','completed','cancelled')),
+  health TEXT NOT NULL DEFAULT 'on_track' CHECK (health IN ('on_track','at_risk','off_track')),
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high','urgent')),
+  stages TEXT DEFAULT '[]',
+  stage TEXT DEFAULT '',
+  owner_id INTEGER REFERENCES users(id),
+  start_date TEXT,
+  due_date TEXT,
+  key_date TEXT,
+  venue TEXT DEFAULT '',
+  city TEXT DEFAULT '',
+  budget REAL,
+  tags TEXT DEFAULT '',
+  template_id INTEGER,
+  board_sort REAL,
+  completed_at TEXT,
+  created_by INTEGER,
+  created_at TEXT,
+  updated_at TEXT
+);
+`;
+}
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS settings (
@@ -17,6 +50,8 @@ CREATE TABLE IF NOT EXISTS verticals (
   tagline TEXT DEFAULT '',
   color TEXT DEFAULT '#1a6df0',
   key_date_label TEXT DEFAULT 'Key date',
+  -- Optional last board column before a project is delivered, e.g. "Ready for Event / Exhibition".
+  ready_label TEXT DEFAULT '',
   sort INTEGER DEFAULT 0,
   active INTEGER DEFAULT 1
 );
@@ -65,32 +100,7 @@ CREATE TABLE IF NOT EXISTS templates (
   created_at TEXT
 );
 
-CREATE TABLE IF NOT EXISTS projects (
-  id INTEGER PRIMARY KEY,
-  code TEXT NOT NULL UNIQUE,
-  vertical_id INTEGER NOT NULL REFERENCES verticals(id),
-  name TEXT NOT NULL,
-  client TEXT DEFAULT '',
-  description TEXT DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'planning' CHECK (status IN ('planning','active','on_hold','completed','cancelled')),
-  health TEXT NOT NULL DEFAULT 'on_track' CHECK (health IN ('on_track','at_risk','off_track')),
-  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high','urgent')),
-  stages TEXT DEFAULT '[]',
-  stage TEXT DEFAULT '',
-  owner_id INTEGER REFERENCES users(id),
-  start_date TEXT,
-  due_date TEXT,
-  key_date TEXT,
-  venue TEXT DEFAULT '',
-  city TEXT DEFAULT '',
-  budget REAL,
-  tags TEXT DEFAULT '',
-  template_id INTEGER,
-  completed_at TEXT,
-  created_by INTEGER,
-  created_at TEXT,
-  updated_at TEXT
-);
+${projectsTable('projects')}
 CREATE INDEX IF NOT EXISTS idx_projects_vertical ON projects(vertical_id, status);
 
 CREATE TABLE IF NOT EXISTS project_members (
@@ -155,7 +165,12 @@ CREATE TABLE IF NOT EXISTS comments (
   task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
   user_id INTEGER REFERENCES users(id),
   body TEXT NOT NULL,
-  created_at TEXT
+  created_at TEXT,
+  -- Deleting is allowed for 15 seconds; after that a head must approve it.
+  delete_status TEXT CHECK (delete_status IN ('requested','approved','declined')),
+  delete_requested_at TEXT,
+  delete_decided_by INTEGER,
+  delete_decided_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_comments_project ON comments(project_id);
 
@@ -197,7 +212,7 @@ export const FILE_CATEGORIES = [
 export const DEFAULT_VERTICALS = [
   { name: 'BrainADZ Live', short: 'Live', code: 'LIV', tagline: 'From Vision to Visibility', color: '#E5243B', key_date_label: 'Event date', sort: 1 },
   { name: 'BrainADZ Marketing', short: 'Marketing', code: 'MKT', tagline: 'Ideas That Spark Momentum', color: '#1FB2D6', key_date_label: 'Launch date', sort: 2 },
-  { name: 'BrainADZ Exhibits', short: 'Exhibits', code: 'EXH', tagline: 'Where Elegance Meets Execution', color: '#8CC63F', key_date_label: 'Show opens', sort: 3 },
+  { name: 'BrainADZ Exhibits', short: 'Exhibits', code: 'EXH', tagline: 'Where Elegance Meets Execution', color: '#8CC63F', key_date_label: 'Show opens', ready_label: 'Ready for Event / Exhibition', sort: 3 },
 ];
 
 // Starter templates. Task offsets are days relative to the project's key date

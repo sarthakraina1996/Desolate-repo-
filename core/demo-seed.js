@@ -93,6 +93,7 @@ const PROJECTS = [
   ['Exhibits', 'Auto show pavilion', 'Northwind Motors', 1, 46, 'active', 'at_risk', 'neha', 'India Expo Mart', 'Greater Noida', 6500000, 'automotive, pavilion, double-decker'],
   ['Exhibits', 'Textile fair booth', 'Kaveri Textiles', 0, 9, 'active', 'off_track', 'rohan', 'Jio World Convention Centre', 'Mumbai', 950000, 'textiles, shell scheme upgrade'],
   ['Exhibits', 'Property show stall', 'Aurum Realty', 0, 75, 'planning', 'on_track', 'neha', 'HITEX Exhibition Centre', 'Hyderabad', 1200000, 'real estate'],
+  ['Exhibits', 'Hospitality expo stall', 'Lotus Hotels', 0, 3, 'ready', 'on_track', 'neha', 'Bombay Exhibition Centre, Hall 1', 'Mumbai', 1350000, 'hospitality, cross-vertical client'],
   ['Exhibits', 'Pharma Expo stall, 72 sqm', 'Zenith Pharma', 0, -347, 'completed', 'on_track', 'rohan', 'Bharat Mandapam, Hall 5', 'New Delhi', 1720000, 'pharma, island stall'],
   ['Exhibits', 'Mobile congress booth', 'Bluepeak Telecom', 0, -205, 'completed', 'on_track', 'neha', 'Yashobhoomi (IICC)', 'New Delhi', 2400000, 'telecom, tech demo zones'],
   ['Exhibits', 'Food expo stall', 'Sahyadri Foods', 0, -118, 'completed', 'on_track', 'rohan', 'Bombay Exhibition Centre', 'Mumbai', 780000, 'fmcg, sampling counter'],
@@ -118,6 +119,7 @@ const DESCRIPTIONS = {
   'Auto show pavilion': '1,200 sqm double-decker pavilion with a turntable for the new EV, an experience zone and a lounge on the upper deck. Organiser structural approval is on the critical path.',
   'Textile fair booth': 'Upgraded shell-scheme booth with fabric draping wall, sample racks and a buyer meeting table.',
   'Property show stall': 'Stall with a scale model of the new township, two sales desks and a VR walkthrough station.',
+  'Hospitality expo stall': '54 sqm stall with a live chef counter, a suite mock-up and a lounge for buyer meetings. Built, checked and handed over; waiting for the show to open.',
   'Mobile congress booth': '5G demo zones, an IoT wall and a partner theatre.',
   'Food expo stall': 'Live sampling counter and retail shelf mock-up.',
   'Annual dealer meet': 'Two-day dealer meet for 400 guests: business sessions on day 1, awards night with a live band, and a beach party on day 2.',
@@ -212,6 +214,7 @@ export function seedDemo(db, { today, passwordHash }) {
         let st = 'todo';
         if (status === 'completed') st = 'done';
         else if (status === 'cancelled') st = due < today ? 'done' : 'todo';
+        else if (status === 'ready') st = t.offset < 0 ? 'done' : 'todo';
         else if (due < addDays(today, -1)) st = 'done';
         else if (due <= addDays(today, 4)) st = rand() < 0.6 ? 'in_progress' : 'review';
         if (status === 'on_hold' && st !== 'done') st = 'todo';
@@ -259,7 +262,7 @@ export function seedDemo(db, { today, passwordHash }) {
       }
       for (const [i, m] of tplData.milestones.entries()) {
         const due = addDays(keyDate, m.offset);
-        const done = closed ? status === 'completed' : due < today;
+        const done = closed ? status === 'completed' : status === 'ready' ? m.offset < 0 : due < today;
         db.run('INSERT INTO milestones (project_id, title, due_date, done, done_at, sort) VALUES (?,?,?,?,?,?)', pid, m.title, due, done ? 1 : 0, done ? ts(due, 17) : null, i + 1);
       }
       for (const uid of team) db.run('INSERT OR IGNORE INTO project_members (project_id, user_id) VALUES (?,?)', pid, uid);
@@ -319,6 +322,22 @@ export function seedDemo(db, { today, passwordHash }) {
         say(c.pid, 'kavya', 'I can shoot those on Thursday when we are at the site for the reels.', ts(addDays(today, -2), 10, 45));
       } else {
         say(c.pid, 'siddharth', `Kick-off with ${c.client} is booked. I will share the discovery questionnaire before the workshop.`, ts(addDays(today, -2), 15, 0));
+      }
+    }
+
+    // One comment waiting for a head to approve its deletion.
+    const zenith = db.get("SELECT id, code FROM projects WHERE client = 'Zenith Pharma' AND status = 'active' LIMIT 1");
+    if (zenith) {
+      const at = ts(addDays(today, -1), 12, 5);
+      db.run(
+        "INSERT INTO comments (project_id, user_id, body, created_at, delete_status, delete_requested_at) VALUES (?,?,?,?, 'requested', ?)",
+        zenith.id, ids.rohan, 'Flooring quote from the vendor is ₹4,80,000 including the raised platform.', at, ts(addDays(today, -1), 12, 9),
+      );
+      db.run('INSERT INTO comments (project_id, user_id, body, created_at) VALUES (?,?,?,?)', zenith.id, ids.rohan,
+        'Correction: that flooring quote was for the Kaveri stall, not this one. I have asked to delete it.', ts(addDays(today, -1), 12, 8));
+      for (const head of ['suresh', 'rajiv']) {
+        db.run('INSERT INTO notifications (user_id, project_id, text, read, created_at) VALUES (?,?,?,0,?)', ids[head], zenith.id,
+          `Rohan Das asks to delete a comment in ${zenith.code}: “Flooring quote from the vendor is ₹4,80,000…”`, ts(addDays(today, -1), 12, 9));
       }
     }
 

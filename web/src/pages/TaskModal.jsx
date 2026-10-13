@@ -6,7 +6,7 @@ import { Link } from '../router.jsx';
 import { Loading, Avatar, UserSelect, VChip, Field, TASK_STATUS, PRIORITY, Empty } from '../ui.jsx';
 import { UploadZone, FileRow, FilePreview, LinkForm } from '../files.jsx';
 import { fmtTime, timeAgo, dueText } from '../format.js';
-import { describe, Composer, CommentBody } from '../activity.jsx';
+import { describe, Composer, CommentItem } from '../activity.jsx';
 
 export function TaskModal({ id, onClose, onChanged }) {
   const { assignable, toast, confirm, today, me } = useApp();
@@ -134,15 +134,7 @@ export function TaskModal({ id, onClose, onChanged }) {
                 <div className="mt-16">
                   <label className="b6 small" style={{ color: 'var(--text-2)' }}>Comments</label>
                   <div className="feed mt-8">
-                    {t.comments.map((c) => (
-                      <div key={c.id} className="feed-item comment">
-                        <Avatar name={c.user_name} color={c.user_color} size={30} />
-                        <div className="grow">
-                          <div className="row between"><b className="small">{c.user_name}</b><span className="xs muted" title={fmtTime(c.created_at)}>{timeAgo(c.created_at)}</span></div>
-                          <div className="bubble"><CommentBody text={c.body} /></div>
-                        </div>
-                      </div>
-                    ))}
+                    {t.comments.map((c) => <CommentItem key={c.id} c={c} size={30} onChanged={() => { reload({ quiet: true }); onChanged?.(); }} />)}
                   </div>
                   {can && <Composer onSend={comment} placeholder="Ask a question or post an update. @name notifies a teammate." />}
                 </div>
