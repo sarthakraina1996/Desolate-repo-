@@ -1,2 +1,116 @@
-# Desolate-repo-
-Just a management person doing vibe coding 
+# BrainADZ Projects
+
+Project management for the three BrainADZ verticals: **Live**, **Marketing** and **Exhibits**. It uses the same look as the BrainADZ HRMS.
+
+The main rule: **people only see the verticals they have been given.** An Exhibits person sees Exhibits projects, a Marketing person sees Marketing projects, and a Live person sees Live projects. Admins see everything. The server enforces this on every request, so a project from another vertical behaves as if it does not exist, whether you look for it in a list, a search, the calendar, the asset library, or a direct link.
+
+## What it does
+
+| Area | What you get |
+| --- | --- |
+| **Dashboard** | Active projects, tasks due this week, overdue tasks, projects that need attention, upcoming event, show and launch dates, and recent activity. |
+| **Projects** | List, board (drag a project to change its status) and timeline views. Filter by status, health, owner or client. Export to CSV. |
+| **Project page** | Stage tracker, owner, dates, budget in ₹, location, progress, milestones, team, brief, and tabs for tasks, files and discussion. |
+| **Tasks** | Assignee, due date, priority, stage, status (To do, In progress, In review, Blocked, Done), checklist, files, comments with @mentions, and a change history. Shown grouped by stage, or as a board. |
+| **Files & assets** | Drag-and-drop uploads, links to Drive, Dropbox or Figma, automatic categories (Brief, Design, Contract & PO, Quotes & Invoices, Production, Photos & Videos, Final deliverables, Reports), and a star for final assets. |
+| **My Work** | Your tasks grouped into Overdue, Today, This week, Next week and Later. |
+| **Calendar** | Month view of event days, show openings, launches, milestones and task deadlines. |
+| **Asset Library** | Every file from current and past projects, searchable by client, year, type and category. |
+| **Past Projects** | Completed and cancelled projects by year, with a client view. **Run again** copies a past project's plan, team and milestones to new dates, which suits repeat clients and annual shows. |
+| **Templates** | Ready-made plans per vertical, such as Exhibition stall, Corporate event or Integrated campaign. Task dates count back from the event, show or launch date. Any finished project can be saved as a template. |
+| **Team & Access** | One grid to set each person's access per vertical: Viewer, Member or Manager. |
+| **Notifications** | Sent when someone assigns you work, mentions you, comments on your task or adds you to a project. |
+
+### Access levels (set per vertical)
+
+| Level | Can do |
+| --- | --- |
+| **Viewer** | See projects, tasks and files. Cannot change anything. |
+| **Member** | Work on projects: tasks, files, milestones and comments. Can edit projects they own. |
+| **Manager** | Create, edit, close, re-open and copy projects. Manage templates. |
+| **Admin** (company-wide) | Everything in every vertical, plus people, access, verticals and settings. |
+
+### Works for other industries
+
+Verticals are not hard-coded. An admin can add a new one under **Settings → Verticals**, for example *Retail* with the code `RTL` and a key date called *Store opening*, then add templates and give people access. The key date label changes per vertical: *Event date* for Live, *Show opens* for Exhibits, *Launch date* for Marketing.
+
+## Run it
+
+You need Node.js 22.13 or newer.
+
+```bash
+npm install
+npm run build          # build the web app
+npm start              # http://localhost:3000
+```
+
+On first start the server creates an admin account and prints the email and a temporary password in the terminal. To choose them yourself:
+
+```bash
+ADMIN_EMAIL=you@brainadz.com ADMIN_PASSWORD='a-strong-password' npm start
+```
+
+### Try it with sample data
+
+```bash
+npm run seed:demo
+npm start
+```
+
+This adds a fictional team and about twenty projects. Every sample person signs in with the password `demo1234`, for example:
+
+| Email | Sees |
+| --- | --- |
+| rajiv.malhotra@brainadz.com | Admin, all verticals |
+| suresh.iyer@brainadz.com | Exhibits manager |
+| rohan.das@brainadz.com | Exhibits member |
+| kavita.rao@brainadz.com | Marketing manager |
+| arvind.menon@brainadz.com | Live manager |
+| siddharth.menon@brainadz.com | Live and Marketing member |
+| vikram.patel@brainadz.com | Viewer for Live and Exhibits |
+
+### Development
+
+```bash
+npm run dev            # API on :3000 and the web app with hot reload on :5173
+npm test               # access-control and server tests
+```
+
+## Deploy
+
+Everything lives in one folder set by `DATA_DIR` (default `./data`): the SQLite database `projects.db` and uploaded files under `uploads/`. Back up that folder and you have backed up everything.
+
+With Docker:
+
+```bash
+docker build -t brainadz-projects .
+docker run -p 3000:3000 -v brainadz-data:/data \
+  -e ADMIN_EMAIL=you@brainadz.com -e ADMIN_PASSWORD='a-strong-password' \
+  -e SECURE_COOKIES=1 brainadz-projects
+```
+
+On a host such as Render or Railway, attach a persistent disk, point `DATA_DIR` at it, and set `SECURE_COOKIES=1` when the site is served over HTTPS.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `3000` | Port to listen on |
+| `DATA_DIR` | `./data` | Database and uploaded files |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | generated | First admin account (first start only) |
+| `SECURE_COOKIES` | off | Set to `1` behind HTTPS |
+| `MAX_UPLOAD_MB` | `200` | Largest file someone can upload |
+| `TIMEZONE` | `Asia/Kolkata` | Decides what "today" and "overdue" mean |
+
+## Browser demo
+
+`npm run build:demo` produces `dist-demo/brainadz-projects.html`, a single file that runs the same API against an in-browser copy of SQLite with the sample data. It has a person switcher so you can see how access changes between verticals. Data in the demo stays in that browser, so use the server version for real work.
+
+## How the code is organised
+
+```
+core/      the API, access rules, schema, templates and demo data (shared by server and demo)
+server/    Express server: sign-in, sessions, uploads and downloads, static files
+web/src/   React app (pages/, shared UI, theme.css copied from the HRMS)
+tests/     node:test suites for vertical isolation and the HTTP server
+```
+
+Security notes: passwords are hashed with scrypt; sessions are http-only cookies; every write needs a custom header so other sites cannot submit forms on your behalf; repeated failed sign-ins are slowed down; and uploaded files are served as downloads with a locked-down content policy. `npm audit` reports one moderate advisory in the Vite development server. It does not affect the production build or the server.

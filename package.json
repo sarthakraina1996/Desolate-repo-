@@ -1,0 +1,33 @@
+{
+  "name": "brainadz-projects",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BrainADZ Projects: project management for the Live, Marketing and Exhibits verticals.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"node --no-warnings=ExperimentalWarning --watch server/index.js\" \"vite\"",
+    "dev:api": "node --no-warnings=ExperimentalWarning --watch server/index.js",
+    "dev:web": "vite",
+    "build": "vite build",
+    "build:demo": "vite build --mode demo && node scripts/build-artifact.js",
+    "start": "node --no-warnings=ExperimentalWarning server/index.js",
+    "seed:demo": "node --no-warnings=ExperimentalWarning server/seed-demo.js",
+    "test": "node --no-warnings=ExperimentalWarning --test tests/*.test.js"
+  },
+  "dependencies": {
+    "express": "4.22.3",
+    "multer": "2.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "concurrently": "9.1.0",
+    "lucide-react": "0.468.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "sql.js": "1.12.0",
+    "vite": "5.4.21"
+  }
+}
