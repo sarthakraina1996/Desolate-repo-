@@ -3,6 +3,7 @@
 // the check-in cards and the prompts all read and update this one store.
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { api } from './api.js';
+import { withLocation } from './location.js';
 
 let state = null;
 let pending = null;
@@ -67,8 +68,9 @@ export const clockText = (minutes, seconds = true) => {
   return seconds ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${h}h ${String(m).padStart(2, '0')}m`;
 };
 
+// Office check-in needs the device's location when the office-only rule is on.
 export async function checkIn(body) {
-  const r = await api.post('/attendance/check-in', body);
+  const r = await withLocation((location) => api.post('/attendance/check-in', { ...body, ...(location ? { location } : {}) }));
   await refreshWorkday();
   return r;
 }

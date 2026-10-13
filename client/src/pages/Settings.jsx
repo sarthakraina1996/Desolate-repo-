@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Save, Plus, Trash2, KeyRound, Download, TriangleAlert, Pencil, Bot, Database } from 'lucide-react';
+import { Save, Plus, Trash2, KeyRound, Download, TriangleAlert, Pencil, Bot, Database, MapPin, X } from 'lucide-react';
+import { getPosition } from '../lib/location.js';
 import { useApp } from '../context.jsx';
 import { useApi, useAction } from '../lib/hooks.js';
 import { api, postDownload } from '../lib/api.js';
 import { refreshWorkday } from '../lib/workday.js';
 import { fmtDateTime } from '../lib/format.js';
-import { Card, Badge, Button, Tabs, Empty, Loading, ErrorBox, Field, Input, Select, Modal, Toggle, useConfirm, Textarea } from '../components/ui.jsx';
+import { Card, Badge, Button, Tabs, Empty, Loading, ErrorBox, Field, Input, Select, Modal, Toggle, useConfirm, Textarea, EmployeeSelect } from '../components/ui.jsx';
 import { TempPasswordModal } from '../components/forms.jsx';
 import { LEAVE_ICONS } from './Leave.jsx';
 
@@ -15,7 +16,7 @@ export default function SettingsPage() {
   const [sp, setSp] = useSearchParams();
   const tab = sp.get('tab') || 'company';
   const tabs = [{ value: 'company', label: 'Company' }, { value: 'payroll', label: 'Payroll Rules' }, { value: 'org', label: 'Organisation' }, { value: 'leave', label: 'Leave Types' },
-    { value: 'users', label: 'Users & Roles' }, ...(isAdmin ? [{ value: 'audit', label: 'Audit Log' }, { value: 'data', label: 'Data' }] : [])];
+    { value: 'offices', label: 'Office Locations' }, { value: 'users', label: 'Users & Roles' }, ...(isAdmin ? [{ value: 'audit', label: 'Audit Log' }, { value: 'data', label: 'Data' }] : [])];
   return (
     <div>
       <div className="page-head"><div><h1>Settings</h1><div className="sub">Company rules, masters, users and data.</div></div></div>
@@ -24,6 +25,7 @@ export default function SettingsPage() {
       {tab === 'payroll' && <PayrollRules />}
       {tab === 'org' && <Org />}
       {tab === 'leave' && <LeaveTypes />}
+      {tab === 'offices' && <Offices />}
       {tab === 'users' && <Users />}
       {tab === 'audit' && isAdmin && <Audit />}
       {tab === 'data' && isAdmin && <DataTab />}
@@ -327,3 +329,118 @@ function DataTab() {
   );
 }
 
+
+// ---------- office locations (sign-in only from the office) ----------
+const GEO_MODES = [
+  { value: 'off', label: 'Off: sign in from anywhere' },
+  { value: 'login', label: 'Sign in and check in only at an office' },
+  { value: 'strict', label: 'Also sign people out when they leave the office' },
+];
+
+function OfficeModal({ office, yourIp, onClose, onDone }) {
+  const { meta, toast } = useApp();
+  const [f, setF] = useState(office ? { ...office, ip_ranges: office.ip_ranges || '' } : { name: '', location_id: '', lat: '', lng: '', radius_m: 300, ip_ranges: '', active: 1 });
+  const [run, busy] = useAction(toast);
+  const [locating, setLocating] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const here = async () => {
+    setLocating(true);
+    try {
+      const p = await getPosition({ maxAgeMs: 0 });
+      setF((x) => ({ ...x, lat: p.lat.toFixed(6), lng: p.lng.toFixed(6) }));
+      toast(`Location set (accurate to about ${p.accuracy} m)`, 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setLocating(false);
+    }
+  };
+  const save = async () => {
+    const body = { ...f, location_id: f.location_id || null, active: f.active ? 1 : 0 };
+    if (await run(() => (office ? api.put(`/settings/offices/${office.id}`, body) : api.post('/settings/offices', body)), office ? 'Office updated' : 'Office added')) { onDone(); onClose(); }
+  };
+  return (
+    <Modal title={office ? `Edit ${office.name}` : 'Add an office'} onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" icon={Save} loading={busy} onClick={save}>Save</Button></>}>
+      <div className="form-grid">
+        <Field label="Name"><Input value={f.name} onChange={set('name')} placeholder="e.g. Bengaluru office" /></Field>
+        <Field label="Location"><Select value={f.location_id || ''} onChange={set('location_id')} placeholder="—" options={(meta.locations || []).map((l) => ({ value: l.id, label: l.name }))} /></Field>
+        <Field label="Latitude"><Input value={f.lat} onChange={set('lat')} placeholder="12.978400" inputMode="decimal" /></Field>
+        <Field label="Longitude"><Input value={f.lng} onChange={set('lng')} placeholder="77.640800" inputMode="decimal" /></Field>
+        <div className="full row wrap" style={{ gap: 10 }}>
+          <Button icon={MapPin} loading={locating} onClick={here}>Use my current location</Button>
+          <span className="small muted">Stand inside the office when you press this. Or copy the coordinates from Google Maps (right-click the building).</span>
+        </div>
+        <Field label="Radius (metres)" hint="How far from this point still counts as the office. 200–500 m suits most buildings."><Input type="number" min="50" max="5000" value={f.radius_m} onChange={set('radius_m')} /></Field>
+        <Field label="Status"><Select value={f.active ? '1' : '0'} onChange={(e) => setF({ ...f, active: e.target.value === '1' ? 1 : 0 })} options={[{ value: '1', label: 'Active' }, { value: '0', label: 'Not used' }]} /></Field>
+        <Field label="Office network addresses (optional)" className="full" hint={`Anyone connecting from these counts as in the office, even without GPS. Use the office's public IP, or LAN ranges like 192.168.1.0/24 if the HRMS runs on an office computer. You are connecting from ${yourIp || 'an unknown address'}.`}>
+          <Input value={f.ip_ranges} onChange={set('ip_ranges')} placeholder="203.0.113.7, 192.168.1.0/24" />
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
+function Offices() {
+  const { toast, refreshMeta } = useApp();
+  const { data, error, reload } = useApi('/settings/offices');
+  const [policy, setPolicy] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [add, setAdd] = useState('');
+  const [run, busy] = useAction(toast);
+  const [confirm, confirmEl] = useConfirm();
+  useEffect(() => { if (data) setPolicy({ ...data.policy, exempt: data.exempt }); }, [data]);
+  if (error) return <ErrorBox error={error} onRetry={reload} />;
+  if (!data || !policy) return <Loading />;
+  const savePolicy = async () => {
+    const body = { geofence: { mode: policy.mode, allowWfhAndLeave: policy.allowWfhAndLeave, maxAccuracyM: policy.maxAccuracyM, exemptEmployeeIds: policy.exempt.map((e) => e.id) } };
+    if (await run(() => api.put('/settings', body), 'Sign-in location rule saved')) { reload(); refreshMeta(); }
+  };
+  return (
+    <div className="grid">
+      <Card className="span-5" title="Sign-in location rule">
+        <div className="col" style={{ gap: 14 }}>
+          <Field label="Rule"><Select value={policy.mode} onChange={(e) => setPolicy({ ...policy, mode: e.target.value })} options={GEO_MODES} /></Field>
+          <label className="check"><input type="checkbox" checked={policy.allowWfhAndLeave} onChange={(e) => setPolicy({ ...policy, allowWfhAndLeave: e.target.checked })} />Allow sign-in from anywhere on approved work-from-home and leave days</label>
+          <Field label="Allowed from anywhere" hint="Field staff who work at client sites. Administrators can always sign in, so nobody can be locked out.">
+            <div className="row wrap" style={{ gap: 6, marginBottom: policy.exempt.length ? 8 : 0 }}>
+              {policy.exempt.map((e) => <span key={e.id} className="chip gray">{e.name}<button type="button" aria-label={`Remove ${e.name}`} onClick={() => setPolicy({ ...policy, exempt: policy.exempt.filter((x) => x.id !== e.id) })}><X size={13} /></button></span>)}
+            </div>
+            <EmployeeSelect value={add} placeholder="Add an employee" exclude={policy.exempt.map((e) => e.id)} onChange={(e) => {
+              const emp = e.target.value ? { id: Number(e.target.value), name: e.target.selectedOptions[0].text.split(' · ')[0] } : null;
+              if (emp) setPolicy({ ...policy, exempt: [...policy.exempt, emp] });
+              setAdd('');
+            }} />
+          </Field>
+          <Field label="Least accurate location accepted (metres)" hint="Readings rougher than this are refused instead of trusted. Phones are usually within 50 m, laptops on Wi-Fi within 100–500 m."><Input type="number" min="100" max="10000" value={policy.maxAccuracyM} onChange={(e) => setPolicy({ ...policy, maxAccuracyM: e.target.value })} /></Field>
+          <div className="alert info"><MapPin size={16} /><span>Browsers share location only over https (the cloud version). If the HRMS runs on an office computer over plain http, add the office network addresses to each office instead.</span></div>
+          <div className="row"><Button variant="primary" icon={Save} loading={busy} onClick={savePolicy}>Save rule</Button></div>
+        </div>
+      </Card>
+      <Card className="span-7" title="Offices" flush action={<Button size="sm" icon={Plus} onClick={() => setModal({})}>Add office</Button>}>
+        {data.demo && <div className="alert warn" style={{ margin: '0 18px 12px' }}>These are sample coordinates. Set each office's real position before turning the rule on.</div>}
+        {!data.offices.length ? <Empty icon={MapPin} text="No offices yet. Add one to use the sign-in location rule." /> : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead><tr><th>Office</th><th>Position</th><th>Radius</th><th className="hide-sm">Network</th><th /></tr></thead>
+              <tbody>{data.offices.map((o) => (
+                <tr key={o.id}>
+                  <td><div className="b6">{o.name}</div><div className="xs muted">{o.location || '—'}{!o.active && ' · not used'}</div></td>
+                  <td className="small"><a href={`https://www.google.com/maps?q=${o.lat},${o.lng}`} target="_blank" rel="noreferrer">{Number(o.lat).toFixed(4)}, {Number(o.lng).toFixed(4)}</a></td>
+                  <td className="small">{o.radius_m} m</td>
+                  <td className="hide-sm small muted">{o.ip_ranges || '—'}</td>
+                  <td className="right nowrap">
+                    <Button size="xs" variant="ghost" icon={Pencil} aria-label={`Edit ${o.name}`} onClick={() => setModal({ office: o })} />
+                    <Button size="xs" variant="ghost" icon={Trash2} aria-label={`Delete ${o.name}`} onClick={async () => { if (await confirm({ title: `Delete ${o.name}?`, text: 'People will no longer be able to sign in from here.', danger: true, confirmLabel: 'Delete' })) { await run(() => api.del(`/settings/offices/${o.id}`), 'Office removed'); reload(); } }} />
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      {modal && <OfficeModal office={modal.office} yourIp={data.yourIp} onClose={() => setModal(null)} onDone={reload} />}
+      {confirmEl}
+    </div>
+  );
+}

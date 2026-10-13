@@ -2,6 +2,7 @@ import { getSettings, setSetting, requireHR, requireAdmin, isAdmin, str, num, on
 import { hashPassword, tempPassword, checkPasswordStrength } from '../auth.js';
 import { seedDemo, LEAVE_TYPES, holidaysFor, policyLibrary } from '../seed.js';
 import * as D from '../lib/dates.js';
+import { GEOFENCE_MODES, geofencePolicy } from '../services/geofence.js';
 
 const MASTERS = { verticals: ['name', 'short', 'tagline', 'color'], departments: ['name'], locations: ['name'] };
 const MASTER_REFS = { verticals: ['employees.vertical_id', 'jobs.vertical_id'], departments: ['employees.department_id', 'jobs.department_id'], locations: ['employees.location_id', 'jobs.location_id'] };
@@ -45,6 +46,19 @@ export default function settingsRoutes(r, { db, saveFile }) {
     if (b.noticePeriodDays !== undefined) setSetting(db, 'noticePeriodDays', num(b.noticePeriodDays, { min: 0, max: 180, int: true, name: 'Notice period' }));
     if (b.noticePeriodSeniorDays !== undefined) setSetting(db, 'noticePeriodSeniorDays', num(b.noticePeriodSeniorDays, { min: 0, max: 180, int: true, name: 'Senior notice period' }));
     if (b.bankName !== undefined) setSetting(db, 'bankName', str(b.bankName, { max: 60 }) || 'HDFC Bank');
+    if (b.geofence !== undefined) {
+      const g = b.geofence || {};
+      const prev = geofencePolicy(cur);
+      const next = {
+        mode: g.mode === undefined ? prev.mode : oneOf(g.mode, GEOFENCE_MODES, { name: 'Sign-in location rule' }),
+        exemptEmployeeIds: g.exemptEmployeeIds === undefined ? prev.exemptEmployeeIds : [...new Set((Array.isArray(g.exemptEmployeeIds) ? g.exemptEmployeeIds : []).map(Number).filter((x) => Number.isInteger(x) && x > 0))],
+        allowWfhAndLeave: g.allowWfhAndLeave === undefined ? prev.allowWfhAndLeave : Boolean(g.allowWfhAndLeave),
+        maxAccuracyM: g.maxAccuracyM === undefined ? prev.maxAccuracyM : num(g.maxAccuracyM, { min: 100, max: 10000, int: true, name: 'Location accuracy' }),
+      };
+      if (next.mode !== 'off' && !db.value('SELECT COUNT(*) FROM office_sites WHERE active = 1')) fail(400, 'Add at least one office location before turning this on');
+      setSetting(db, 'geofence', next);
+      audit(db, req.user, 'settings.geofence', null, null, next);
+    }
     if (b.timezone !== undefined) {
       try { new Intl.DateTimeFormat('en', { timeZone: b.timezone }); } catch { fail(400, 'Unknown timezone'); }
       setSetting(db, 'timezone', b.timezone);
@@ -159,10 +173,64 @@ export default function settingsRoutes(r, { db, saveFile }) {
     res.json({ items: db.all(`SELECT a.*, u.email FROM audit_log a LEFT JOIN users u ON u.id = a.user_id ORDER BY a.id DESC LIMIT 200`) });
   });
 
+  // ---------- office locations (sign-in location check) ----------
+  const readSite = (b) => {
+    const lat = num(b.lat, { required: true, min: -90, max: 90, name: 'Latitude' });
+    const lng = num(b.lng, { required: true, min: -180, max: 180, name: 'Longitude' });
+    const ranges = str(b.ip_ranges, { max: 500 });
+    if (ranges) {
+      for (const r of ranges.split(/[\s,]+/).filter(Boolean)) {
+        if (!/^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(r)) fail(400, `"${r}" is not an IPv4 address or range (e.g. 203.0.113.7 or 192.168.1.0/24)`);
+      }
+    }
+    return {
+      name: str(b.name, { required: true, max: 80, name: 'Office name' }),
+      location_id: b.location_id ? id(b.location_id) : null,
+      lat, lng,
+      radius_m: num(b.radius_m ?? 300, { min: 50, max: 5000, int: true, name: 'Radius' }),
+      ip_ranges: ranges || null,
+      active: b.active === undefined ? 1 : b.active ? 1 : 0,
+    };
+  };
+  r.get('/settings/offices', (req, res) => {
+    requireHR(req);
+    const s = getSettings(db);
+    const policy = geofencePolicy(s);
+    res.json({
+      policy,
+      offices: db.all('SELECT o.*, l.name AS location FROM office_sites o LEFT JOIN locations l ON l.id = o.location_id ORDER BY o.name'),
+      exempt: policy.exemptEmployeeIds.length ? db.all(`SELECT id, first_name, last_name, code, designation FROM employees WHERE id IN (${policy.exemptEmployeeIds.map(() => '?').join(',')})`, ...policy.exemptEmployeeIds).map((e) => ({ ...e, name: fullName(e) })) : [],
+      yourIp: String(req.ip || '').replace(/^::ffff:/, ''),
+      demo: Boolean(s.demo),
+    });
+  });
+  r.post('/settings/offices', (req, res) => {
+    requireHR(req);
+    const oid = db.insert('office_sites', readSite(req.body));
+    audit(db, req.user, 'office.add', 'office', oid);
+    res.json({ id: oid });
+  });
+  r.put('/settings/offices/:id', (req, res) => {
+    requireHR(req);
+    const o = db.get('SELECT * FROM office_sites WHERE id = ?', id(req.params.id)) || notFound('Office');
+    db.update('office_sites', o.id, readSite({ ...o, ...req.body }));
+    audit(db, req.user, 'office.edit', 'office', o.id);
+    res.json({ ok: true });
+  });
+  r.delete('/settings/offices/:id', (req, res) => {
+    requireHR(req);
+    const o = db.get('SELECT * FROM office_sites WHERE id = ?', id(req.params.id)) || notFound('Office');
+    const remaining = db.value('SELECT COUNT(*) FROM office_sites WHERE active = 1 AND id != ?', o.id);
+    if (!remaining && geofencePolicy(getSettings(db)).mode !== 'off') fail(400, 'Turn off the sign-in location rule before removing the last office');
+    db.run('DELETE FROM office_sites WHERE id = ?', o.id);
+    audit(db, req.user, 'office.delete', 'office', o.id);
+    res.json({ ok: true });
+  });
+
   // ---------- data management (admin) ----------
   const TABLES = ['notifications', 'sessions', 'audit_log', 'candidate_activity', 'interviews', 'onboarding_tasks', 'candidates', 'jobs', 'payslips', 'payroll_runs', 'payroll_adjustments',
     'resignations', 'goals', 'reviews', 'review_cycles', 'assets', 'documents', 'requests', 'posh_complaints', 'posh_training', 'policy_acks', 'policies', 'notices',
-    'hour_shortfalls', 'work_sessions', 'attendance', 'leave_requests', 'holidays', 'leave_types', 'users', 'employees', 'verticals', 'departments', 'locations', 'settings'];
+    'location_log', 'hour_shortfalls', 'work_sessions', 'attendance', 'leave_requests', 'holidays', 'leave_types', 'users', 'employees', 'verticals', 'departments', 'locations', 'settings'];
 
   function wipe(keepUserId = null) {
     db.exec('PRAGMA foreign_keys = OFF');

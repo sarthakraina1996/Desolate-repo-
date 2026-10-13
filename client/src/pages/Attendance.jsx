@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { UserCheck, House, Clock, UserX, CalendarX, AlarmClock, CircleDashed, Download, CheckCheck } from 'lucide-react';
+import { UserCheck, House, Clock, UserX, CalendarX, AlarmClock, CircleDashed, Download, CheckCheck, MapPin } from 'lucide-react';
+import { fmtDistance } from '../lib/location.js';
 import { useApp } from '../context.jsx';
 import { useApi, useAction, useClickOutside } from '../lib/hooks.js';
 import { api, download } from '../lib/api.js';
@@ -25,10 +26,11 @@ export default function Attendance() {
       <div className="page-head">
         <div><h1>Attendance</h1><div className="sub">Check-ins, work from home and the monthly register that feeds payroll. <VerticalFilterNote /></div></div>
       </div>
-      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ value: 'today', label: 'Today' }, { value: 'month', label: team ? 'Monthly Register' : 'My Attendance' }, { value: 'short', label: shortCount ? `Short hours (${shortCount})` : 'Short hours' }]} />
+      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ value: 'today', label: 'Today' }, { value: 'month', label: team ? 'Monthly Register' : 'My Attendance' }, { value: 'short', label: shortCount ? `Short hours (${shortCount})` : 'Short hours' }, { value: 'locations', label: 'Location log' }]} />
       {tab === 'today' && <Today />}
       {tab === 'month' && <Register />}
       {tab === 'short' && <ShortHours team={team || isAdmin} />}
+      {tab === 'locations' && <LocationLog team={team || isAdmin} />}
     </div>
   );
 }
@@ -280,6 +282,61 @@ function ShortHours({ team }) {
       )}
       {explain && <ExplainModal item={explain} onClose={() => setExplain(null)} onDone={reloadAll} />}
       {decide && <DecideModal item={decide.item} action={decide.action} onClose={() => setDecide(null)} onDone={reloadAll} />}
+    </div>
+  );
+}
+
+// ---------- location log ----------
+const LOC_RESULT = {
+  'in-office': ['In office', 'green'], 'office-network': ['Office network', 'green'], outside: ['Outside', 'red'],
+  imprecise: ['Location unclear', 'amber'], 'no-location': ['No location', 'amber'], exempt: ['Exempt', 'gray'],
+};
+const EVENT_LABEL = { 'sign-in': 'Signed in', 'check-in': 'Checked in', 'while working': 'While working', 'sign-in blocked': 'Sign-in refused', 'check-in blocked': 'Check-in refused', 'signed out (left office)': 'Signed out: left office' };
+
+function LocationLog({ team }) {
+  const { meta } = useApp();
+  const [view, setView] = useState(team ? 'team' : 'mine');
+  const [day, setDay] = useState(meta.today);
+  const [issues, setIssues] = useState(false);
+  const qs = new URLSearchParams({ view, ...(day ? { date: day } : {}), ...(issues ? { issues: '1' } : {}) });
+  const { data, error, reload } = useApi(`/attendance/locations?${qs}`);
+  if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
+  const mapUrl = (x) => `https://www.google.com/maps?q=${x.lat},${x.lng}`;
+  return (
+    <div>
+      <div className={`alert ${data?.mode === 'off' ? 'warn' : 'info'} mb-16`}><MapPin size={16} /><span>
+        {data?.mode === 'off'
+          ? <>The office-only sign-in rule is off, so locations are not being checked. {team ? 'HR can turn it on in Settings → Office Locations.' : ''}</>
+          : <>Sign-in and check-in are allowed only at an office{data?.mode === 'strict' ? ', and leaving the office signs people out' : ''}. Locations are recorded at sign-in, at check-in and every 10 minutes while the work clock runs.</>}
+      </span></div>
+      <Card flush title={view === 'team' ? 'Location log' : 'My location history'} sub={data ? `${data.summary.inOffice} in office · ${data.summary.outside} outside · ${data.summary.blocked} refused or signed out` : undefined}
+        action={team && <Seg options={[{ value: 'team', label: 'Team' }, { value: 'mine', label: 'Mine' }]} value={view} onChange={setView} />}>
+        <div className="filters" style={{ padding: '0 18px 14px' }}>
+          <Input type="date" value={day} max={meta.today} onChange={(e) => setDay(e.target.value)} aria-label="Date" />
+          <label className="check small"><input type="checkbox" checked={issues} onChange={(e) => setIssues(e.target.checked)} />Only problems</label>
+        </div>
+        {!data ? <Loading /> : !data.items.length ? <Empty icon={MapPin} text="Nothing recorded for this day." /> : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead><tr><th>Time</th>{view === 'team' && <th>Employee</th>}<th>Event</th><th>Result</th><th>Where</th><th className="hide-sm">Accuracy</th><th /></tr></thead>
+              <tbody>{data.items.map((x) => {
+                const [label, tone] = LOC_RESULT[x.result] || [x.result, 'gray'];
+                return (
+                  <tr key={x.id}>
+                    <td className="small nowrap" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTime(x.at)}</td>
+                    {view === 'team' && <td>{x.employee_id ? <Person name={x.name} sub={x.code} id={x.employee_id} hasPhoto={x.has_photo} size={30} /> : x.name}</td>}
+                    <td className="small">{EVENT_LABEL[x.event] || x.event}</td>
+                    <td><Badge tone={tone}>{label}</Badge></td>
+                    <td className="small">{x.result === 'exempt' ? x.note : x.site_name ? `${x.result === 'outside' || x.result === 'imprecise' ? `${fmtDistance(x.distance_m)} from ` : ''}${x.site_name}${x.result === 'in-office' && x.distance_m != null ? ` · ${fmtDistance(x.distance_m)}` : ''}` : '—'}</td>
+                    <td className="hide-sm small muted">{x.accuracy_m != null ? `±${fmtDistance(x.accuracy_m)}` : x.result === 'office-network' ? 'Network' : '—'}</td>
+                    <td className="right">{x.lat != null && <a className="small" href={mapUrl(x)} target="_blank" rel="noreferrer">Map</a>}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

@@ -136,6 +136,35 @@ CREATE TABLE IF NOT EXISTS hour_shortfalls (
 );
 CREATE INDEX IF NOT EXISTS idx_short_status ON hour_shortfalls(status);
 
+-- Offices for the sign-in location check: a point with a radius, and
+-- optional network addresses (public IP or LAN ranges, comma separated).
+CREATE TABLE IF NOT EXISTS office_sites (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+  lat REAL NOT NULL, lng REAL NOT NULL,
+  radius_m INTEGER NOT NULL DEFAULT 300,
+  ip_ranges TEXT,
+  active INTEGER NOT NULL DEFAULT 1
+);
+
+-- Where people were when they signed in, checked in, or while their work
+-- clock was running, and sign-ins refused for being outside an office.
+CREATE TABLE IF NOT EXISTS location_log (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+  at TEXT NOT NULL,
+  event TEXT NOT NULL,
+  result TEXT NOT NULL,
+  site_id INTEGER REFERENCES office_sites(id) ON DELETE SET NULL,
+  site_name TEXT,
+  distance_m INTEGER, lat REAL, lng REAL, accuracy_m INTEGER,
+  ip TEXT, note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_loclog_at ON location_log(at);
+CREATE INDEX IF NOT EXISTS idx_loclog_emp ON location_log(employee_id, at);
+
 CREATE TABLE IF NOT EXISTS policies (
   id INTEGER PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'General',
   version TEXT NOT NULL DEFAULT '1.0', summary TEXT, content TEXT,

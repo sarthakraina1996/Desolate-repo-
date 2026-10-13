@@ -9,7 +9,7 @@ import { api } from '../lib/api.js';
 import { ago } from '../lib/format.js';
 import { useClickOutside, useDebounced } from '../lib/hooks.js';
 import { Avatar, Button, Field, Input, Modal } from './ui.jsx';
-import WorkClock, { SignInPrompts, SignOutModal } from './WorkClock.jsx';
+import WorkClock, { SignInPrompts, SignOutModal, LocationGuard } from './WorkClock.jsx';
 import { useWorkday } from '../lib/workday.js';
 
 export function Logo({ size = '' }) {
@@ -284,6 +284,7 @@ export default function Layout({ children }) {
       </div>
       {user.mustChangePassword && <ChangePassword forced onClose={() => {}} />}
       <SignInPrompts />
+      <LocationGuard />
     </div>
   );
 }

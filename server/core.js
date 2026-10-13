@@ -79,6 +79,9 @@ export const DEFAULT_SETTINGS = {
   workHours: 8,
   shortHoursGraceMinutes: 15,
   requiredDocuments: ['Aadhaar Card', 'PAN Card', 'Address Proof', 'Education', 'Offer Letter', 'Appointment Letter', 'Bank Proof'],
+  // Sign-in location check. mode: off | login (sign in and check in only at
+  // an office) | strict (also signs people out when they leave the office).
+  geofence: { mode: 'off', exemptEmployeeIds: [], allowWfhAndLeave: true, maxAccuracyM: 1500 },
   employeeCodePrefix: 'BZ',
   noticePeriodDays: 30,
   noticePeriodSeniorDays: 60,

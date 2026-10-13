@@ -16,6 +16,7 @@ It is a complete application: a Node.js server with a SQLite database, real logi
 | **Leave & Policies** | Leave balances (EL accrues monthly with carry forward; CL, SL, maternity, paternity, WFH, loss of pay), approvals, team leave calendar, holiday calendar, leave policy builder, policy library with versioned acknowledgements. |
 | **Work clock** | A live timer at the right of the top bar (and in the browser tab title) from check-in. "Pop out clock" opens a small always-on-top window that stays visible when the app is minimised (Chrome and Edge on a computer; it can open automatically at check-in). A day can have several sessions: check out or sign out with "Pause clock" when stepping out, and on return the app asks the reason for the gap (client meeting, site visit, lunch, personal, medical, other). |
 | **Attendance** | Today's board, check-in times with late flags, and a monthly register HR and managers can correct. Feeds loss-of-pay into payroll. **Short hours:** the morning after a working day under the required hours (8 by default, 15 minutes' grace), the employee is alerted to explain why; their reporting manager or the CEO approves (the day counts in full) or rejects (the day becomes a half day). HR can see every case. Clocks left running overnight are closed at the end of that workday. |
+| **Office-only sign-in** | Sign-in and office check-in only from an office: within a set distance of the office's position (browser location), or from the office network. Administrators, staff HR allows to work from anywhere, and people on approved work from home or leave that day are exempt. Office-only sign-ins end at midnight, so each workday starts in the office. Locations are recorded at sign-in, at check-in and every 10 minutes while the work clock runs; HR sees everyone's log (Attendance → Location log), managers their team's, and employees their own. An optional strict rule also signs people out when they leave the office, pausing their clock. Off until HR sets it up. |
 | **Documents** | Every employee's joining and HR documents in one place. HR gets a checklist of the required documents (Aadhaar, PAN, address proof, education, offer letter, appointment letter, bank proof) showing what is on file and what is missing, and can upload for anyone. Employees see and upload their own; managers do not see their team's ID documents. |
 | **Holiday Calendar** | The year at a glance: company and restricted public holidays on twelve month grids, with weekly offs, today and your own leave marked, plus the list of holidays and the next one coming up. |
 | **Payroll** | Monthly run: Basic / HRA / special allowance from CTC, PF (with wage ceiling), ESI, professional tax, LWF, TDS, loss of pay from attendance and leave, bonuses and reimbursements. Workflow: run → finance review → management approval → bank transfer → paid. Payslips (print / save as PDF), bank transfer CSV, payroll register, statutory dues, exceptions (missing attendance, KYC, bank details, pending claims). |
@@ -145,6 +146,20 @@ Environment variables:
 | `COOKIE_SECURE` | | Set to `true` when served over HTTPS |
 
 **Backups:** copy the whole `DATA_DIR` folder (it holds the database and every uploaded resume, document and photo). A nightly copy is enough for most teams.
+
+## Turn on office-only sign-in
+
+1. Go to **Settings → Office Locations** and edit each office. Stand inside the office and press **Use my current location**, or paste the coordinates from Google Maps (right-click the building). A radius of 200–500 m suits most buildings.
+2. Add the office's network address too: the office's public IP for the cloud version (search "what is my IP" on the office Wi-Fi), or the LAN range such as `192.168.1.0/24` if the HRMS runs on an office computer. People on that network count as in the office even when their computer's location is rough.
+3. Under **Allowed from anywhere**, add field staff who work at client sites.
+4. Set the rule to **Sign in and check in only at an office** and save. Administrators can always sign in, so nobody gets locked out.
+
+Things to know:
+
+- Browsers share location only over **https**, so the location check works on the cloud version. On an office computer over plain http, rely on the office network addresses.
+- Desktop computers estimate location from nearby Wi-Fi and can be off by a few hundred metres; the office network address avoids that.
+- A determined person can fake browser location with developer tools; the office network check is much harder to fake. Use both.
+- Tell employees their location is checked at sign-in and recorded while their work clock runs, and why (India's Digital Personal Data Protection Act expects notice). Everyone can see their own history under Attendance → Location log.
 
 ## Security notes
 

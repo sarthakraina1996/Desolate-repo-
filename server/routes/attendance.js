@@ -4,6 +4,8 @@ import { dayStatuses } from '../services/calendar.js';
 import {
   GAP_REASONS, workdaySummary, startSession, endSession, generateShortfalls, shortfallRow, approverUserIds, canDecideShortfall, fmtMinutes, dayLabel,
 } from '../services/workday.js';
+import { checkLocation, logLocation, readCoords, geofencePolicy, fmtDistance } from '../services/geofence.js';
+import { destroySession } from '../auth.js';
 
 const MARKS = ['P', 'WFH', 'HD', 'A'];
 
@@ -91,7 +93,26 @@ export default function attendanceRoutes(r, { db }) {
     const gapReason = req.body.gap_reason ? oneOf(req.body.gap_reason, GAP_REASONS, { name: 'Reason' }) : null;
     const gapNote = str(req.body.gap_note, { max: 300 });
     if (gapReason === 'Other' && !gapNote) fail(400, 'Add a short note for "Other"');
-    const out = startSession(db, { employeeId: req.user.employeeId, date: today(db), mode, gapReason, gapNote, userId: req.user.id });
+    const s = settings();
+    const T = today(db);
+    if (geofencePolicy(s).mode !== 'off') {
+      const coords = readCoords(req.body.location);
+      const check = checkLocation(db, { user: req.user, coords, ip: req.ip, today: T, settings: s });
+      const wfhDay = check.method === 'exempt';
+      const resuming = db.value('SELECT COUNT(*) FROM work_sessions WHERE employee_id = ? AND date = ?', req.user.employeeId, T) > 0;
+      const wantsWfh = mode === 'wfh' || (resuming && db.value('SELECT mode FROM work_sessions WHERE employee_id = ? AND date = ? ORDER BY start_at LIMIT 1', req.user.employeeId, T) === 'wfh');
+      if (wantsWfh && !wfhDay) {
+        res.status(403).json({ error: 'Working from home needs an approved work-from-home day. Apply for it in Leave & Policies, or check in at the office.', code: 'wfh_not_approved' });
+        return;
+      }
+      if (!check.ok) {
+        if (check.code !== 'location_required') logLocation(db, { user: req.user, event: 'check-in blocked', coords, ip: req.ip, check });
+        res.status(403).json({ error: check.message.replace('sign in', 'check in'), code: check.code, distance: check.distance ?? null, office: check.site?.name ?? null });
+        return;
+      }
+      logLocation(db, { user: req.user, event: 'check-in', coords, ip: req.ip, check });
+    }
+    const out = startSession(db, { employeeId: req.user.employeeId, date: T, mode, gapReason, gapNote, userId: req.user.id });
     if (out.error) fail(out.needsReason ? 400 : 409, out.error);
     res.json(out);
   });
@@ -101,6 +122,69 @@ export default function attendanceRoutes(r, { db }) {
     const out = endSession(db, { employeeId: req.user.employeeId, date: today(db), by: 'checkout', userId: req.user.id });
     if (!out) fail(400, 'Your work clock is not running');
     res.json({ ok: true, at: out.at, workedMinutes: out.workedMinutes, worked: fmtMinutes(out.workedMinutes), hours: Math.round((out.workedMinutes / 60) * 10) / 10 });
+  });
+
+  // ---------- location ----------
+  // Sent by the app every few minutes while the work clock runs (and always
+  // in strict mode). Strict mode signs the user out after two readings in a
+  // row outside the office, which also pauses their clock.
+  r.post('/attendance/location', (req, res) => {
+    const s = settings();
+    const policy = geofencePolicy(s);
+    if (policy.mode === 'off') return res.json({ ok: true, tracking: false });
+    const T = today(db);
+    const coords = readCoords(req.body);
+    const check = checkLocation(db, { user: req.user, coords, ip: req.ip, today: T, settings: s });
+    if (check.method === 'exempt') return res.json({ ok: true, tracking: false, exempt: check.exempt });
+    if (check.code === 'location_required') return res.json({ ok: false, code: check.code, message: check.message });
+    const logId = logLocation(db, { user: req.user, event: 'while working', coords, ip: req.ip, check });
+    const out = { ok: check.ok, office: check.site?.name ?? null, method: check.method, distance: check.distance ?? null, message: check.ok ? null : check.message.replace(' You can only sign in from the office.', '') };
+    if (!check.ok && policy.mode === 'strict' && check.code === 'outside_office') {
+      const prev = db.get("SELECT * FROM location_log WHERE user_id = ? AND event = 'while working' AND id < ? ORDER BY id DESC LIMIT 1", req.user.id, logId);
+      if (prev && prev.result === 'outside' && Date.now() - Date.parse(prev.at) < 30 * 60000) {
+        if (req.user.employeeId) endSession(db, { employeeId: req.user.employeeId, date: T, by: 'signout', userId: req.user.id });
+        db.update('location_log', logId, { event: 'signed out (left office)' });
+        destroySession(db, req, res);
+        out.signedOut = true;
+        out.message = `You were signed out because you left the office (${fmtDistance(check.distance)} from ${check.site.name}). Your work clock is paused; sign in again when you are back.`;
+      }
+    }
+    res.json(out);
+  });
+
+  // view=mine: your own location history. view=team: your reports (HR and
+  // administrators: everyone). issues=1 keeps only refusals and outside readings.
+  r.get('/attendance/locations', (req, res) => {
+    const view = req.query.view === 'team' ? 'team' : 'mine';
+    const where = [];
+    const params = [];
+    if (view === 'mine') { where.push('l.user_id = ?'); params.push(req.user.id); }
+    else if (!isHR(req.user)) {
+      const ids = scopeIds(db, req.user).filter((x) => x !== req.user.employeeId);
+      where.push(ids.length ? `l.employee_id IN (${ids.map(() => '?').join(',')})` : '0=1');
+      params.push(...ids);
+    }
+    const d = req.query.date ? date(req.query.date) : null;
+    if (d) {
+      const tz = settings().timezone;
+      where.push('l.at >= ? AND l.at < ?');
+      params.push(D.zonedIso(d, '00:00', tz), D.zonedIso(D.addDays(d, 1), '00:00', tz));
+    }
+    if (req.query.issues === '1') where.push("l.result IN ('outside','imprecise','no-location')");
+    if (req.query.vertical) { where.push('e.vertical_id = ?'); params.push(Number(req.query.vertical)); }
+    const sql = `FROM location_log l LEFT JOIN employees e ON e.id = l.employee_id LEFT JOIN users u ON u.id = l.user_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`;
+    const items = db.all(`SELECT l.*, e.first_name, e.last_name, e.code, e.designation, e.photo IS NOT NULL AS has_photo, u.email ${sql} ORDER BY l.at DESC, l.id DESC LIMIT 300`, ...params)
+      .map((x) => ({ ...x, name: x.first_name ? fullName(x) : x.email }));
+    const policy = geofencePolicy(settings());
+    res.json({
+      view, mode: policy.mode, items,
+      summary: {
+        total: items.length,
+        inOffice: items.filter((x) => x.result === 'in-office' || x.result === 'office-network').length,
+        outside: items.filter((x) => x.result === 'outside').length,
+        blocked: items.filter((x) => /blocked|signed out/.test(x.event)).length,
+      },
+    });
   });
 
   // ---------- short hours ----------

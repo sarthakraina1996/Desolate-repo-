@@ -45,12 +45,15 @@ function cookieOptions(req) {
   return `Path=/; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
 }
 
-export function createSession(db, req, res, userId) {
+// expiresAt (ISO) shortens the session, e.g. to midnight for people whose
+// sign-in depends on being in the office that day.
+export function createSession(db, req, res, userId, { expiresAt = null } = {}) {
   const token = crypto.randomBytes(32).toString('hex');
-  const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
-  db.run('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)', sha256(token), userId, expires);
+  const max = Date.now() + SESSION_DAYS * 86400000;
+  const until = expiresAt && Date.parse(expiresAt) < max ? Date.parse(expiresAt) : max;
+  db.run('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)', sha256(token), userId, new Date(until).toISOString());
   db.run("DELETE FROM sessions WHERE expires_at < ?", new Date().toISOString());
-  res.setHeader('Set-Cookie', `${COOKIE}=${token}; ${cookieOptions(req)}; Max-Age=${SESSION_DAYS * 86400}`);
+  res.setHeader('Set-Cookie', `${COOKIE}=${token}; ${cookieOptions(req)}; Max-Age=${Math.max(60, Math.round((until - Date.now()) / 1000))}`);
 }
 
 export function destroySession(db, req, res) {

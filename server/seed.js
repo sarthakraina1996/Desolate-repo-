@@ -10,6 +10,7 @@ import { processRun } from './services/payroll.js';
 import { heuristicScreen } from './lib/screener.js';
 import { syncAttendance, generateShortfalls, approverUserIds, fmtMinutes, dayLabel } from './services/workday.js';
 import { textPdf } from './lib/pdf.js';
+import { distanceM } from './services/geofence.js';
 
 export const DEMO_PASSWORD = 'Brainadz@2026';
 export const DEMO_ACCOUNTS = [
@@ -710,6 +711,35 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         ];
         for (const [cat, docName, heading, lines] of plan) if (!skip.has(cat)) addDoc(e, cat, docName, heading, lines, by);
       }
+    }
+
+    // ---------- offices and location log ----------
+    // Sample office coordinates; update them in Settings > Office locations.
+    // The sign-in location rule starts off, and the log shows what today's
+    // check-ins and two refused sign-ins look like.
+    const officeOf = {};
+    for (const [loc, lat, lng] of [['Bengaluru', 12.9784, 77.6408], ['Mumbai', 19.1136, 72.8697], ['Delhi NCR', 28.495, 77.0895]]) {
+      const oid = db.insert('office_sites', { name: `${loc} office`, location_id: lId[loc], lat, lng, radius_m: 300 });
+      officeOf[lId[loc]] = db.get('SELECT * FROM office_sites WHERE id = ?', oid);
+    }
+    const near = (s, metres) => {
+      const angle = rand() * 2 * Math.PI;
+      const d = metres * (0.2 + 0.8 * rand());
+      return { lat: s.lat + (d * Math.cos(angle)) / 111320, lng: s.lng + (d * Math.sin(angle)) / (111320 * Math.cos((s.lat * Math.PI) / 180)) };
+    };
+    const logAt = (emp, at, event, result, s, p) => db.insert('location_log', {
+      user_id: users[emp.id] || null, employee_id: emp.id, at, event, result, site_id: s.id, site_name: s.name,
+      distance_m: Math.round(distanceM(p, s)), lat: p.lat, lng: p.lng, accuracy_m: int(12, 65),
+    });
+    for (const a of db.all('SELECT employee_id, check_in FROM attendance WHERE date = ? AND check_in IS NOT NULL', T)) {
+      const emp = all.find((x) => x.id === a.employee_id);
+      const s = officeOf[emp?.location_id] || officeOf[lId.Bengaluru];
+      if (emp) logAt(emp, a.check_in, 'check-in', 'in-office', s, near(s, 160));
+    }
+    for (const [nm, hm] of [['Kavya Singh', '08:41'], ['Rohit Verma', '09:06']]) {
+      const emp = byName[nm];
+      const s = officeOf[emp.location_id] || officeOf[lId.Bengaluru];
+      logAt(emp, isoAt(T, hm), 'sign-in blocked', 'outside', s, near(s, 6500 + int(0, 3000)));
     }
 
     // ---------- work sessions and short hours ----------

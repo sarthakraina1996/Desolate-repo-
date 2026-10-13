@@ -71,6 +71,14 @@ function InAppLinks() {
   return null;
 }
 
+// Inside the Bengaluru office (about 40 m from its centre) and at home in
+// Koramangala, about 5 km away.
+const PLACES = {
+  office: { lat: 12.97862, lng: 77.64112, accuracy: 25 },
+  home: { lat: 12.9352, lng: 77.6245, accuracy: 30 },
+};
+let place = 'office';
+
 async function boot() {
   setSqlJs(await initSqlJs());
   const server = createDemoServer();
@@ -101,7 +109,15 @@ async function boot() {
       await saveFile(await res.blob(), name);
     },
     saveFile,
+    // Browsers in claude.ai cannot share a real location, so the corner
+    // switcher stands in for the device's GPS.
+    getPosition: () => ({ ...PLACES[place] }),
   };
+  const placeSelect = document.getElementById('demo-place');
+  placeSelect?.addEventListener('change', () => {
+    place = placeSelect.value;
+    window.dispatchEvent(new Event('hrms:location-changed'));
+  });
 
   // Claude features light up once the viewer's claude.ai session answers.
   const claude = window.claude;

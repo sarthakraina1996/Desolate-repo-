@@ -4,12 +4,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import { Timer, LogIn, LogOut, House, PictureInPicture2, Pause, Coffee, TriangleAlert, CircleAlert } from 'lucide-react';
+import { Timer, LogIn, LogOut, House, PictureInPicture2, Pause, Coffee, TriangleAlert, CircleAlert, MapPin } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
 import { useAction, useClickOutside } from '../lib/hooks.js';
 import { fmtTime, fmtDay } from '../lib/format.js';
 import { useWorkday, useNow, workedNow, clockText, checkIn, checkOut, refreshWorkday } from '../lib/workday.js';
+import { getPosition, setLocationStatus, useLocationStatus, fmtDistance } from '../lib/location.js';
 import { Button, Modal, Field, Textarea, Progress, Badge } from './ui.jsx';
 
 const OFF_DAYS = ['H', 'WO', 'L'];
@@ -210,6 +211,7 @@ export default function WorkClock() {
             <Progress value={pct} color={left <= 0 ? 'var(--green)' : 'var(--blue)'} />
             <div className="xs muted mt-8">{left <= 0 ? `Target of ${clockText(w.requiredMinutes, false)} reached` : `${clockText(left, false)} to go of ${clockText(w.requiredMinutes, false)}`}</div>
             <SessionList w={w} compact />
+            <LocationLine />
             <div className="row wrap mt-16" style={{ gap: 8 }}>
               {!w.sessions.length && <><Button size="sm" variant="primary" icon={LogIn} loading={busy} onClick={() => start('office')}>Check in</Button><Button size="sm" icon={House} loading={busy} onClick={() => start('wfh')}>From home</Button></>}
               {running && <Button size="sm" icon={LogOut} loading={busy} onClick={() => run(() => checkOut(), (r) => `Checked out after ${r.worked}. Your clock is paused.`)}>Check out</Button>}
@@ -239,6 +241,74 @@ export function AttentionBanner() {
       {s.toApprove > 0 && <div className="alert info"><CircleAlert size={16} /><span className="grow">{s.toApprove === 1 ? 'One short-hours explanation is' : `${s.toApprove} short-hours explanations are`} waiting for your approval.</span><Link to="/attendance?tab=short" className="b6">Review</Link></div>}
     </div>
   );
+}
+
+// ---------- office location ----------
+// While the office-only rule is on, checks where the device is every 10
+// minutes during work (all the time in strict mode) and records it. In
+// strict mode the server signs the user out after leaving the office.
+export function LocationGuard() {
+  const { meta, logout, toast } = useApp();
+  const s = useWorkday();
+  const geo = meta?.geofence;
+  const running = Boolean(s?.workday?.openSince);
+  const track = Boolean(geo && geo.mode !== 'off' && !geo.exempt && (geo.mode === 'strict' || running));
+  const warned = useRef(false);
+  const last = useRef(0);
+  useEffect(() => {
+    if (!track) { setLocationStatus(null); return undefined; }
+    let stop = false;
+    const ping = async () => {
+      last.current = Date.now();
+      let pos;
+      try { pos = await getPosition({ maxAgeMs: 0 }); } catch (e) { if (!stop) setLocationStatus({ ok: false, error: true, message: e.message }); return; }
+      try {
+        const r = await api.post('/attendance/location', pos);
+        if (stop) return;
+        setLocationStatus(r);
+        if (r.signedOut) {
+          try { sessionStorage.setItem('hrms.flash', r.message); } catch { /* storage blocked */ }
+          await logout();
+          return;
+        }
+        if (!r.ok && r.message && !warned.current) {
+          warned.current = true;
+          toast(r.office && r.distance != null
+            ? `You seem to be outside the office (${fmtDistance(r.distance)} from ${r.office}). Your location is recorded while your clock runs.`
+            : r.message, 'error');
+        }
+        if (r.ok) warned.current = false;
+      } catch { /* offline: try again next time */ }
+    };
+    ping();
+    const timer = setInterval(ping, 10 * 60000);
+    const onVisible = () => { if (document.visibilityState === 'visible' && Date.now() - last.current > 2 * 60000) ping(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('hrms:location-changed', ping);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('hrms:location-changed', ping);
+    };
+  }, [track]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
+function LocationLine() {
+  const { meta } = useApp();
+  const st = useLocationStatus();
+  const geo = meta?.geofence;
+  if (!geo || geo.mode === 'off') return null;
+  let text;
+  let tone = 'muted';
+  if (geo.exempt) text = `Location check not needed: ${geo.exempt.toLowerCase()}`;
+  else if (!st) text = 'Location is checked while your clock runs';
+  else if (st.error) { text = st.message; tone = 'red'; }
+  else if (st.ok && st.method === 'network') { text = `On the office network · ${st.office}`; tone = 'green'; }
+  else if (st.ok) { text = `In the office · ${st.office}${st.distance != null ? ` (${fmtDistance(st.distance)})` : ''}`; tone = 'green'; }
+  else { text = st.message || 'Outside the office'; tone = 'red'; }
+  return <div className={`xs mt-8 row gap-6 ${tone}`}><MapPin size={13} /><span>{text}</span></div>;
 }
 
 // ---------- explain a short day ----------

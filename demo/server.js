@@ -7,7 +7,7 @@ import path from './shims/path.js';
 import { randomBytes } from './shims/crypto.js';
 import { openDb } from '../server/db.js';
 import { sessionMiddleware } from '../server/auth.js';
-import { HttpError, fail } from '../server/core.js';
+import { HttpError, fail, getSettings, setSetting } from '../server/core.js';
 import { seedDemo } from '../server/seed.js';
 import authRoutes from '../server/routes/auth.js';
 import metaRoutes from '../server/routes/meta.js';
@@ -130,6 +130,8 @@ export function createDemoServer() {
   const uploads = '/data/uploads';
   const saveFile = (kind, name, bytes) => fs.writeFileSync(path.join(uploads, kind, path.basename(name)), bytes);
   seedDemo(db, { saveFile });
+  // The demo shows office-only sign-in; the corner switcher sets where you are.
+  setSetting(db, 'geofence', { ...getSettings(db).geofence, mode: 'login' });
   const ctx = { db, uploads, upload: makeUpload(uploads), here: '/server', saveFile };
 
   const pub = new Router();

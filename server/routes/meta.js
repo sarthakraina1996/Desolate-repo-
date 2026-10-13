@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getSettings, isHR, today, str, oneOf, id, fail, notFound, requireHR, fullName, notifyUsers, scopeIds, DOC_CATEGORIES } from '../core.js';
 import { aiEnabled } from '../services/ai.js';
+import { geofencePolicy, exemption } from '../services/geofence.js';
 
 export default function metaRoutes(r, { db, uploads }) {
   r.get('/meta', (req, res) => {
@@ -21,6 +22,7 @@ export default function metaRoutes(r, { db, uploads }) {
         FROM employees e WHERE e.status != 'Exited' ORDER BY e.first_name, e.last_name`),
       ai: aiEnabled(),
       icc: isIcc(db, req.user),
+      geofence: { mode: geofencePolicy(s).mode, exempt: exemption(db, req.user, s, today(db))?.reason || null },
     });
   });
 
