@@ -79,7 +79,8 @@ test('a declined request keeps the comment, and nobody else can delete it', asyn
   await call('rohan', 'POST', `/comments/${c.id}/delete-request`);
   await call('suresh', 'POST', `/comments/${c.id}/delete-decision`, { body: { approve: false } });
   await rejects(call('rohan', 'DELETE', `/comments/${c.id}`), 403);
-  await rejects(call('rajiv', 'DELETE', `/comments/${c.id}`), 403);
+  // Other members cannot remove it either.
+  await rejects(call('neha', 'DELETE', `/comments/${c.id}`), 403);
   // Heads cannot approve their own comments.
   const own = await call('suresh', 'POST', `/projects/${pid}/comments`, { body: { body: 'Head comment' } });
   clock += 30_000;
@@ -145,7 +146,9 @@ test('a version 1 database upgrades without losing data', () => {
 
   migrate(old);
 
-  assert.equal(old.get("SELECT value FROM settings WHERE key = 'schema_version'").value, '2');
+  assert.equal(old.get("SELECT value FROM settings WHERE key = 'schema_version'").value, '3');
+  // Existing work counts as already seen, so nothing shows as new right after the upgrade.
+  assert.equal(old.get("SELECT COUNT(*) AS n FROM seen WHERE user_id = 1 AND scope = 'project:7:tasks'").n, 1);
   assert.equal(old.get('SELECT ready_label FROM verticals WHERE id = 1').ready_label, 'Ready for Event / Exhibition');
   old.run("UPDATE projects SET status = 'ready', board_sort = 1 WHERE id = 7");
   assert.equal(old.get('SELECT status FROM projects WHERE id = 7').status, 'ready');
@@ -156,4 +159,75 @@ test('a version 1 database upgrades without losing data', () => {
   old.run('DELETE FROM projects WHERE id = 7');
   assert.equal(old.get('SELECT COUNT(*) AS n FROM tasks').n, 0);
   migrate(old); // running again is harmless
+});
+
+test('heads can remove other people\'s comments, and it is recorded', async () => {
+  const pid = exhProject();
+  const c = await call('rohan', 'POST', `/projects/${pid}/comments`, { body: { body: 'Wrong file attached' } });
+  clock += 60_000;
+  const asHead = (await call('suresh', 'GET', `/projects/${pid}/activity`)).comments.find((x) => x.id === c.id);
+  assert.equal(asHead.can_head_delete, true);
+  const asMember = (await call('neha', 'GET', `/projects/${pid}/activity`)).comments.find((x) => x.id === c.id);
+  assert.equal(asMember.can_head_delete, false);
+  await call('suresh', 'DELETE', `/comments/${c.id}`);
+  const { activity } = await call('suresh', 'GET', `/projects/${pid}/activity`);
+  assert.ok(activity.some((a) => a.action === 'comment_removed' && a.detail === 'Rohan Das'));
+  assert.ok((await call('rohan', 'GET', '/notifications')).items.some((n) => n.text.includes('removed your comment')));
+});
+
+test('counts show what is new since each person last opened the tab', async () => {
+  const pid = exhProject();
+  const seeAll = async (who) => {
+    for (const tab of ['tasks', 'files', 'discussion']) await call(who, 'POST', '/seen', { body: { scope: `project:${pid}:${tab}` } });
+  };
+  await seeAll('rohan');
+  await seeAll('neha');
+  clock += 1000;
+  let p = await call('rohan', 'GET', `/projects/${pid}`);
+  assert.deepEqual(p.unseen, { tasks: 0, files: 0, discussion: 0 });
+
+  // Neha adds two tasks, a link and a comment.
+  await call('neha', 'POST', `/projects/${pid}/tasks`, { body: { title: 'Order extra spotlights' } });
+  await call('neha', 'POST', `/projects/${pid}/tasks`, { body: { title: 'Book forklift' } });
+  await call('neha', 'POST', `/projects/${pid}/files`, { body: { url: 'https://example.com/plan', name: 'Hall plan' } });
+  await call('neha', 'POST', `/projects/${pid}/comments`, { body: { body: 'Added two tasks' } });
+  clock += 1000;
+
+  p = await call('rohan', 'GET', `/projects/${pid}`);
+  assert.deepEqual(p.unseen, { tasks: 2, files: 1, discussion: 1 });
+  // Your own additions never count as new for you.
+  assert.deepEqual((await call('neha', 'GET', `/projects/${pid}`)).unseen, { tasks: 0, files: 0, discussion: 0 });
+  const list = (await call('rohan', 'GET', '/projects')).items.find((x) => x.id === pid);
+  assert.equal(list.new_items, 4);
+  const tasks = (await call('rohan', 'GET', `/projects/${pid}/tasks`)).items.filter((t) => t.is_new).map((t) => t.title).sort();
+  assert.deepEqual(tasks, ['Book forklift', 'Order extra spotlights']);
+
+  // Opening the Tasks tab clears only the task count.
+  await call('rohan', 'POST', '/seen', { body: { scope: `project:${pid}:tasks` } });
+  assert.deepEqual((await call('rohan', 'GET', `/projects/${pid}`)).unseen, { tasks: 0, files: 1, discussion: 1 });
+
+  // People outside the vertical cannot mark it seen.
+  await rejects(call('kavita', 'POST', '/seen', { body: { scope: `project:${pid}:tasks` } }), 404);
+  await rejects(call('rohan', 'POST', '/seen', { body: { scope: 'something-else' } }), 400);
+});
+
+test('My Work flags tasks newly assigned by someone else', async () => {
+  const pid = exhProject();
+  await call('rohan', 'POST', '/seen', { body: { scope: 'mywork' } });
+  clock += 1000;
+  const rohan = db.get('SELECT id FROM users WHERE email = ?', demoEmail('rohan')).id;
+  const t = await call('suresh', 'POST', `/projects/${pid}/tasks`, { body: { title: 'Check power load', assignee_id: rohan } });
+  await call('rohan', 'POST', `/projects/${pid}/tasks`, { body: { title: 'My own reminder', assignee_id: rohan } });
+  clock += 1000;
+  const mine = (await call('rohan', 'GET', '/tasks', { query: { assignee: 'me' } })).items;
+  assert.deepEqual(mine.filter((x) => x.is_new).map((x) => x.title), ['Check power load']);
+  await call('rohan', 'POST', '/seen', { body: { scope: 'mywork' } });
+  clock += 1000;
+  assert.equal((await call('rohan', 'GET', '/tasks', { query: { assignee: 'me' } })).items.filter((x) => x.is_new).length, 0);
+  // Reassigning to someone else makes it new for them.
+  const neha = db.get('SELECT id FROM users WHERE email = ?', demoEmail('neha')).id;
+  await call('neha', 'POST', '/seen', { body: { scope: 'mywork' } });
+  clock += 1000;
+  await call('suresh', 'PATCH', `/tasks/${t.id}`, { body: { assignee_id: neha } });
+  assert.ok((await call('neha', 'GET', '/tasks', { query: { assignee: 'me' } })).items.some((x) => x.id === t.id && x.is_new));
 });

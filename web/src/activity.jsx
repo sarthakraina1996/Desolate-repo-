@@ -14,6 +14,7 @@ export function describe(a) {
     case 'created': return d ? <>created the project <span className="muted">({d})</span></> : 'created the project';
     case 'status': return <>changed the status to <b>{PROJECT_STATUS[d]?.label || d}</b></>;
     case 'comment_deleted': return <>deleted a comment{d && <span className="muted"> (approved by {d})</span>}</>;
+    case 'comment_removed': return <>removed a comment by <b>{d || 'someone'}</b></>;
     case 'stage': return <>moved the project to <b>{d}</b></>;
     case 'health': return <>marked the project <b>{HEALTH[d]?.label || d}</b></>;
     case 'owner': return <>made <b>{d}</b> the project owner</>;
@@ -85,11 +86,17 @@ export function CommentBody({ text }) {
   return <>{parts.map((s, i) => (s.startsWith('@') ? <b key={i} className="mention">{s}</b> : s))}</>;
 }
 
+// Remember when comments arrived, so the 15-second countdown survives re-renders.
+export function stampReceived(comments) {
+  const now = Date.now();
+  return (comments || []).map((c) => ({ ...c, received_at: now }));
+}
+
 // One comment with its delete rules: the author can delete for 15 seconds (with a
 // countdown); after that they ask a head, and can delete only once a head approves.
 export function CommentItem({ c, onChanged, taskLink, size = 34 }) {
   const { toast, confirm } = useApp();
-  const deadline = useMemo(() => Date.now() + (c.delete_ms_left || 0), [c.id, c.delete_ms_left]); // eslint-disable-line react-hooks/exhaustive-deps
+  const deadline = useMemo(() => (c.received_at || Date.now()) + (c.delete_ms_left || 0), [c.id, c.delete_ms_left, c.received_at]); // eslint-disable-line react-hooks/exhaustive-deps
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const left = Math.max(0, deadline - now);
@@ -123,13 +130,18 @@ export function CommentItem({ c, onChanged, taskLink, size = 34 }) {
     if (approved && !(await confirm({ title: 'Delete this comment?', message: 'A head approved the deletion. The comment will be removed for everyone.', confirmLabel: 'Delete comment', danger: true }))) return;
     run(() => api.del(`/comments/${c.id}`), 'Comment deleted');
   };
+  const headDelete = async () => {
+    const first = c.user_name?.split(' ')[0] || 'this person';
+    if (!(await confirm({ title: `Delete ${first}'s comment?`, message: `As a head of this vertical you can remove it. ${first} will be told, and the project history will show that you removed it.`, confirmLabel: 'Delete comment', danger: true }))) return;
+    run(() => api.del(`/comments/${c.id}`), 'Comment deleted');
+  };
 
   return (
-    <div className="feed-item comment">
+    <div className={`feed-item comment ${c.is_new ? 'is-new' : ''}`}>
       <Avatar name={c.user_name} color={c.user_color} size={size} />
       <div className="grow" style={{ minWidth: 0 }}>
         <div className="row between">
-          <span className="small"><b>{c.user_name}</b>{taskLink}</span>
+          <span className="small">{c.is_new && <span className="new-tag">New</span>}<b>{c.user_name}</b>{taskLink}</span>
           <span className="xs muted nowrap" title={fmtTime(c.created_at)}>{timeAgo(c.created_at)}</span>
         </div>
         <div className="bubble"><CommentBody text={c.body} /></div>
@@ -155,6 +167,9 @@ export function CommentItem({ c, onChanged, taskLink, size = 34 }) {
           )}
           {c.delete_status === 'declined' && (
             <span className="c-chip gray"><ShieldX size={12} />Kept{c.decided_by_name ? ` by ${c.decided_by_name}` : ''}</span>
+          )}
+          {c.can_head_delete && !c.can_decide && (
+            <button type="button" className="link xs muted" onClick={headDelete} disabled={busy} title="You are a head of this vertical"><Trash2 size={12} />Delete</button>
           )}
         </div>
         {c.can_decide && (

@@ -6,11 +6,11 @@ import { Link } from '../router.jsx';
 import { Loading, Avatar, UserSelect, VChip, Field, TASK_STATUS, PRIORITY, Empty } from '../ui.jsx';
 import { UploadZone, FileRow, FilePreview, LinkForm } from '../files.jsx';
 import { fmtTime, timeAgo, dueText } from '../format.js';
-import { describe, Composer, CommentItem } from '../activity.jsx';
+import { describe, Composer, CommentItem, stampReceived } from '../activity.jsx';
 
 export function TaskModal({ id, onClose, onChanged }) {
   const { assignable, toast, confirm, today, me } = useApp();
-  const { data: t, loading, error, reload, setData } = useLoad(() => api.get(`/tasks/${id}`), [id]);
+  const { data: t, loading, error, reload, setData } = useLoad(() => api.get(`/tasks/${id}`).then((d) => ({ ...d, comments: stampReceived(d.comments) })), [id]);
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [newItem, setNewItem] = useState('');

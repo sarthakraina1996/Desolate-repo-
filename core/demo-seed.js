@@ -203,7 +203,9 @@ export function seedDemo(db, { today, passwordHash }) {
       counters[prefix] = (counters[prefix] || 0) + 1;
       const code = `${prefix}-${String(counters[prefix] + 3).padStart(3, '0')}`;
       const closed = status === 'completed' || status === 'cancelled';
-      const createdAt = ts(addDays(startDate, -2), 11, 15);
+      // Planned projects can start in the future, but they were set up in the past.
+      const createdDay = addDays(startDate, -2) < addDays(today, -3) ? addDays(startDate, -2) : addDays(today, -6 - (idx % 5));
+      const createdAt = ts(createdDay, 11, 15);
       const completedAt = status === 'completed' ? ts(addDays(dueDate, 2), 18, 0) : null;
 
       // Tasks
@@ -251,9 +253,9 @@ export function seedDemo(db, { today, passwordHash }) {
           ? [{ text: 'Share draft internally', done: t.status !== 'todo' }, { text: 'Client feedback incorporated', done: t.status === 'done' }, { text: 'Upload final files', done: t.status === 'done' }]
           : [];
         const { id: tid } = db.run(
-          `INSERT INTO tasks (project_id, title, description, status, priority, assignee_id, stage, start_date, due_date, checklist, sort, created_by, created_at, updated_at, completed_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          pid, t.title, '', t.status, t.priority || 'medium', t.assignee, t.stage, null, t.due, JSON.stringify(checklist), t.sort,
+          `INSERT INTO tasks (project_id, title, description, status, priority, assignee_id, assigned_at, assigned_by, stage, start_date, due_date, checklist, sort, created_by, created_at, updated_at, completed_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          pid, t.title, '', t.status, t.priority || 'medium', t.assignee, createdAt, ids[ownerKey], t.stage, null, t.due, JSON.stringify(checklist), t.sort,
           ids[ownerKey], createdAt, completed || createdAt, completed,
         );
         if (completed) db.run('INSERT INTO activity (project_id, task_id, user_id, action, detail, created_at) VALUES (?,?,?,?,?,?)', pid, tid, t.assignee, 'task_done', `${t.title} → Done`, completed);
@@ -273,7 +275,8 @@ export function seedDemo(db, { today, passwordHash }) {
       const keep = closed ? fileSet.length : Math.max(3, Math.round(fileSet.length * (taskRows.filter((t) => t.status === 'done').length / taskRows.length + 0.25)));
       fileSet.slice(0, keep).forEach(([fname, category, mime, kb], i) => {
         const uploader = pickOne([...team]);
-        const at = closed ? addDays(startDate, Math.round(((i + 1) / fileSet.length) * (daysBetweenSafe(startDate, dueDate)))) : addDays(startDate, i * 4 + 1);
+        const planned = closed ? addDays(startDate, Math.round(((i + 1) / fileSet.length) * (daysBetweenSafe(startDate, dueDate)))) : addDays(startDate, i * 4 + 1);
+        const at = planned < addDays(today, -3) ? planned : addDays(today, -3 - (i % 3));
         const isFinal = closed && /Final|report|photos|highlights|Aftermovie/i.test(fname) ? 1 : 0;
         db.run(
           `INSERT INTO files (project_id, kind, name, mime, size, category, storage_key, is_final, note, uploaded_by, created_at)
@@ -309,11 +312,12 @@ export function seedDemo(db, { today, passwordHash }) {
       }
       if (c.short === 'Exhibits') {
         say(c.pid, 'neha', `Organiser confirmed our stall number and power load for ${c.client}. Hall plan is in Files.`, ts(addDays(today, -6), 10, 40));
-        say(c.pid, 'tanvi', '@Rohan render v3 is uploaded. Client asked for a bigger logo on the backwall, updating today.', ts(addDays(today, -3), 15, 10));
-        say(c.pid, 'rohan', 'Thanks Tanvi. Workshop needs final drawings by Friday to hold the fabrication slot.', ts(addDays(today, -3), 17, 45));
+        const day = c.client === 'Zenith Pharma' ? -1 : -4; // only the Pharma Expo chat is from yesterday
+        say(c.pid, 'tanvi', '@Rohan render v3 is uploaded. Client asked for a bigger logo on the backwall, updating today.', ts(addDays(today, day), 15, 10));
+        say(c.pid, 'rohan', 'Thanks Tanvi. Workshop needs final drawings by Friday to hold the fabrication slot.', ts(addDays(today, day), 17, 45));
       } else if (c.short === 'Live') {
         say(c.pid, 'ishita', 'Venue walkthrough done. Ballroom height allows the LED wall we planned, rigging points marked on the layout.', ts(addDays(today, -5), 12, 0));
-        say(c.pid, 'sameer', `${c.client} wants the guest list frozen a week before. Shared the RSVP tracker with their admin team.`, ts(addDays(today, -2), 18, 20));
+        say(c.pid, 'sameer', `${c.client} wants the guest list frozen a week before. Shared the RSVP tracker with their admin team.`, ts(addDays(today, -2), 16, 20));
       } else if (/campaign/i.test(c.name)) {
         say(c.pid, 'kavita', 'Route B tested better in the quick poll. Let’s take it forward and keep route A as backup.', ts(addDays(today, -4), 11, 30));
         say(c.pid, 'aarav', 'Media plan v2 uploaded with the revised OOH split.', ts(addDays(today, -1), 14, 50));
@@ -339,6 +343,48 @@ export function seedDemo(db, { today, passwordHash }) {
         db.run('INSERT INTO notifications (user_id, project_id, text, read, created_at) VALUES (?,?,?,0,?)', ids[head], zenith.id,
           `Rohan Das asks to delete a comment in ${zenith.code}: “Flooring quote from the vendor is ₹4,80,000…”`, ts(addDays(today, -1), 12, 9));
       }
+    }
+
+    // Everyone last looked two days ago, so the last two days of activity shows as new.
+    const lastLook = ts(addDays(today, -2), 18, 0);
+    const projectIds = db.all('SELECT id FROM projects').map((r) => r.id);
+    for (const uid of Object.values(ids)) {
+      db.run('INSERT OR REPLACE INTO seen (user_id, scope, seen_at) VALUES (?,?,?)', uid, 'mywork', lastLook);
+      for (const pid of projectIds) {
+        for (const tab of ['tasks', 'files', 'discussion']) db.run('INSERT OR REPLACE INTO seen (user_id, scope, seen_at) VALUES (?,?,?)', uid, `project:${pid}:${tab}`, lastLook);
+      }
+    }
+    // A handful of tasks were handed over yesterday, so My Work has something new.
+    const handover = db.all(
+      `SELECT t.id, t.project_id, t.title, p.owner_id, p.code FROM tasks t JOIN projects p ON p.id = t.project_id
+       WHERE t.status = 'todo' AND p.status IN ('active','planning') AND t.assignee_id IS NOT NULL AND t.assignee_id != p.owner_id ORDER BY t.due_date LIMIT 8`,
+    );
+    for (const t of handover) db.run('UPDATE tasks SET assigned_at = ?, assigned_by = ? WHERE id = ?', ts(addDays(today, -1), 15, 30), t.owner_id, t.id);
+    // New tasks added yesterday on two live projects, so their Tasks tabs show red.
+    for (const client of ['Zenith Pharma', 'Sahyadri Foods', 'Lotus Hotels']) {
+      const p = db.get("SELECT id, owner_id, stage, vertical_id FROM projects WHERE client = ? AND status IN ('active','ready') ORDER BY id LIMIT 1", client);
+      if (!p) continue;
+      const short = db.get('SELECT short FROM verticals WHERE id = ?', p.vertical_id)?.short;
+      const head = { Exhibits: ids.suresh, Marketing: ids.kavita, Live: ids.arvind }[short] || ids.rajiv;
+      const added = ts(addDays(today, -1), 11, 40);
+      db.run(
+        `INSERT INTO tasks (project_id, title, status, priority, assignee_id, assigned_at, assigned_by, stage, due_date, sort, created_by, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        p.id, 'Client asked for a revised quote with GST breakup', 'todo', 'high', p.owner_id, added, head, p.stage, addDays(today, 3), 99, head, added, added,
+      );
+      db.run('INSERT INTO activity (project_id, user_id, action, detail, created_at) VALUES (?,?,?,?,?)', p.id, head, 'task_added', 'Client asked for a revised quote with GST breakup', added);
+    }
+
+    // Tanvi uploaded a revised render yesterday, so the Files tab shows something new.
+    const zen = db.get("SELECT id FROM projects WHERE client = 'Zenith Pharma' AND status IN ('active','ready') LIMIT 1");
+    if (zen) {
+      const at = ts(addDays(today, -1), 15, 5);
+      db.run(
+        `INSERT INTO files (project_id, kind, name, mime, size, category, storage_key, is_final, note, uploaded_by, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        zen.id, 'file', 'Stall 3D render – bigger logo v4.jpg', 'image/jpeg', 3300000, 'Design', `sample:${zen.id}-v4`, 0, 'Logo enlarged as the client asked', ids.tanvi, at,
+      );
+      db.run('INSERT INTO activity (project_id, user_id, action, detail, created_at) VALUES (?,?,?,?,?)', zen.id, ids.tanvi, 'file_added', 'Stall 3D render – bigger logo v4.jpg', at);
     }
 
     // A few unread notifications per demo account

@@ -1,7 +1,7 @@
 // Database schema shared by the Node server (node:sqlite) and the in-browser demo (sql.js).
 // Both run SQLite, so the same SQL works everywhere.
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 // Kept as a function so a migration can rebuild the table with the same definition.
 export function projectsTable(name) {
@@ -128,6 +128,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','in_progress','review','blocked','done')),
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high','urgent')),
   assignee_id INTEGER REFERENCES users(id),
+  assigned_at TEXT,
+  assigned_by INTEGER,
   stage TEXT DEFAULT '',
   start_date TEXT,
   due_date TEXT,
@@ -184,6 +186,15 @@ CREATE TABLE IF NOT EXISTS activity (
   created_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_activity_project ON activity(project_id, id);
+
+-- When each person last opened a tab (e.g. "project:12:tasks", "mywork"), so counts
+-- can show in red while something new is waiting for them.
+CREATE TABLE IF NOT EXISTS seen (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scope TEXT NOT NULL,
+  seen_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, scope)
+);
 
 CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY,

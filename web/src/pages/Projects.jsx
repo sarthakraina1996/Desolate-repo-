@@ -53,6 +53,7 @@ function ProjectTable({ items, showVertical, onOpen, today }) {
                     <div className="row gap-6">
                       <span className="b6 ellipsis">{p.name}</span>
                       <PriorityFlag priority={p.priority} />
+                      {p.new_items > 0 && <NewCount p={p} />}
                     </div>
                     <div className="xs muted ellipsis">{p.code}{p.client ? ` · ${p.client}` : ''}{p.city ? ` · ${p.city}` : ''}</div>
                   </td>
@@ -110,6 +111,20 @@ function boardColumns(verticalsInView) {
   return cols;
 }
 
+// "2 new tasks, 1 new file" for tooltips.
+export function newSummary(p) {
+  const u = p.unseen || {};
+  return [
+    u.tasks && `${u.tasks} new task${u.tasks > 1 ? 's' : ''}`,
+    u.files && `${u.files} new file${u.files > 1 ? 's' : ''}`,
+    u.discussion && `${u.discussion} new comment${u.discussion > 1 ? 's' : ''}`,
+  ].filter(Boolean).join(', ');
+}
+
+function NewCount({ p }) {
+  return <span className="new-tag" title={newSummary(p)}>{p.new_items} new</span>;
+}
+
 const healthLabel = { at_risk: { text: 'At risk', color: '#f2a600' }, off_track: { text: 'Off track', color: '#e31b3b' } };
 
 function ProjectCard({ p, today, showVertical }) {
@@ -119,6 +134,7 @@ function ProjectCard({ p, today, showVertical }) {
       <Cover file={p.cover} color={p.vertical_color} />
       <div className="kb-body">
         <Labels items={[
+          p.new_items > 0 && { text: `${p.new_items} new`, color: '#e31b3b', solid: true, title: newSummary(p) },
           showVertical && { text: p.vertical, color: p.vertical_color, solid: true },
           healthLabel[p.health] && { ...healthLabel[p.health], solid: true },
           p.priority === 'urgent' && { text: 'Urgent', color: '#e31b3b' },
@@ -148,7 +164,7 @@ function ProjectBoard({ items, onOpen, onMove, onAdd, onSort, canEdit, today, ve
       .filter((p) => p.status === c.key)
       .sort((a, b) => (a.board_sort ?? 1e9) - (b.board_sort ?? 1e9) || (a.key_date || a.due_date || '9').localeCompare(b.key_date || b.due_date || '9'))
       .map((p, i) => ({ ...p, sort: p.board_sort ?? i + 1 })),
-  }));
+  })).map((c) => ({ ...c, fresh: c.cards.filter((p) => p.new_items > 0).length }));
   return (
     <Board id="projects" columns={columns} today={today}
       renderCard={(p) => <ProjectCard p={p} today={today} showVertical={verticalsInView.length > 1} />}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Pencil, Copy, Trash2, CheckCircle2, PauseCircle, RotateCcw, Ban, LayoutTemplate, Download, Plus, Diamond, MapPin,
   IndianRupee, CalendarRange, Users, Flag, X, LayoutList, Columns3, MessageSquare, Paperclip, Lock, Grid2x2, List, Send, Check,
@@ -8,9 +8,9 @@ import { api } from '../api.js';
 import { Link, useRouter } from '../router.jsx';
 import {
   Loading, ErrorNote, Empty, VChip, StatusBadge, HealthBadge, Avatar, Ring, Menu, Seg, PriorityFlag, TaskStatusBadge, Modal, Field,
-  UserSelect, Progress, TASK_STATUS, HEALTH, PRIORITY, alpha,
+  UserSelect, Progress, TASK_STATUS, HEALTH, PRIORITY, alpha, CountPill, NewTag,
 } from '../ui.jsx';
-import { ActivityList, Composer, CommentItem } from '../activity.jsx';
+import { ActivityList, Composer, CommentItem, stampReceived } from '../activity.jsx';
 import { Board, Cover, Labels, Badges, DueBadge, labelColor } from '../board.jsx';
 import { UploadZone, LinkForm, FileCard, FileRow, FilePreview, AddLinkButton } from '../files.jsx';
 import { fmtDate, relDay, daysFrom, dueText, inr, fmtTime, timeAgo } from '../format.js';
@@ -50,6 +50,17 @@ function Fact({ icon: Icon, label, children, tone }) {
       </div>
     </div>
   );
+}
+
+// Calls onSeen once, after the tab's data has loaded (so "New" markers still show this visit).
+function useSeenOnLoad(data, onSeen) {
+  const done = useRef(false);
+  useEffect(() => {
+    if (data && !done.current) {
+      done.current = true;
+      onSeen?.();
+    }
+  }, [data, onSeen]);
 }
 
 // ---------------------------------------------------------------- overview
@@ -253,6 +264,7 @@ function TaskCard({ t, today }) {
       <Cover file={t.cover} color="#1a6df0" />
       <div className="kb-body">
         <Labels items={[
+          t.is_new && { text: 'New', color: '#e31b3b', solid: true },
           t.stage && { text: t.stage, color: labelColor(t.stage) },
           (t.priority === 'high' || t.priority === 'urgent') && { text: pr.label, color: pr.color, solid: true },
         ]} />
@@ -275,7 +287,7 @@ function TaskBoard({ p, tasks, today, onOpen, onMove, onAdd, onSort }) {
     canAdd: p.permissions.contribute,
     addPlaceholder: 'What needs doing?',
     cards: tasks.filter((t) => t.status === c.key).sort((a, b) => a.sort - b.sort || a.id - b.id),
-  }));
+  })).map((c) => ({ ...c, fresh: c.cards.filter((t) => t.is_new).length }));
   return (
     <Board id="tasks" columns={columns} renderCard={(t) => <TaskCard t={t} today={today} />} onOpen={onOpen} onMove={onMove} onAdd={onAdd} onSort={onSort}
       canDrag={() => p.permissions.contribute}
@@ -322,7 +334,7 @@ function TaskRow({ t, p, onOpen, onToggle, today }) {
         {t.status === 'done' && <Check size={13} strokeWidth={3} />}
       </button>
       <button type="button" className="trow-main" onClick={() => onOpen(t)}>
-        <span className="ttitle">{t.title}</span>
+        <span className="ttitle">{t.is_new && <NewTag />}{t.title}</span>
         <span className="tmeta">
           {t.status !== 'todo' && t.status !== 'done' && <TaskStatusBadge status={t.status} />}
           <PriorityFlag priority={t.priority} />
@@ -337,13 +349,14 @@ function TaskRow({ t, p, onOpen, onToggle, today }) {
   );
 }
 
-function TasksTab({ p, reloadProject }) {
+function TasksTab({ p, reloadProject, onSeen }) {
   const { today, me, toast } = useApp();
   const { navigate } = useRouter();
   const [view, setView] = usePref('bpm.tasks.view', 'list');
   const [who, setWho] = useState('');
   const [showDone, setShowDone] = usePref('bpm.tasks.done', true);
   const { data, loading, error, reload, setData } = useLoad(() => api.get(`/projects/${p.id}/tasks`), [p.id]);
+  useSeenOnLoad(data, onSeen);
   const tasks = useMemo(() => {
     let list = data?.items || [];
     if (who === 'me') list = list.filter((t) => t.assignee_id === me.id);
@@ -454,14 +467,16 @@ function TasksTab({ p, reloadProject }) {
 
 // ---------------------------------------------------------------- files
 
-function FilesTab({ p, reloadProject }) {
+function FilesTab({ p, reloadProject, onSeen }) {
   const { categories, me, toast } = useApp();
   const [cat, setCat] = useState('');
   const [layout, setLayout] = usePref('bpm.files.layout', 'grid');
   const [linking, setLinking] = useState(false);
   const [preview, setPreview] = useState(null);
   const { data, loading, error, reload, setData } = useLoad(() => api.get(`/projects/${p.id}/files`), [p.id]);
+  useSeenOnLoad(data, onSeen);
   const items = data?.items || [];
+  const fresh = (list) => list.filter((f) => f.is_new).length;
   const shown = cat === 'final' ? items.filter((f) => f.is_final) : cat ? items.filter((f) => f.category === cat) : items;
   const counts = Object.fromEntries(categories.map((c) => [c, items.filter((f) => f.category === c).length]));
   const finals = items.filter((f) => f.is_final).length;
@@ -486,9 +501,9 @@ function FilesTab({ p, reloadProject }) {
       )}
       <div className="row wrap between mb-12" style={{ gap: 10 }}>
         <div className="tabs pills" style={{ marginBottom: 0 }}>
-          <button type="button" className={!cat ? 'on' : ''} onClick={() => setCat('')}>All <span className="pill-num">{items.length}</span></button>
-          <button type="button" className={cat === 'final' ? 'on' : ''} onClick={() => setCat('final')}>Final assets <span className="pill-num">{finals}</span></button>
-          {categories.filter((c) => counts[c]).map((c) => <button key={c} type="button" className={cat === c ? 'on' : ''} onClick={() => setCat(c)}>{c} <span className="pill-num">{counts[c]}</span></button>)}
+          <button type="button" className={!cat ? 'on' : ''} onClick={() => setCat('')}>All <CountPill n={items.length} fresh={fresh(items)} /></button>
+          <button type="button" className={cat === 'final' ? 'on' : ''} onClick={() => setCat('final')}>Final assets <CountPill n={finals} fresh={fresh(items.filter((f) => f.is_final))} /></button>
+          {categories.filter((c) => counts[c]).map((c) => <button key={c} type="button" className={cat === c ? 'on' : ''} onClick={() => setCat(c)}>{c} <CountPill n={counts[c]} fresh={fresh(items.filter((f) => f.category === c))} /></button>)}
         </div>
         <Seg value={layout} onChange={setLayout} label="Layout" options={[{ value: 'grid', icon: Grid2x2, title: 'Grid' }, { value: 'list', icon: List, title: 'List' }]} />
       </div>
@@ -513,10 +528,11 @@ function FilesTab({ p, reloadProject }) {
 
 // ---------------------------------------------------------------- discussion
 
-function Discussion({ p }) {
-  const { me, toast } = useApp();
+function Discussion({ p, onSeen }) {
+  const { toast } = useApp();
   const [filter, setFilter] = useState('all');
-  const { data, loading, error, reload } = useLoad(() => api.get(`/projects/${p.id}/activity`), [p.id]);
+  const { data, loading, error, reload } = useLoad(() => api.get(`/projects/${p.id}/activity`).then((d) => ({ ...d, comments: stampReceived(d.comments) })), [p.id]);
+  useSeenOnLoad(data, onSeen);
   const send = async (body) => {
     try {
       await api.post(`/projects/${p.id}/comments`, { body });
@@ -541,8 +557,10 @@ function Discussion({ p }) {
         {p.permissions.contribute ? <Composer onSend={send} /> : <div className="alert info mb-12"><Lock size={15} />You have view-only access to {p.vertical_name}.</div>}
         <div className="row between mt-16 mb-8">
           <div className="tabs pills" style={{ marginBottom: 0 }}>
-            {[['all', 'Everything'], ['comments', 'Comments'], ['activity', 'Changes']].map(([k, l]) => <button key={k} type="button" className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{l}</button>)}
-            {pending > 0 && <button type="button" className={filter === 'requests' ? 'on' : ''} onClick={() => setFilter('requests')}>Delete requests <span className="pill-num">{pending}</span></button>}
+            <button type="button" className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>Everything</button>
+            <button type="button" className={filter === 'comments' ? 'on' : ''} onClick={() => setFilter('comments')}>Comments {data && <CountPill n={data.comments.length} fresh={data.comments.filter((x) => x.is_new).length} />}</button>
+            <button type="button" className={filter === 'activity' ? 'on' : ''} onClick={() => setFilter('activity')}>Changes</button>
+            {pending > 0 && <button type="button" className={filter === 'requests' ? 'on' : ''} onClick={() => setFilter('requests')}>Delete requests <CountPill n={pending} fresh={data.comments.filter((x) => x.delete_status === 'requested' && x.can_decide).length} /></button>}
           </div>
         </div>
         <ErrorNote error={error} retry={reload} />
@@ -566,7 +584,8 @@ function Discussion({ p }) {
             <li>Type <b>@</b> and a teammate's first name to send them a notification.</li>
             <li>Comments on a task also show here, so the whole story stays in one place.</li>
             <li>Every status, stage, date and file change is recorded automatically.</li>
-            <li>You can delete a comment for 15 seconds after posting. After that, ask a head of the vertical to approve the deletion.</li>
+            <li>You can delete a comment for 15 seconds after posting. After that, ask a head of the vertical to approve the deletion. Heads can remove any comment.</li>
+            <li>Red counts and NEW tags show what others added since you last opened a tab. They turn grey once you have looked.</li>
           </ul>
         </section>
       </div>
@@ -579,7 +598,13 @@ function Discussion({ p }) {
 export default function Project({ id, tab = 'overview', taskId }) {
   const { today, toast, confirm, refresh, canManage, isAdmin } = useApp();
   const { navigate, back } = useRouter();
-  const { data: p, loading, error, reload } = useLoad(() => api.get(`/projects/${id}`), [id]);
+  const { markSeen } = useApp();
+  const { data: p, loading, error, reload, setData } = useLoad(() => api.get(`/projects/${id}`), [id]);
+  // Opening a tab marks it seen: its count turns from red to grey.
+  const seen = useMemo(() => Object.fromEntries(['tasks', 'files', 'discussion'].map((tab) => [tab, () => {
+    markSeen(`project:${id}:${tab}`);
+    setData((d) => (d?.unseen ? { ...d, unseen: { ...d.unseen, [tab]: 0 } } : d));
+  }])), [id, markSeen, setData]);
   const [editing, setEditing] = useState(false);
   const [copying, setCopying] = useState(false);
 
@@ -656,9 +681,9 @@ export default function Project({ id, tab = 'overview', taskId }) {
   const keyN = p.key_date ? daysFrom(today, p.key_date) : null;
   const tabs = [
     ['overview', 'Overview'],
-    ['tasks', `Tasks`, p.task_total],
-    ['files', 'Files & assets', p.file_count],
-    ['activity', 'Discussion'],
+    ['tasks', 'Tasks', p.task_total, p.unseen?.tasks],
+    ['files', 'Files & assets', p.file_count, p.unseen?.files],
+    ['activity', 'Discussion', p.comment_total, p.unseen?.discussion],
   ];
   const closed = p.status === 'completed' || p.status === 'cancelled';
 
@@ -727,17 +752,17 @@ export default function Project({ id, tab = 'overview', taskId }) {
       </section>
 
       <div className="tabs mt-16" role="tablist">
-        {tabs.map(([k, label, n]) => (
+        {tabs.map(([k, label, n, fresh]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => navigate(k === 'overview' ? `/projects/${p.id}` : `/projects/${p.id}/${k}`, { replace: true })}>
-            {label}{n !== undefined && <span className="pill-num" style={{ marginLeft: 6 }}>{n}</span>}
+            {label}<CountPill n={n} fresh={fresh} style={{ marginLeft: 6 }} />
           </button>
         ))}
       </div>
 
       {tab === 'overview' && <Overview p={p} reload={reload} />}
-      {tab === 'tasks' && <TasksTab p={p} reloadProject={reload} />}
-      {tab === 'files' && <FilesTab p={p} reloadProject={reload} />}
-      {tab === 'activity' && <Discussion p={p} />}
+      {tab === 'tasks' && <TasksTab p={p} reloadProject={reload} onSeen={seen.tasks} />}
+      {tab === 'files' && <FilesTab p={p} reloadProject={reload} onSeen={seen.files} />}
+      {tab === 'activity' && <Discussion p={p} onSeen={seen.discussion} />}
 
       {taskId && <TaskModal id={taskId} onClose={() => navigate(`/projects/${p.id}/tasks`, { replace: true })} onChanged={() => { reload({ quiet: true }); refresh(); }} />}
       {editing && <ProjectForm project={p} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); reload({ quiet: true }); refresh(); }} />}

@@ -35,6 +35,7 @@ export function AppProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [confirmState, setConfirmState] = useState(null);
   const [version, setVersion] = useState(0); // bump to make pages reload their data
+  const [countsVersion, setCountsVersion] = useState(0); // bump to refresh sidebar counts only
 
   const loadBoot = useCallback(async () => {
     try {
@@ -72,6 +73,16 @@ export function AppProvider({ children }) {
 
   const confirm = useCallback((opts) => new Promise((resolve) => setConfirmState({ ...opts, resolve })), []);
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  const bumpCounts = useCallback(() => setCountsVersion((v) => v + 1), []);
+  // Records that I have opened a tab, so its count turns from red to grey.
+  const markSeen = useCallback(async (scope) => {
+    try {
+      await api.post('/seen', { scope });
+      setCountsVersion((v) => v + 1);
+    } catch {
+      /* not critical */
+    }
+  }, []);
 
   const value = useMemo(() => {
     const users = boot?.users || [];
@@ -91,9 +102,9 @@ export function AppProvider({ children }) {
       manageableVerticals: verticals.filter((v) => me?.role === 'admin' || levelIn(v.id) === 'manager'),
       // People who can be assigned work in a vertical.
       assignable: (vid) => users.filter((u) => u.role === 'admin' || RANK[u.access?.[vid]] >= RANK.member),
-      toast, confirm, version, refresh,
+      toast, confirm, version, refresh, countsVersion, bumpCounts, markSeen,
     };
-  }, [boot, bootError, loadBoot, vertical, setVertical, toast, confirm, version, refresh]);
+  }, [boot, bootError, loadBoot, vertical, setVertical, toast, confirm, version, refresh, countsVersion, bumpCounts, markSeen]);
 
   return (
     <AppCtx.Provider value={value}>

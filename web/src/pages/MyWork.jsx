@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, ListChecks } from 'lucide-react';
 import { useApp, useLoad } from '../store.jsx';
 import { api } from '../api.js';
 import { Link, useRouter } from '../router.jsx';
-import { Loading, ErrorNote, Empty, PriorityFlag, TaskStatusBadge, Seg, VChip, Avatar, TASK_STATUS } from '../ui.jsx';
+import { Loading, ErrorNote, Empty, PriorityFlag, TaskStatusBadge, Seg, Avatar, CountPill, NewTag } from '../ui.jsx';
 import { addDays, daysFrom, fmtDate, fmtDow, dueText } from '../format.js';
 import { NoAccess } from './Dashboard.jsx';
 
@@ -28,11 +28,15 @@ const BUCKETS = [
 ];
 
 export default function MyWork() {
-  const { vertical, verticals, today, toast, me, users } = useApp();
+  const { vertical, verticals, today, toast, markSeen } = useApp();
   const { navigate } = useRouter();
   const [mode, setMode] = useState('mine');
   const query = mode === 'mine' ? { assignee: 'me', scope: 'open' } : mode === 'created' ? { created: 'me', scope: 'open' } : mode === 'unassigned' ? { assignee: 'none', scope: 'open' } : { assignee: 'me', scope: 'done' };
   const { data, loading, error, reload, setData } = useLoad(() => api.get('/tasks', { ...query, vertical }), [mode, vertical]);
+  // Opening My Work marks new assignments as seen; they keep their "New" tag for this visit.
+  useEffect(() => {
+    if (mode === 'mine' && data?.items.some((t) => t.is_new)) markSeen('mywork');
+  }, [data, mode, markSeen]);
   const grouped = useMemo(() => {
     const g = Object.fromEntries(BUCKETS.map(([k]) => [k, []]));
     for (const t of data?.items || []) g[bucket(today, t)].push(t);
@@ -85,7 +89,7 @@ export default function MyWork() {
             <section key={k} className="card flush">
               <div className="stage-head">
                 <b className={k === 'overdue' ? 'red' : ''}>{label}</b>
-                <span className="pill-num">{grouped[k].length}</span>
+                <CountPill n={grouped[k].length} fresh={grouped[k].filter((t) => t.is_new).length} />
                 {k === 'today' && <span className="xs muted">{fmtDow(today)}, {fmtDate(today, { year: true })}</span>}
               </div>
               {grouped[k].map((t) => <WorkRow key={t.id} t={t} today={today} onToggle={toggle} onOpen={() => navigate(`/projects/${t.project_id}/tasks/${t.id}`)} showWho={mode !== 'mine'} />)}
@@ -104,7 +108,7 @@ function WorkRow({ t, today, onToggle, onOpen, showWho }) {
         {t.status === 'done' && <Check size={13} strokeWidth={3} />}
       </button>
       <button type="button" className="trow-main" onClick={onOpen}>
-        <span className="ttitle">{t.title}</span>
+        <span className="ttitle">{t.is_new && <NewTag />}{t.title}</span>
         <span className="tmeta">
           <span className="xs muted ellipsis"><span className="dot" style={{ background: t.vertical_color, marginRight: 5 }} />{t.code} · {t.client ? `${t.client} · ` : ''}{t.project_name}</span>
           {t.status !== 'todo' && t.status !== 'done' && <TaskStatusBadge status={t.status} />}

@@ -3,7 +3,7 @@ import { Upload, Link2, Star, Download, Trash2, ExternalLink, Pencil, Loader2 } 
 import { api } from './api.js';
 import { useApp } from './store.jsx';
 import { Link } from './router.jsx';
-import { Modal, Field, FileThumb, FileIcon, VChip } from './ui.jsx';
+import { Modal, Field, FileThumb, FileIcon, VChip, NewTag } from './ui.jsx';
 import { bytes, fmtTime, fmtDate } from './format.js';
 
 // Guess a sensible category from the file name.
@@ -112,6 +112,7 @@ export function FileCard({ file, onOpen, onToggleFinal, showProject, canEdit }) 
   return (
     <div className="fcard" role="button" tabIndex={0} onClick={() => onOpen(file)} onKeyDown={(e) => e.key === 'Enter' && onOpen(file)}>
       <FileThumb file={file} />
+      {file.is_new && <span className="fcard-new"><NewTag /></span>}
       {canEdit && (
         <button type="button" className={`star ${file.is_final ? 'on' : ''}`} aria-label={file.is_final ? 'Unmark final asset' : 'Mark as final asset'} title={file.is_final ? 'Final asset' : 'Mark as final asset'}
           onClick={(e) => { e.stopPropagation(); onToggleFinal(file); }}>
@@ -133,7 +134,7 @@ export function FileRow({ file, onOpen }) {
     <div className="list-item click" role="button" tabIndex={0} onClick={() => onOpen(file)} onKeyDown={(e) => e.key === 'Enter' && onOpen(file)}>
       <FileIcon file={file} size={17} />
       <div className="grow">
-        <div className="small b6 ellipsis">{file.is_final ? <Star size={12} fill="var(--amber)" color="var(--amber)" style={{ marginRight: 4, verticalAlign: '-1px' }} /> : null}{file.name}</div>
+        <div className="small b6 ellipsis">{file.is_new && <NewTag />}{file.is_final ? <Star size={12} fill="var(--amber)" color="var(--amber)" style={{ marginRight: 4, verticalAlign: '-1px' }} /> : null}{file.name}</div>
         <div className="xs muted ellipsis">{file.category}{file.size ? ` · ${bytes(file.size)}` : ''} · {file.uploader_name || 'Someone'} · {fmtTime(file.created_at)}</div>
       </div>
     </div>

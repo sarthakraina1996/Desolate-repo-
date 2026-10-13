@@ -38,6 +38,25 @@ function upgradeTo2(db) {
   db.run("UPDATE verticals SET ready_label = 'Ready for Event / Exhibition' WHERE code = 'EXH' AND (ready_label IS NULL OR ready_label = '')");
 }
 
+// Version 3: "new since you last looked" counts and assignment times.
+function upgradeTo3(db) {
+  addColumn(db, 'tasks', 'assigned_at', 'TEXT');
+  addColumn(db, 'tasks', 'assigned_by', 'INTEGER');
+  db.run('UPDATE tasks SET assigned_at = created_at, assigned_by = created_by WHERE assignee_id IS NOT NULL AND assigned_at IS NULL');
+  // Everything that existed before the upgrade counts as already seen.
+  const now = new Date().toISOString();
+  db.tx(() => {
+    for (const u of db.all('SELECT id FROM users')) {
+      db.run('INSERT OR IGNORE INTO seen (user_id, scope, seen_at) VALUES (?, ?, ?)', u.id, 'mywork', now);
+      for (const p of db.all('SELECT id FROM projects')) {
+        for (const tab of SEEN_TABS) db.run('INSERT OR IGNORE INTO seen (user_id, scope, seen_at) VALUES (?, ?, ?)', u.id, `project:${p.id}:${tab}`, now);
+      }
+    }
+  });
+}
+
+export const SEEN_TABS = ['tasks', 'files', 'discussion'];
+
 export function migrate(db) {
   db.exec('PRAGMA foreign_keys = ON;');
   const fresh = !db.get("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'settings'");
@@ -45,6 +64,7 @@ export function migrate(db) {
   const row = db.get("SELECT value FROM settings WHERE key = 'schema_version'");
   const version = fresh ? SCHEMA_VERSION : Number(row?.value || 1);
   if (version < 2) upgradeTo2(db);
+  if (version < 3) upgradeTo3(db);
   db.run(
     "INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     String(SCHEMA_VERSION),

@@ -125,6 +125,20 @@ export function PriorityFlag({ priority, label = false }) {
   );
 }
 
+// A count that turns red while something new is waiting, and grey once seen.
+export function CountPill({ n, fresh = 0, style }) {
+  if (n === undefined || n === null) return null;
+  return (
+    <span className={`pill-num ${fresh > 0 ? 'alert' : ''}`} style={style} title={fresh > 0 ? `${fresh} new since you last looked` : undefined}>
+      {n}
+    </span>
+  );
+}
+
+export function NewTag() {
+  return <span className="new-tag">New</span>;
+}
+
 export function Progress({ value = 0, color, height = 8 }) {
   return (
     <div className="progress" style={{ height }} role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>

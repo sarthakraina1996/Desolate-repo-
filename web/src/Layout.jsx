@@ -12,7 +12,7 @@ import { timeAgo } from './format.js';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/my', label: 'My Work', icon: ListChecks, count: 'my' },
-  { to: '/projects', label: 'Projects', icon: FolderKanban },
+  { to: '/projects', label: 'Projects', icon: FolderKanban, count: 'projects' },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/assets', label: 'Asset Library', icon: Images },
   { to: '/archive', label: 'Past Projects', icon: FolderArchive },
@@ -57,7 +57,7 @@ function VerticalLogo({ v, active, onClick }) {
   );
 }
 
-function Sidebar({ open, onClose, myCount }) {
+function Sidebar({ open, onClose, counts }) {
   const { isAdmin, manageableVerticals } = useApp();
   const { path } = useRouter();
   const isActive = (n) => (n.exact ? path === n.to : path === n.to || path.startsWith(n.to + '/'));
@@ -71,7 +71,12 @@ function Sidebar({ open, onClose, myCount }) {
             <Link key={n.to} to={n.to} className={isActive(n) ? 'active' : ''} onClick={onClose} aria-current={isActive(n) ? 'page' : undefined}>
               <n.icon size={21} strokeWidth={1.9} />
               {n.label}
-              {n.count === 'my' && myCount > 0 && <span className="count">{myCount}</span>}
+              {n.count === 'my' && counts.my > 0 && (
+                <span className={`count ${counts.myNew ? '' : 'seen'}`} title={counts.myNew ? `${counts.myNew} newly assigned to you` : `${counts.my} open tasks`}>{counts.my}</span>
+              )}
+              {n.count === 'projects' && counts.projectsNew > 0 && (
+                <span className="count" title={`${counts.projectsNew} projects with something new for you`}>{counts.projectsNew}</span>
+              )}
             </Link>
           ))}
         </nav>
@@ -235,22 +240,29 @@ function UserMenu({ onSignOut }) {
 }
 
 export function Layout({ children, onSignOut }) {
-  const { verticals, vertical, setVertical, version, me } = useApp();
+  const { verticals, vertical, setVertical, version, countsVersion, me } = useApp();
   const [open, setOpen] = useState(false);
-  const [myCount, setMyCount] = useState(0);
+  const [counts, setCounts] = useState({ my: 0, myNew: 0, projectsNew: 0 });
   const { path } = useRouter();
 
+  // Sidebar counts: red while something new is waiting, grey once you have looked.
   useEffect(() => {
     let live = true;
-    api.get('/tasks', { assignee: 'me', scope: 'open' }).then((r) => live && setMyCount(r.items.length)).catch(() => {});
+    Promise.all([api.get('/tasks', { assignee: 'me', scope: 'open' }), api.get('/projects')])
+      .then(([t, p]) => live && setCounts({
+        my: t.items.length,
+        myNew: t.items.filter((x) => x.is_new).length,
+        projectsNew: p.items.filter((x) => x.new_items > 0).length,
+      }))
+      .catch(() => {});
     return () => {
       live = false;
     };
-  }, [version, path, me.id]);
+  }, [version, countsVersion, path, me.id]);
 
   return (
     <div className="app">
-      <Sidebar open={open} onClose={() => setOpen(false)} myCount={myCount} />
+      <Sidebar open={open} onClose={() => setOpen(false)} counts={counts} />
       <div className="main">
         <header className="topbar">
           <button type="button" className="icon-btn burger" aria-label="Open menu" onClick={() => setOpen(true)}><MenuIcon size={22} /></button>

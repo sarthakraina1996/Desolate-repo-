@@ -228,6 +228,53 @@ function checkDates(p) {
   if (p.start_date && p.due_date && p.due_date < p.start_date) throw bad('Due date cannot be before the start date');
 }
 
+// ---------------------------------------------------------------- "new since you last looked"
+
+// Each person has a last-seen time per tab ("project:12:tasks", "project:12:files",
+// "project:12:discussion", "mywork"). Items added by someone else after that time are new.
+const SEEN_SCOPE = /^(mywork|project:(\d+):(tasks|files|discussion))$/;
+const NEW_SOURCES = [
+  { tab: 'tasks', table: 'tasks', who: 'created_by' },
+  { tab: 'files', table: 'files', who: 'uploaded_by' },
+  { tab: 'discussion', table: 'comments', who: 'user_id' },
+];
+
+function seenAt(db, userId, scope) {
+  return db.get('SELECT seen_at FROM seen WHERE user_id = ? AND scope = ?', userId, scope)?.seen_at || '';
+}
+
+// { projectId: { tasks, files, discussion } } for the given projects.
+function unseenByProject(ctx, ids) {
+  const out = new Map(ids.map((id) => [id, { tasks: 0, files: 0, discussion: 0 }]));
+  if (!ids.length) return out;
+  const me = uid(ctx);
+  for (const src of NEW_SOURCES) {
+    const rows = ctx.db.all(
+      `SELECT x.project_id AS pid, COUNT(*) AS n FROM ${src.table} x
+       LEFT JOIN seen s ON s.user_id = ? AND s.scope = 'project:' || x.project_id || ':${src.tab}'
+       WHERE x.project_id IN (${placeholders(ids)}) AND COALESCE(x.${src.who}, 0) != ? AND x.created_at > COALESCE(s.seen_at, '')
+       GROUP BY x.project_id`,
+      me, ...ids, me,
+    );
+    for (const r of rows) out.get(r.pid)[src.tab] = r.n;
+  }
+  return out;
+}
+
+const isNewSince = (ctx, seen, authorId, createdAt) => authorId !== uid(ctx) && !!createdAt && createdAt > seen;
+
+route('POST', '/seen', (ctx) => {
+  const scope = String(ctx.body.scope || '');
+  const m = SEEN_SCOPE.exec(scope);
+  if (!m) throw bad('Unknown scope');
+  if (m[2]) getProjectRaw(ctx, m[2]);
+  ctx.db.run(
+    'INSERT INTO seen (user_id, scope, seen_at) VALUES (?,?,?) ON CONFLICT(user_id, scope) DO UPDATE SET seen_at = excluded.seen_at',
+    uid(ctx), scope, ctx.now,
+  );
+  return { ok: true };
+});
+
 // ---------------------------------------------------------------- session / bootstrap
 
 route('GET', '/bootstrap', (ctx) => {
@@ -446,6 +493,11 @@ route('GET', '/projects', (ctx) => {
     : "CASE p.status WHEN 'active' THEN 0 WHEN 'planning' THEN 1 WHEN 'on_hold' THEN 2 ELSE 3 END, p.due_date IS NULL, COALESCE(p.key_date, p.due_date)";
   const items = db.all(`SELECT ${PROJECT_COLS} ${PROJECT_FROM} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 500`, today, ...params)
     .map((p) => shapeProject(p, today));
+  const unseen = unseenByProject(ctx, items.map((p) => p.id));
+  for (const p of items) {
+    p.unseen = unseen.get(p.id);
+    p.new_items = p.unseen.tasks + p.unseen.files + p.unseen.discussion;
+  }
   return { items };
 });
 
@@ -519,9 +571,9 @@ route('POST', '/projects', (ctx) => {
         }
         const checklist = parseJSON(t.checklist, []).map((c) => ({ text: c.text, done: false }));
         db.run(
-          `INSERT INTO tasks (project_id, title, description, status, priority, assignee_id, stage, start_date, due_date, checklist, sort, created_by, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          id, t.title, t.description, 'todo', t.priority, assignee, t.stage, move(t.start_date), move(t.due_date),
+          `INSERT INTO tasks (project_id, title, description, status, priority, assignee_id, assigned_at, assigned_by, stage, start_date, due_date, checklist, sort, created_by, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          id, t.title, t.description, 'todo', t.priority, assignee, assignee ? ctx.now : null, assignee ? uid(ctx) : null, t.stage, move(t.start_date), move(t.due_date),
           JSON.stringify(checklist), t.sort, uid(ctx), ctx.now, ctx.now,
         );
         created++;
@@ -578,7 +630,9 @@ route('GET', '/projects/:id', (ctx) => {
     p.id,
   ).map((t) => shapeTask(t, ctx.today));
   const created_by = userBrief(db, p.created_by);
-  return { ...p, members, milestones, task_stats: taskStats, stage_stats: stageStats, upcoming_tasks: upcoming, created_by_user: created_by, permissions: permissionsFor(ctx.user, p) };
+  const unseen = unseenByProject(ctx, [p.id]).get(p.id);
+  const comment_total = db.get('SELECT COUNT(*) AS n FROM comments WHERE project_id = ?', p.id).n;
+  return { ...p, unseen, comment_total, members, milestones, task_stats: taskStats, stage_stats: stageStats, upcoming_tasks: upcoming, created_by_user: created_by, permissions: permissionsFor(ctx.user, p) };
 });
 
 const FIELD_LABELS = {
@@ -675,7 +729,11 @@ route('GET', '/projects/:id/activity', (ctx) => {
      WHERE c.project_id = ? ORDER BY c.id DESC LIMIT 200`,
     p.id,
   );
-  return { comments: comments.map((c) => shapeComment(ctx, c, p)), activity: recentActivity(ctx, null, p.id, 200) };
+  const seen = seenAt(ctx.db, uid(ctx), `project:${p.id}:discussion`);
+  return {
+    comments: comments.map((c) => ({ ...shapeComment(ctx, c, p), is_new: isNewSince(ctx, seen, c.user_id, c.created_at) })),
+    activity: recentActivity(ctx, null, p.id, 200),
+  };
 });
 
 // ---------------------------------------------------------------- tasks
@@ -686,6 +744,8 @@ route('GET', '/projects/:id/tasks', (ctx) => {
     `SELECT ${TASK_COLS} FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id WHERE t.project_id = ? ORDER BY t.sort, t.id`,
     p.id,
   ).map((t) => shapeTask(t, ctx.today));
+  const seen = seenAt(ctx.db, uid(ctx), `project:${p.id}:tasks`);
+  for (const t of items) t.is_new = isNewSince(ctx, seen, t.created_by, t.created_at);
   return { items };
 });
 
@@ -727,9 +787,10 @@ route('POST', '/projects/:id/tasks', (ctx) => {
   return db.tx(() => {
     const status = f.status || 'todo';
     const { id } = db.run(
-      `INSERT INTO tasks (project_id, title, description, status, priority, assignee_id, stage, start_date, due_date, checklist, sort, created_by, created_at, updated_at, completed_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO tasks (project_id, title, description, status, priority, assignee_id, assigned_at, assigned_by, stage, start_date, due_date, checklist, sort, created_by, created_at, updated_at, completed_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       p.id, f.title, f.description || '', status, f.priority || 'medium', f.assignee_id ?? null,
+      f.assignee_id ? ctx.now : null, f.assignee_id ? uid(ctx) : null,
       f.stage && stages.includes(f.stage) ? f.stage : p.stage || stages[0] || '', f.start_date ?? null, f.due_date ?? null,
       f.checklist || '[]', sort, uid(ctx), ctx.now, ctx.now, status === 'done' ? ctx.now : null,
     );
@@ -780,6 +841,10 @@ route('PATCH', '/tasks/:id', (ctx) => {
   const merged = { ...task, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined)) };
   if (merged.start_date && merged.due_date && merged.due_date < merged.start_date) throw bad('Due date cannot be before the start date');
   if (f.status !== undefined && f.status !== task.status) f.completed_at = f.status === 'done' ? ctx.now : null;
+  if (f.assignee_id !== undefined && f.assignee_id !== task.assignee_id) {
+    f.assigned_at = f.assignee_id ? ctx.now : null;
+    f.assigned_by = f.assignee_id ? uid(ctx) : null;
+  }
   const sets = Object.entries(f).filter(([, v]) => v !== undefined);
   if (!sets.length) return taskDetail(ctx, task.id);
   return db.tx(() => {
@@ -844,6 +909,9 @@ route('GET', '/tasks', (ctx) => {
      WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 600`,
     ...params,
   ).map((t) => shapeTask(t, today));
+  // Assigned to me by someone else since I last opened My Work.
+  const seen = seenAt(db, uid(ctx), 'mywork');
+  for (const t of items) t.is_new = t.assignee_id === uid(ctx) && t.status !== 'done' && isNewSince(ctx, seen, t.assigned_by, t.assigned_at);
   return { items };
 });
 
@@ -899,7 +967,10 @@ const FILE_FROM = `FROM files f JOIN projects p ON p.id = f.project_id JOIN vert
 
 route('GET', '/projects/:id/files', (ctx) => {
   const p = getProjectRaw(ctx, ctx.params.id);
-  return { items: ctx.db.all(`SELECT ${FILE_COLS} ${FILE_FROM} WHERE f.project_id = ? ORDER BY f.is_final DESC, f.id DESC`, p.id) };
+  const seen = seenAt(ctx.db, uid(ctx), `project:${p.id}:files`);
+  const items = ctx.db.all(`SELECT ${FILE_COLS} ${FILE_FROM} WHERE f.project_id = ? ORDER BY f.is_final DESC, f.id DESC`, p.id);
+  for (const f of items) f.is_new = isNewSince(ctx, seen, f.uploaded_by, f.created_at);
+  return { items };
 });
 
 route('POST', '/projects/:id/files', (ctx) => {
@@ -1016,6 +1087,7 @@ function headsOf(db, verticalId) {
 
 function shapeComment(ctx, c, project) {
   const mine = c.user_id === uid(ctx);
+  const head = canManageVertical(ctx.user, project.vertical_id);
   const left = Math.max(0, DELETE_WINDOW_MS - (Date.parse(ctx.now) - Date.parse(c.created_at)));
   return {
     ...c,
@@ -1023,7 +1095,9 @@ function shapeComment(ctx, c, project) {
     delete_ms_left: mine ? left : 0,
     can_delete: mine && (left > 0 || c.delete_status === 'approved'),
     can_request_delete: mine && left === 0 && c.delete_status !== 'requested' && c.delete_status !== 'approved',
-    can_decide: !mine && c.delete_status === 'requested' && canManageVertical(ctx.user, project.vertical_id),
+    can_decide: !mine && c.delete_status === 'requested' && head,
+    // Heads approve deletions, so they can also remove someone else's comment directly.
+    can_head_delete: !mine && head,
   };
 }
 
@@ -1061,6 +1135,7 @@ route('POST', '/projects/:id/comments', (ctx) => {
 
 // Comments are permanent records once the 15-second window has passed: the author
 // can ask a head (vertical manager or admin) to approve the deletion, and only then delete it.
+// Heads can remove other people's comments directly.
 function getComment(ctx) {
   const c = ctx.db.get('SELECT * FROM comments WHERE id = ?', toId(ctx.params.id, 'Comment'));
   if (!c) throw notFound('Comment');
@@ -1071,7 +1146,16 @@ function getComment(ctx) {
 
 route('DELETE', '/comments/:id', async (ctx) => {
   const { c, p } = getComment(ctx);
-  if (c.user_id !== uid(ctx)) throw forbidden('You can only delete your own comments');
+  if (c.user_id !== uid(ctx)) {
+    if (!canManageVertical(ctx.user, p.vertical_id)) throw forbidden('Only the author or a head of this vertical can delete this comment');
+    const author = userBrief(ctx.db, c.user_id);
+    ctx.db.tx(() => {
+      ctx.db.run('DELETE FROM comments WHERE id = ?', c.id);
+      log(ctx, p.id, 'comment_removed', author?.name || '', c.task_id);
+      notify(ctx, c.user_id, p.id, `${ctx.user.name} removed your comment in ${p.code}`, c.task_id);
+    });
+    return { ok: true };
+  }
   const age = Date.parse(ctx.now) - Date.parse(c.created_at);
   if (age > DELETE_WINDOW_MS + DELETE_GRACE_MS && c.delete_status !== 'approved') {
     throw forbidden('Comments can only be deleted within 15 seconds of posting. Ask a head to approve the deletion.');

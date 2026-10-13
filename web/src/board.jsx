@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Plus, X, MoreHorizontal, ChevronsLeftRight, Paperclip, MessageSquare, CheckSquare, Clock, Ban } from 'lucide-react';
 import { usePref } from './store.jsx';
-import { FileThumb, useClickOutside, alpha } from './ui.jsx';
+import { FileThumb, useClickOutside, alpha, CountPill } from './ui.jsx';
 import { daysFrom, fmtDate } from './format.js';
 
 // Position for a card dropped between two neighbours (sorted ascending).
@@ -66,7 +66,8 @@ function ColumnMenu({ items }) {
 }
 
 /**
- * columns: [{ key, title, color, cards, canAdd, addPlaceholder, accepts(card), note }]
+ * columns: [{ key, title, color, cards, canAdd, addPlaceholder, accepts(card), note, fresh }]
+ * fresh: how many cards in the column are new to the viewer (the count shows red).
  * cards need { id, sort }; renderCard(card) draws the inside of a card.
  */
 export function Board({ id, columns, renderCard, onOpen, onMove, onAdd, canDrag, onSort, composerExtra, sortOptions = [] }) {
@@ -163,7 +164,7 @@ export function Board({ id, columns, renderCard, onOpen, onMove, onAdd, canDrag,
             <header className="kb-head">
               <span className="kb-col-bar" style={{ background: col.color }} />
               <h4 title={col.title}>{col.title}</h4>
-              <span className="pill-num">{list.length}</span>
+              <CountPill n={list.length} fresh={col.fresh} />
               <ColumnMenu items={[
                 col.canAdd && { label: 'Add a card', icon: Plus, onClick: () => setAdding(col.key) },
                 ...(onSort && list.length > 1 ? sortOptions.map((o) => ({ label: `Sort by ${o.label}`, onClick: () => onSort(col, o.value) })) : []),
