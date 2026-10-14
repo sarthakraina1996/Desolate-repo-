@@ -16,30 +16,28 @@ A small web app to keep track of the software subscriptions you manage for yours
 
 Each reminder is only ever sent once. If the app was switched off on the day a reminder was due, it sends it as soon as it's back on (as long as the renewal hasn't passed).
 
-## Getting started (about 10 minutes)
+## Run it on your computer (about 5 minutes)
 
-### 1. Install Node.js
+The app runs on your own computer and you use it in your web browser. You can try it straight away; email reminders are switched on afterwards (next section).
 
-Download and install **Node.js 22 or newer** from <https://nodejs.org> (choose the "LTS" version).
+1. **Install Node.js** (free) from <https://nodejs.org> — choose the **LTS** version and click through the installer.
+2. **Download the app**: on this GitHub page click the green **Code** button → **Download ZIP**, then unzip it (double-click the ZIP file).
+3. **Start it** by double-clicking the start file in the unzipped folder:
+   - **Windows:** `start-windows.bat` — if Windows shows *"Windows protected your PC"*, click **More info → Run anyway**.
+   - **Mac:** `start-mac.command` — the first time, **right-click it → Open → Open** (macOS blocks downloaded files on a normal double-click).
 
-### 2. Download the app and install it
+   The first start installs a few things (about a minute). Then your browser opens **<http://localhost:3000>** with the app.
+4. **Keep the black window open** while you use the app. Closing it stops the app — and the daily reminders.
 
-Open a terminal (Mac: *Terminal*, Windows: *PowerShell*) in this folder and run:
+Next time, just double-click the start file again. (Prefer the terminal? Run `npm install` once, then `npm start`.)
 
-```bash
-npm install
-```
+## Turn on email reminders
 
-### 3. Create your settings file
+The app sends email through your normal email account. Until this is set up you'll see a yellow "Email sending is not set up yet" notice, and no reminders go out.
 
-Copy `.env.example` to a new file called `.env`:
+### 1. Create your settings file
 
-```bash
-cp .env.example .env        # Mac / Linux
-copy .env.example .env      # Windows
-```
-
-Open `.env` in any text editor and fill in your details. The important ones:
+In the app folder, make a copy of `.env.example` and name the copy `.env` (on Windows, if you can't see file extensions, name it `.env.` with a trailing dot — Windows removes it). Open `.env` in Notepad / TextEdit and fill it in. The important settings:
 
 | Setting | What to put |
 | --- | --- |
@@ -50,9 +48,7 @@ Open `.env` in any text editor and fill in your details. The important ones:
 | `SMTP_*` and `MAIL_FROM` | Your email account details — see below |
 | `APP_PASSWORD` | A password to protect the app (recommended) |
 
-### 4. Set up email sending (Gmail example)
-
-The app sends email through your normal email account. For Gmail:
+### 2. Email account details (Gmail example)
 
 1. Turn on **2-Step Verification** for your Google account: <https://myaccount.google.com/security>
 2. Create an **App Password**: <https://myaccount.google.com/apppasswords> — name it "Subscription Manager" and copy the 16-character password.
@@ -67,17 +63,20 @@ The app sends email through your normal email account. For Gmail:
 
 Using another provider (Outlook, Zoho, your company mail, or a sending service like Brevo, SendGrid or Amazon SES)? Use the SMTP server, port, username and password from their help pages. For port `465` the connection is encrypted automatically.
 
-### 5. Start the app
+### 3. Restart and test
 
-```bash
-npm start
-```
-
-Open <http://localhost:3000> in your browser. Then:
+Close the app's black window and double-click the start file again. Then in the app:
 
 1. Go to **Settings**, check your details, and click **Send me a test email**.
 2. Add your **Clients** (with their email addresses).
 3. Add your **Subscriptions**. For *First billing date*, enter when the subscription started — or simply its next renewal date if you don't know.
+
+## If something goes wrong
+
+- **Browser says "This site can't be reached" / "localhost refused to connect"** — the app isn't running. Double-click the start file and keep its window open.
+- **"Port 3000 is already in use"** — the app is probably already running in another window; just open <http://localhost:3000>. Otherwise add `PORT=3001` to `.env` and use <http://localhost:3001>.
+- **"needs Node.js 22.13 or newer"** — install the current LTS version from <https://nodejs.org> and try again.
+- **Test email fails** — the message in the app says why; usually a wrong `SMTP_PASS` (for Gmail it must be the App Password, not your normal password).
 
 ## Things to know
 
@@ -105,7 +104,8 @@ npm run dev    # restart automatically when files change
 npm test       # run the tests
 ```
 
-- `src/server.js` — starts everything
+- `src/index.js` — entry point: checks Node.js version and installation, then starts `src/server.js`
+- `src/server.js` — starts the web server and the daily reminder scheduler
 - `src/app.js` — web API and validation
 - `src/dates.js` — renewal date maths (shared with the browser)
 - `src/reminders.js` — decides which reminders are due and sends them
