@@ -1,0 +1,20 @@
+{
+  "name": "subscription-manager",
+  "version": "1.0.0",
+  "description": "Track monthly, quarterly and yearly software subscriptions and email renewal reminders to you and your clients.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\""
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.3.0",
+    "nodemailer": "^10.1.1"
+  }
+}
