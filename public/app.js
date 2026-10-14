@@ -94,7 +94,9 @@ function renderAll() {
 
 function renderBanners() {
   const banners = [];
-  if (!state.status.emailConfigured) {
+  if (state.status.notice) {
+    banners.push(esc(state.status.notice));
+  } else if (!state.status.emailConfigured) {
     banners.push('Email sending is not set up yet, so no reminders can go out. Add your SMTP details to the <code>.env</code> file and restart — see the README.');
   }
   if (!state.status.ownerEmailSet) {
@@ -409,6 +411,22 @@ $('#preview-send').addEventListener('click', (e) => withBusy(e.currentTarget, as
   await loadAll();
 }));
 
+// ---------- confirmation ----------
+
+const confirmDialog = $('#confirm-dialog');
+
+// Resolves true when the person clicks the confirm button, false otherwise.
+function confirmAction(title, message, confirmLabel) {
+  $('#confirm-title').textContent = title;
+  $('#confirm-message').textContent = message;
+  $('#confirm-ok').textContent = confirmLabel;
+  confirmDialog.returnValue = '';
+  confirmDialog.showModal();
+  return new Promise((resolve) => {
+    confirmDialog.addEventListener('close', () => resolve(confirmDialog.returnValue === 'ok'), { once: true });
+  });
+}
+
 // ---------- actions ----------
 
 const actions = {
@@ -416,7 +434,12 @@ const actions = {
   'edit-subscription': (id) => openSubscriptionForm(state.subscriptions.find((s) => s.id === id)),
   'delete-subscription': async (id) => {
     const sub = state.subscriptions.find((s) => s.id === id);
-    if (!confirm(`Delete "${sub.name}"? This cannot be undone. (Tip: set it to Cancelled instead to keep its history.)`)) return;
+    const ok = await confirmAction(
+      `Delete "${sub.name}"?`,
+      'This cannot be undone. To stop reminders but keep its history, edit it and set the status to Cancelled instead.',
+      'Delete subscription',
+    );
+    if (!ok) return;
     await api(`/subscriptions/${id}`, { method: 'DELETE' });
     toast('Subscription deleted.');
     await loadAll();
@@ -426,7 +449,12 @@ const actions = {
   'edit-client': (id) => openClientForm(state.clients.find((c) => c.id === id)),
   'delete-client': async (id) => {
     const client = state.clients.find((c) => c.id === id);
-    if (!confirm(`Delete client "${client.name}"? Their subscriptions are kept but will no longer be linked to a client.`)) return;
+    const ok = await confirmAction(
+      `Delete client "${client.name}"?`,
+      'Their subscriptions are kept, but will no longer be linked to a client or send them reminders.',
+      'Delete client',
+    );
+    if (!ok) return;
     await api(`/clients/${id}`, { method: 'DELETE' });
     toast('Client deleted.');
     await loadAll();

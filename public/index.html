@@ -243,6 +243,21 @@
     </div>
   </dialog>
 
+  <dialog id="confirm-dialog" class="dialog narrow">
+    <form method="dialog" class="form">
+      <header class="dialog-head">
+        <h2 id="confirm-title">Are you sure?</h2>
+      </header>
+      <div class="dialog-body">
+        <p id="confirm-message" class="confirm-message"></p>
+      </div>
+      <footer class="dialog-foot">
+        <button class="btn" value="cancel">Cancel</button>
+        <button class="btn primary danger-fill" value="ok" id="confirm-ok">Delete</button>
+      </footer>
+    </form>
+  </dialog>
+
   <div id="toasts" aria-live="polite"></div>
 
   <script src="app.js" type="module"></script>
