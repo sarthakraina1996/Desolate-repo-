@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Subscription Manager</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔔</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🔔</span>
+      <div>
+        <div class="brand-name">Subscription Manager</div>
+        <div class="brand-sub" id="business-name"></div>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="subscriptions">Subscriptions</button>
+      <button class="tab" data-tab="clients">Clients</button>
+      <button class="tab" data-tab="reminders">Email log</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main>
+    <div id="banners"></div>
+
+    <section id="tab-dashboard" class="panel" hidden>
+      <div class="section-head">
+        <h1>Dashboard</h1>
+        <button class="btn primary" data-action="new-subscription">+ Add subscription</button>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div class="card">
+        <div class="card-head">
+          <h2>Renewing in the next 60 days</h2>
+        </div>
+        <div id="upcoming"></div>
+      </div>
+    </section>
+
+    <section id="tab-subscriptions" class="panel" hidden>
+      <div class="section-head">
+        <h1>Subscriptions</h1>
+        <button class="btn primary" data-action="new-subscription">+ Add subscription</button>
+      </div>
+      <div class="filters">
+        <input type="search" id="sub-search" placeholder="Search software, vendor or client…" aria-label="Search subscriptions">
+        <select id="sub-filter-client" aria-label="Filter by client"></select>
+        <select id="sub-filter-cycle" aria-label="Filter by billing cycle">
+          <option value="">All cycles</option>
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+        <select id="sub-filter-status" aria-label="Filter by status">
+          <option value="active">Active</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="">All statuses</option>
+        </select>
+      </div>
+      <div class="card" id="subscriptions-table"></div>
+    </section>
+
+    <section id="tab-clients" class="panel" hidden>
+      <div class="section-head">
+        <h1>Clients</h1>
+        <button class="btn primary" data-action="new-client">+ Add client</button>
+      </div>
+      <div class="card" id="clients-table"></div>
+    </section>
+
+    <section id="tab-reminders" class="panel" hidden>
+      <div class="section-head">
+        <h1>Email log</h1>
+        <button class="btn" data-action="run-reminders">Run reminder check now</button>
+      </div>
+      <p class="muted">Every reminder email the app has sent (or tried to send). The automatic check runs once a day; each reminder is only ever sent once.</p>
+      <div class="card" id="reminders-table"></div>
+    </section>
+
+    <section id="tab-settings" class="panel" hidden>
+      <div class="section-head"><h1>Settings</h1></div>
+      <div class="settings-grid">
+        <form class="card form" id="settings-form">
+          <h2>Your details</h2>
+          <label>Business name
+            <input name="business_name" required maxlength="200">
+            <small>Shown as the sender name and signature on client emails.</small>
+          </label>
+          <label>Your email address
+            <input name="owner_email" type="email" maxlength="254" placeholder="you@example.com">
+            <small>Your own reminders go here, and client replies are directed here.</small>
+          </label>
+          <label>Default currency
+            <input name="default_currency" maxlength="3" required placeholder="USD" class="upper">
+            <small>3-letter code such as USD, EUR, GBP or INR.</small>
+          </label>
+          <label>Extra note for client emails (optional)
+            <textarea name="client_note" rows="4" maxlength="2000" placeholder="e.g. Payment will be charged to the card on file. Contact us by the 25th to cancel."></textarea>
+          </label>
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Save settings</button>
+          </div>
+        </form>
+
+        <div class="card form">
+          <h2>Email delivery</h2>
+          <div id="email-status"></div>
+          <div class="form-actions">
+            <button class="btn" data-action="test-email">Send me a test email</button>
+          </div>
+          <p class="muted small">Email server settings (SMTP) live in the <code>.env</code> file so your password is never stored in the app. See the README for step-by-step Gmail / Outlook setup.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="subscription-dialog" class="dialog">
+    <form method="dialog" id="subscription-form" class="form">
+      <header class="dialog-head">
+        <h2 id="subscription-dialog-title">Add subscription</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+      </header>
+      <div class="dialog-body">
+        <div class="grid-2">
+          <label>Software name *
+            <input name="name" required maxlength="200" placeholder="e.g. Microsoft 365">
+          </label>
+          <label>Plan / edition
+            <input name="plan" maxlength="200" placeholder="e.g. Business Standard, 10 seats">
+          </label>
+          <label>Vendor
+            <input name="vendor" maxlength="200" placeholder="e.g. Microsoft">
+          </label>
+          <label>Client
+            <select name="client_id"></select>
+          </label>
+          <label>Billing cycle *
+            <select name="billing_cycle" required>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly (every 3 months)</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </label>
+          <label>First billing date *
+            <input name="start_date" type="date" required>
+            <small>Renewals are worked out from this. If unsure, enter the next renewal date.</small>
+          </label>
+          <label>Amount per cycle
+            <input name="amount" type="number" min="0" step="0.01" placeholder="0.00">
+          </label>
+          <label>Currency
+            <input name="currency" maxlength="3" class="upper" placeholder="USD">
+          </label>
+        </div>
+        <label>Remind how many days before renewal
+          <input name="reminder_days" placeholder="30, 7, 1">
+          <small>Comma-separated. One email per number, e.g. <code>30, 7, 1</code> = a month before, a week before and the day before. Use <code>0</code> for the renewal day itself.</small>
+        </label>
+        <fieldset class="checks">
+          <legend>Who gets the reminder emails</legend>
+          <label class="check"><input type="checkbox" name="notify_owner" checked> Me</label>
+          <label class="check"><input type="checkbox" name="notify_client" checked> The client <span class="muted small" id="client-email-hint"></span></label>
+        </fieldset>
+        <div class="grid-2">
+          <label>Status
+            <select name="status">
+              <option value="active">Active</option>
+              <option value="cancelled">Cancelled (no more reminders)</option>
+            </select>
+          </label>
+        </div>
+        <label>Notes
+          <textarea name="notes" rows="3" maxlength="2000" placeholder="Licence keys location, account owner, anything useful…"></textarea>
+        </label>
+        <p class="next-renewal" id="next-renewal-preview"></p>
+      </div>
+      <footer class="dialog-foot">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save subscription</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="client-dialog" class="dialog narrow">
+    <form method="dialog" id="client-form" class="form">
+      <header class="dialog-head">
+        <h2 id="client-dialog-title">Add client</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+      </header>
+      <div class="dialog-body">
+        <label>Name *
+          <input name="name" required maxlength="200" placeholder="Contact person or company">
+        </label>
+        <label>Email
+          <input name="email" type="email" maxlength="254" placeholder="client@example.com">
+          <small>Renewal reminders for this client's subscriptions are sent here.</small>
+        </label>
+        <div class="grid-2">
+          <label>Company
+            <input name="company" maxlength="200">
+          </label>
+          <label>Phone
+            <input name="phone" maxlength="50">
+          </label>
+        </div>
+        <label>Notes
+          <textarea name="notes" rows="3" maxlength="2000"></textarea>
+        </label>
+      </div>
+      <footer class="dialog-foot">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save client</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="preview-dialog" class="dialog wide">
+    <div class="form">
+      <header class="dialog-head">
+        <h2>Email preview</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+      </header>
+      <div class="dialog-body">
+        <div class="preview-switch" role="group" aria-label="Recipient">
+          <button type="button" class="btn small" data-preview="owner">Email to me</button>
+          <button type="button" class="btn small" data-preview="client">Email to client</button>
+        </div>
+        <dl class="preview-meta">
+          <dt>To</dt><dd id="preview-to"></dd>
+          <dt>Subject</dt><dd id="preview-subject"></dd>
+        </dl>
+        <iframe id="preview-frame" title="Email preview" sandbox=""></iframe>
+      </div>
+      <footer class="dialog-foot">
+        <button type="button" class="btn" data-close>Close</button>
+        <button type="button" class="btn primary" id="preview-send">Send this reminder now</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <dialog id="confirm-dialog" class="dialog narrow">
+    <form method="dialog" class="form">
+      <header class="dialog-head">
+        <h2 id="confirm-title">Are you sure?</h2>
+      </header>
+      <div class="dialog-body">
+        <p id="confirm-message" class="confirm-message"></p>
+      </div>
+      <footer class="dialog-foot">
+        <button class="btn" value="cancel">Cancel</button>
+        <button class="btn primary danger-fill" value="ok" id="confirm-ok">Delete</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div id="toasts" aria-live="polite"></div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
