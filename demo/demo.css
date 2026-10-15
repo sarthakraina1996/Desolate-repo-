@@ -1,0 +1,21 @@
+/* Demo-only additions: the start-up screen and the corner badge. Colours
+   come from the app's tokens in client/src/styles.css. */
+.demo-boot { min-height: 100%; display: grid; place-content: center; gap: 10px; text-align: center; padding: 24px 16px; color: var(--text); }
+.demo-boot b { font-size: 18px; }
+.demo-boot span { color: var(--muted); font-size: 14px; }
+.demo-boot .bar { width: 220px; height: 4px; margin: 6px auto 0; border-radius: 4px; background: var(--border); overflow: hidden; }
+.demo-boot .bar::after { content: ''; display: block; width: 40%; height: 100%; background: var(--red); border-radius: 4px; animation: demo-slide 1.1s ease-in-out infinite; }
+@keyframes demo-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .demo-boot .bar::after { animation: none; width: 100%; } }
+
+.demo-badge { position: fixed; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 250; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 24px);
+  background: var(--navy); color: #fff; font-size: 12px; line-height: 1.35; padding: 7px 8px 7px 12px; border-radius: 999px; box-shadow: var(--shadow-lg); }
+.demo-badge { flex-wrap: wrap; border-radius: 16px; }
+.demo-badge b { color: #fff; letter-spacing: 0.04em; text-transform: uppercase; font-size: 11px; }
+.demo-badge .place { display: inline-flex; align-items: center; gap: 6px; }
+.demo-badge select { font: inherit; font-size: 12px; color: var(--text); background: #fff; border: 0; border-radius: 8px; padding: 3px 6px; cursor: pointer; }
+.demo-badge select:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.demo-badge button { border: 0; background: rgba(255, 255, 255, 0.16); color: #fff; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; font-size: 14px; line-height: 1; flex-shrink: 0; }
+.demo-badge button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.demo-notice { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(60px + env(safe-area-inset-bottom, 0px)); z-index: 260; max-width: calc(100vw - 32px);
+  background: var(--text); color: #fff; padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow-lg); font-size: 13px; }

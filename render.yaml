@@ -1,0 +1,20 @@
+# Render Blueprint: one web service with a persistent disk for the database
+# and uploaded files. In Render: New > Blueprint > pick this repository.
+services:
+  - type: web
+    name: brainadz-hrms
+    runtime: docker
+    plan: starter          # a persistent disk needs a paid instance
+    region: singapore      # closest Render region to India
+    healthCheckPath: /api/auth/config
+    disk:
+      name: hrms-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: SEED
+        value: demo        # first start loads the demo company; remove it later in Settings > Data
+      - key: ANTHROPIC_API_KEY
+        sync: false        # Render asks for it; leave blank to use rule-based screening
