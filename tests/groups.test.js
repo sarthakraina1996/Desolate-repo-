@@ -1,0 +1,242 @@
+import { test, before } from 'node:test';
+import assert from 'node:assert/strict';
+import { openDb } from '../server/db.js';
+import { migrate, seedBasics } from '../core/setup.js';
+import { seedDemo, seedGroupChats, demoEmail } from '../core/demo-seed.js';
+import { handle } from '../core/api.js';
+import { loadUser } from '../core/access.js';
+
+const TODAY = '2026-10-13';
+let clock = Date.parse(`${TODAY}T10:00:00.000Z`);
+let db;
+const services = {
+  today: () => TODAY,
+  now: () => new Date(clock).toISOString(),
+  hashPassword: async (p) => `plain$${p}`,
+  verifyPassword: async (p, h) => h === `plain$${p}`,
+  removeStored: async () => {},
+};
+const idOf = (key) => db.get('SELECT id FROM users WHERE email = ?', demoEmail(key)).id;
+const call = (who, method, path, { query, body } = {}) => handle({ db, user: loadUser(db, idOf(who)), query, body, services }, method, path);
+const vid = (short) => db.get('SELECT id FROM verticals WHERE short = ?', short).id;
+const rejects = (p, status) => assert.rejects(p, (e) => e.status === status);
+const tick = (ms = 1000) => (clock += ms);
+
+before(() => {
+  db = openDb(':memory:');
+  migrate(db);
+  seedBasics(db);
+  seedDemo(db, { today: TODAY, passwordHash: 'plain$demo1234' });
+});
+
+// A fresh Exhibits project owned by Neha, with nobody else on it yet.
+async function newProject(name = 'Chat test stall') {
+  tick();
+  return call('suresh', 'POST', '/projects', { body: { vertical_id: vid('Exhibits'), name, owner_id: idOf('neha') } });
+}
+
+test('a project gets a group for the people working on it, and only they and heads can see it', async () => {
+  const p = await newProject();
+  const g = await call('neha', 'GET', `/groups/${p.id}`);
+  assert.equal(g.role, 'member');
+  assert.equal(g.open, true);
+  assert.deepEqual(g.members.map((m) => m.id), [idOf('neha')]);
+  assert.ok((await call('neha', 'GET', '/groups')).items.some((x) => x.id === p.id && x.member));
+
+  // Same vertical but not on the project: the group does not exist for them.
+  await rejects(call('rohan', 'GET', `/groups/${p.id}`), 404);
+  assert.ok(!(await call('rohan', 'GET', '/groups')).items.some((x) => x.id === p.id));
+  // Heads of the vertical (and the admin) can look in.
+  assert.equal((await call('suresh', 'GET', `/groups/${p.id}`)).role, 'head');
+  assert.equal((await call('rajiv', 'GET', `/groups/${p.id}`)).role, 'head');
+  // Other verticals never see it, not even their heads.
+  await rejects(call('kavita', 'GET', `/groups/${p.id}`), 404);
+  await rejects(call('kavita', 'GET', `/groups/${p.id}/messages`), 404);
+  await rejects(call('kavita', 'POST', `/groups/${p.id}/messages`, { body: { body: 'hi' } }), 404);
+  for (const g2 of (await call('kavita', 'GET', '/groups')).items) assert.equal(g2.vertical, 'Marketing');
+});
+
+test('people join automatically when they get a task or join the team', async () => {
+  const p = await newProject('Auto-join stall');
+  tick();
+  await call('neha', 'POST', `/projects/${p.id}/tasks`, { body: { title: 'Logistics to venue', assignee_id: idOf('kunal') } });
+  tick();
+  await call('neha', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('tanvi')] } });
+  const g = await call('kunal', 'GET', `/groups/${p.id}`);
+  assert.deepEqual(g.members.map((m) => m.name).sort(), ['Kunal Verma', 'Neha Iyer', 'Tanvi Desai']);
+  assert.equal(g.members.find((m) => m.name === 'Kunal Verma').open_tasks, 1);
+  const notices = (await call('kunal', 'GET', `/groups/${p.id}/messages`)).items.filter((m) => m.kind === 'system').map((m) => m.body);
+  assert.ok(notices.some((b) => b.includes('started this group')));
+  assert.ok(notices.some((b) => b === 'Kunal Verma joined the group: Neha Iyer assigned them “Logistics to venue”.'));
+  assert.ok(notices.some((b) => b === 'Neha Iyer added Tanvi Desai to the project team.'));
+});
+
+test('members chat, post updates and statuses; viewers can read but not post', async () => {
+  const p = await newProject('Status stall');
+  await call('neha', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('rohan'), idOf('vikram')] } });
+  tick();
+  const msg = await call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Reached the venue, unloading now' } });
+  assert.equal(msg.kind, 'message');
+  assert.equal(msg.mine, true);
+  tick();
+  await call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { kind: 'update', body: 'Flooring done, carpet tomorrow' } });
+  tick();
+  await rejects(call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { kind: 'status', body: 'x' } }), 400);
+  await rejects(call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { body: '   ' } }), 400);
+  await call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { kind: 'status', status: 'blocked', body: 'Power not connected at the stall' } });
+
+  // Asking for help reaches the owner.
+  const ownerNotes = (await call('neha', 'GET', '/notifications')).items;
+  assert.ok(ownerNotes.some((n) => n.text.startsWith('Rohan Das is blocked in the') && n.link === `/teams/${p.id}`));
+
+  const g = await call('neha', 'GET', `/groups/${p.id}`);
+  assert.equal(g.members.find((m) => m.name === 'Rohan Das').status.status, 'blocked');
+  const list = (await call('neha', 'GET', '/groups')).items.find((x) => x.id === p.id);
+  assert.equal(list.flags.blocked, 1);
+  assert.equal(list.last.kind, 'status');
+  const updates = (await call('neha', 'GET', `/groups/${p.id}/messages`, { query: { kind: 'updates' } })).items;
+  assert.deepEqual(updates.map((m) => m.kind), ['update', 'status']);
+
+  // Vikram only has view access to Exhibits: he can follow the group but not post.
+  const asViewer = await call('vikram', 'GET', `/groups/${p.id}`);
+  assert.equal(asViewer.can_post, false);
+  await rejects(call('vikram', 'POST', `/groups/${p.id}/messages`, { body: { body: 'hello' } }), 403);
+});
+
+test('unread counts turn off once the group is opened; notices do not count', async () => {
+  const p = await newProject('Unread stall');
+  await call('neha', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('tanvi')] } });
+  await call('tanvi', 'POST', '/seen', { body: { scope: `group:${p.id}` } });
+  tick();
+  await call('neha', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Render v2 looks good' } });
+  tick();
+  await call('neha', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Send to the client today please' } });
+  const unread = async (who) => (await call(who, 'GET', '/groups')).items.find((x) => x.id === p.id).unread;
+  assert.equal(await unread('tanvi'), 2);
+  assert.equal(await unread('neha'), 0); // your own messages are never unread
+  tick();
+  await call('tanvi', 'POST', '/seen', { body: { scope: `group:${p.id}` } });
+  assert.equal(await unread('tanvi'), 0);
+  tick();
+  await call('neha', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('tanvi'), idOf('kunal')] } });
+  assert.equal(await unread('tanvi'), 0);
+  // Marking a group seen needs access to it.
+  await rejects(call('kavita', 'POST', '/seen', { body: { scope: `group:${p.id}` } }), 404);
+});
+
+test('mentions notify people in the group, with a link to it', async () => {
+  const p = await newProject('Mention stall');
+  await call('neha', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('tanvi')] } });
+  tick();
+  await call('neha', 'POST', `/groups/${p.id}/messages`, { body: { body: '@Tanvi can you share the render? cc @Kavita' } });
+  const tanvi = (await call('tanvi', 'GET', '/notifications')).items[0];
+  assert.match(tanvi.text, /Neha Iyer mentioned you in the .* group/);
+  assert.equal(tanvi.link, `/teams/${p.id}`);
+  // A full name picks one person even when others share the first name.
+  await call('neha', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('tanvi'), idOf('sneha_k')] } });
+  tick();
+  await call('neha', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Thanks @Sneha Kapoor, looks great' } });
+  assert.match((await call('sneha_k', 'GET', '/notifications')).items[0].text, /mentioned you/);
+  assert.equal((await call('rajiv', 'GET', `/projects/${p.id}`)).group.unread, 2);
+  assert.equal((await call('rohan', 'GET', `/projects/${p.id}`)).group, null);
+  // Kavita works in Marketing and cannot see this group.
+  assert.ok(!(await call('kavita', 'GET', '/notifications')).items.some((n) => n.link === `/teams/${p.id}`));
+});
+
+test('the group closes when the project is delivered, and opens again if it is reopened', async () => {
+  const p = await newProject('Closing stall');
+  tick();
+  await call('neha', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Handover done' } });
+  tick();
+  await call('neha', 'PATCH', `/projects/${p.id}`, { body: { status: 'ready' } });
+  tick();
+  await call('neha', 'PATCH', `/projects/${p.id}`, { body: { status: 'completed' } });
+
+  // Gone from everyone's list, including heads.
+  assert.ok(!(await call('neha', 'GET', '/groups')).items.some((x) => x.id === p.id));
+  assert.ok(!(await call('suresh', 'GET', '/groups')).items.some((x) => x.id === p.id));
+  // The history stays with the project, read-only.
+  const g = await call('neha', 'GET', `/groups/${p.id}`);
+  assert.equal(g.open, false);
+  assert.equal(g.can_post, false);
+  assert.ok(g.closed_at);
+  const msgs = (await call('neha', 'GET', `/groups/${p.id}/messages`)).items;
+  assert.ok(msgs.some((m) => m.body === 'Handover done'));
+  assert.ok(msgs.some((m) => m.body === 'Neha Iyer moved the project to Ready for Event / Exhibition.'));
+  assert.ok(msgs.some((m) => m.body.startsWith('Neha Iyer marked the project delivered. This group is now closed')));
+  await rejects(call('neha', 'POST', `/groups/${p.id}/messages`, { body: { body: 'one more thing' } }), 409);
+
+  tick();
+  await call('neha', 'PATCH', `/projects/${p.id}`, { body: { status: 'active' } });
+  assert.ok((await call('neha', 'GET', '/groups')).items.some((x) => x.id === p.id));
+  await call('neha', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Client wants a small change' } });
+
+  tick();
+  await call('neha', 'PATCH', `/projects/${p.id}`, { body: { status: 'cancelled' } });
+  assert.ok(!(await call('neha', 'GET', '/groups')).items.some((x) => x.id === p.id));
+});
+
+test('messages follow the comment rule: 15 seconds to delete, then a head approves', async () => {
+  const p = await newProject('Delete stall');
+  await call('neha', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('rohan')] } });
+  tick();
+  const quick = await call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { body: 'wrong chat' } });
+  assert.equal(quick.can_delete, true);
+  tick(10_000);
+  await call('rohan', 'DELETE', `/group-messages/${quick.id}`);
+
+  const late = await call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Quote is ₹4,80,000' } });
+  tick(30_000);
+  await rejects(call('rohan', 'DELETE', `/group-messages/${late.id}`), 403);
+  await rejects(call('neha', 'DELETE', `/group-messages/${late.id}`), 403); // the owner is not a head
+  await call('rohan', 'POST', `/group-messages/${late.id}/delete-request`);
+  await rejects(call('neha', 'POST', `/group-messages/${late.id}/delete-decision`, { body: { approve: true } }), 403);
+  const asHead = (await call('suresh', 'GET', `/groups/${p.id}/messages`)).items.find((m) => m.id === late.id);
+  assert.equal(asHead.can_decide, true);
+  await call('suresh', 'POST', `/group-messages/${late.id}/delete-decision`, { body: { approve: true } });
+  await call('rohan', 'DELETE', `/group-messages/${late.id}`);
+  const after = (await call('neha', 'GET', `/groups/${p.id}/messages`)).items;
+  assert.ok(!after.some((m) => m.id === late.id || m.id === quick.id));
+  assert.ok(after.some((m) => m.body === 'Rohan Das deleted a message, approved by Suresh Iyer.'));
+
+  // Heads can remove anyone's message; the group sees that they did.
+  const rude = await call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { body: 'not for this group' } });
+  tick(60_000);
+  await call('suresh', 'DELETE', `/group-messages/${rude.id}`);
+  assert.ok((await call('rohan', 'GET', `/groups/${p.id}/messages`)).items.some((m) => m.body === 'Suresh Iyer removed a message by Rohan Das.'));
+  assert.ok((await call('rohan', 'GET', '/notifications')).items.some((n) => n.text.includes('removed your message')));
+  // Notices cannot be deleted.
+  const notice = (await call('suresh', 'GET', `/groups/${p.id}/messages`)).items.find((m) => m.kind === 'system');
+  await rejects(call('suresh', 'DELETE', `/group-messages/${notice.id}`), 403);
+});
+
+test('the sample data has lively groups, with the delivered ones closed', async () => {
+  const { items } = await call('rohan', 'GET', '/groups');
+  assert.ok(items.length >= 3);
+  assert.ok(items.every((g) => g.vertical === 'Exhibits' && g.member));
+  assert.ok(items.some((g) => g.unread > 0));
+  const delivered = db.get("SELECT id FROM projects WHERE status = 'completed' AND vertical_id = ? ORDER BY id LIMIT 1", vid('Exhibits')).id;
+  assert.ok(!items.some((g) => g.id === delivered));
+  const history = await call('rohan', 'GET', `/groups/${delivered}`);
+  assert.equal(history.open, false);
+  assert.ok((await call('rohan', 'GET', `/groups/${delivered}/messages`)).items.length > 0);
+});
+
+test('older sample data gets sample chats once; nothing is invented otherwise', () => {
+  const old = openDb(':memory:');
+  migrate(old);
+  seedBasics(old);
+  seedDemo(old, { today: TODAY, passwordHash: 'x' });
+  old.run('DELETE FROM group_messages');
+  old.run("DELETE FROM seen WHERE scope LIKE 'group:%'");
+  assert.equal(seedGroupChats(old, { today: TODAY, now: `${TODAY}T12:00:00.000Z` }), true);
+  assert.ok(old.get('SELECT COUNT(*) AS n FROM group_messages').n > 20);
+  assert.ok(old.get("SELECT COUNT(*) AS n FROM seen WHERE scope LIKE 'group:%'").n > 0);
+  assert.equal(seedGroupChats(old, { today: TODAY }), false);
+  // Seeded messages are never in the future.
+  const early = openDb(':memory:');
+  migrate(early);
+  seedBasics(early);
+  seedDemo(early, { today: TODAY, passwordHash: 'x', now: `${TODAY}T01:00:00.000Z` });
+  assert.equal(early.get('SELECT COUNT(*) AS n FROM group_messages WHERE created_at > ?', `${TODAY}T01:00:00.000Z`).n, 0);
+});

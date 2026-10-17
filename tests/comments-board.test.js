@@ -146,7 +146,10 @@ test('a version 1 database upgrades without losing data', () => {
 
   migrate(old);
 
-  assert.equal(old.get("SELECT value FROM settings WHERE key = 'schema_version'").value, '3');
+  assert.equal(old.get("SELECT value FROM settings WHERE key = 'schema_version'").value, '4');
+  // Version 4: team group chats and notification links.
+  assert.equal(old.get('SELECT COUNT(*) AS n FROM group_messages').n, 0);
+  old.run("INSERT INTO notifications (user_id, text, link) VALUES (1, 'x', '/teams/7')");
   // Existing work counts as already seen, so nothing shows as new right after the upgrade.
   assert.equal(old.get("SELECT COUNT(*) AS n FROM seen WHERE user_id = 1 AND scope = 'project:7:tasks'").n, 1);
   assert.equal(old.get('SELECT ready_label FROM verticals WHERE id = 1').ready_label, 'Ready for Event / Exhibition');

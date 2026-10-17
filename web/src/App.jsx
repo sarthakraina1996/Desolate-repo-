@@ -14,6 +14,7 @@ import Archive from './pages/Archive.jsx';
 import Team from './pages/Team.jsx';
 import Settings from './pages/Settings.jsx';
 import Profile from './pages/Profile.jsx';
+import Teams from './pages/Teams.jsx';
 import { DemoBadge } from './demo/DemoBadge.jsx';
 
 function Routes() {
@@ -25,6 +26,8 @@ function Routes() {
   if ((m = match('/projects/:id/tasks/:taskId', path))) return <Project id={m.id} tab="tasks" taskId={m.taskId} />;
   if ((m = match('/projects/:id/:tab', path))) return <Project id={m.id} tab={m.tab} />;
   if ((m = match('/projects/:id', path))) return <Project id={m.id} />;
+  if (path === '/teams') return <Teams />;
+  if ((m = match('/teams/:id', path))) return <Teams id={m.id} />;
   if (path === '/calendar') return <CalendarPage />;
   if (path === '/assets') return <Assets />;
   if (path === '/archive') return <Archive />;

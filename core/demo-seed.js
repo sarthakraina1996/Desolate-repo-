@@ -144,7 +144,7 @@ function rng(seed) {
 
 const ts = (date, h = 10, m = 0) => `${date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000Z`;
 
-export function seedDemo(db, { today, passwordHash }) {
+export function seedDemo(db, { today, passwordHash, now = new Date().toISOString() }) {
   if (db.get('SELECT COUNT(*) AS n FROM projects').n > 0) return false;
   const rand = rng(20261013);
   const pickOne = (arr) => arr[Math.floor(rand() * arr.length)];
@@ -172,6 +172,7 @@ export function seedDemo(db, { today, passwordHash }) {
 
     const counters = {};
     const commentsFor = [];
+
     PROJECTS.forEach((row, idx) => {
       const [short, name, client, tplIndex, keyOffset, status, health, ownerKey, venue, city, budget, tags] = row;
       const v = vByShort[short];
@@ -345,6 +346,8 @@ export function seedDemo(db, { today, passwordHash }) {
       }
     }
 
+    seedGroupChats(db, { today, now });
+
     // Everyone last looked two days ago, so the last two days of activity shows as new.
     const lastLook = ts(addDays(today, -2), 18, 0);
     const projectIds = db.all('SELECT id FROM projects').map((r) => r.id);
@@ -404,6 +407,125 @@ export function seedDemo(db, { today, passwordHash }) {
       if (p) db.run('INSERT INTO notifications (user_id, project_id, text, read, created_at) VALUES (?,?,?,?,?)', ids[mgr], p.id, `${p.code} · ${p.name} is flagged as needing attention`, 0, ts(today, 9, 30));
     }
   });
+  return true;
+}
+
+// Team group chats. Open projects have a few days of chat, updates and statuses (the last
+// day or so is unread); delivered and cancelled projects keep their history, closed.
+const GROUP_LINES = {
+  Exhibits: {
+    update: 'Weekly update: design is signed off and the BOQ is with the workshop. Organiser drawings are next.',
+    ask: '@{owner} the organiser wants the electrical load sheet by Thursday. I will fill it in today.',
+    reply: 'Perfect, thanks. Copy me when you send it.',
+    onTrack: 'Graphics files sent to print, proofs tomorrow morning.',
+    stuck: ['blocked', 'Client has not approved the revised BOQ yet, so the workshop slot is at risk.'],
+    help: 'I will call their purchase head now and get a date.',
+    latest: '@{a} can you share the latest render here once the logo is fixed?',
+    closing: ['Show went really well, the client is happy with the footfall.', 'Dismantle done and all material is back at the workshop.'],
+  },
+  Live: {
+    update: 'Update: venue and AV vendor are locked. Next up are the artist contract and the run-of-show.',
+    ask: 'Tech rider from the band came in. They need two extra monitors, adding it to the AV quote.',
+    reply: 'Fine by me, keep it within the AV line.',
+    onTrack: 'RSVPs at 62%. The reminder mailer goes out tomorrow.',
+    stuck: ['need_help', 'The band’s dates clash with another show. Looking at two alternative acts, need a decision by Friday.'],
+    help: 'Send me both options with fees, I will take it to the client today.',
+    latest: '@{a} please check the green room booking for the show night.',
+    closing: ['Great show everyone. Client sent a thank-you note this morning.', 'Vendor settlements done, final report is in Files.'],
+  },
+  Marketing: {
+    update: 'Update: creative route approved. Adaptations this week and media goes live on schedule.',
+    ask: 'Uploaded the 1:1 and 9:16 cuts to Files. Need a quick look before we send them.',
+    reply: 'Looks good. Small fix: keep the logo inside the safe area on the 9:16.',
+    onTrack: 'Fixes done, sending to the client at 3 pm.',
+    stuck: ['need_help', 'The TVC edit is two days behind. Can we borrow an editor from the Live team this week?'],
+    help: 'Checking with Siddharth, will confirm in an hour.',
+    latest: '@{a} the client wants the performance numbers in Monday’s call, can you pull them?',
+    closing: ['Campaign wrapped, results beat the target. Thanks all.', 'Final report shared with the client.'],
+  },
+};
+
+// Also used by the browser demo when it upgrades data saved by an older version.
+// Only ever for sample data: a real database never gets made-up chats.
+export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
+  if (db.get('SELECT COUNT(*) AS n FROM group_messages').n > 0) return false;
+  const nameById = new Map(db.all('SELECT id, name FROM users').map((u) => [u.id, u.name]));
+  const first = (id) => (nameById.get(id) || '').split(' ')[0];
+  const idByKey = (key) => db.get('SELECT id FROM users WHERE email = ?', demoEmail(key))?.id;
+  const admin = db.get("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")?.id;
+  const head = { Exhibits: idByKey('suresh'), Live: idByKey('arvind'), Marketing: idByKey('kavita') };
+  // Never in the future, so "just now" and the 15-second delete window behave.
+  const at = (day, h, m) => {
+    const t = ts(addDays(today, day), h, m);
+    return t < now ? t : new Date(Date.parse(now) - 60000 * (60 - m)).toISOString();
+  };
+  const post = (pid, userId, kind, body, createdAt, status = null) => db.run(
+    'INSERT INTO group_messages (project_id, user_id, kind, status, body, created_at) VALUES (?,?,?,?,?,?)',
+    pid, userId, kind, status, body, createdAt,
+  );
+  const projects = db.all(
+    `SELECT p.id, p.code, p.name, p.client, p.status, p.health, p.owner_id, p.due_date, p.created_at, p.completed_at, v.short, v.ready_label
+     FROM projects p JOIN verticals v ON v.id = p.vertical_id ORDER BY p.id`,
+  );
+  for (const g of projects) {
+    const lines = GROUP_LINES[g.short];
+    if (!lines || !g.owner_id || !nameById.has(g.owner_id)) continue;
+    const team = new Set([
+      ...db.all('SELECT user_id AS id FROM project_members WHERE project_id = ?', g.id),
+      ...db.all('SELECT DISTINCT assignee_id AS id FROM tasks WHERE project_id = ? AND assignee_id IS NOT NULL', g.id),
+    ].map((r) => r.id));
+    const others = [...team].filter((id) => id !== g.owner_id && nameById.has(id)).sort((x, y) => x - y);
+    const owner = g.owner_id;
+    const a = others[0] || owner;
+    const b = others[1] || a;
+    const fill = (t) => t.replace('{owner}', first(owner)).replace('{a}', first(a));
+    const creator = head[g.short] || admin || owner;
+    const due = g.due_date || today;
+    post(g.id, creator, 'system', `${nameById.get(creator)} started this group for everyone working on ${g.code} · ${g.name}.`, g.created_at || at(-30, 10, 0));
+
+    if (g.status === 'completed' || g.status === 'cancelled') {
+      if (g.status === 'completed') {
+        const end = g.completed_at || ts(due, 18, 0);
+        post(g.id, owner, 'update', lines.closing[0], ts(addDays(end.slice(0, 10), -3), 11, 10));
+        post(g.id, a, 'message', lines.closing[1], ts(addDays(end.slice(0, 10), -1), 16, 40));
+        post(g.id, owner, 'system', `${nameById.get(owner)} marked the project delivered. This group is now closed and its messages stay with the project.`, end);
+      } else {
+        const end = addDays(due, -20) < today ? addDays(due, -20) : addDays(today, -20);
+        post(g.id, owner, 'message', 'Client has called this off for now. Holding all vendor payments.', ts(end, 12, 0));
+        post(g.id, owner, 'system', `${nameById.get(owner)} cancelled the project. This group is now closed and its messages stay with the project.`, ts(end, 12, 5));
+      }
+      continue;
+    }
+    if (g.status === 'planning') {
+      post(g.id, owner, 'message', `Kick-off notes for ${g.client || 'the client'} are in the brief. Put questions here so everyone sees the answers.`, at(-3, 10, 30));
+      post(g.id, a, 'message', 'Thanks. Do we have last year’s files for reference?', at(-1, 12, 15));
+      continue;
+    }
+    if (g.status === 'on_hold') {
+      post(g.id, owner, 'update', 'The client is finalising next quarter’s budget. We pause until they confirm.', at(-9, 11, 0));
+      post(g.id, owner, 'system', `${nameById.get(owner)} put the project on hold.`, at(-9, 11, 2));
+      continue;
+    }
+
+    post(g.id, owner, 'update', lines.update, at(-5, 9, 40));
+    post(g.id, a, 'message', fill(lines.ask), at(-3, 11, 15));
+    post(g.id, owner, 'message', lines.reply, at(-3, 11, 22));
+    post(g.id, b, 'status', lines.onTrack, at(-1, 17, 30), 'on_track');
+    if (g.status === 'ready') {
+      post(g.id, owner, 'system', `${nameById.get(owner)} moved the project to ${g.ready_label || 'Ready'}.`, at(-1, 18, 5));
+      post(g.id, a, 'status', 'Stall handed over to the client. Night security is booked until the show opens.', at(0, 3, 20), 'done');
+    } else if (g.health !== 'on_track') {
+      post(g.id, a, 'status', lines.stuck[1], at(0, 3, 10), lines.stuck[0]);
+      post(g.id, owner, 'message', lines.help, at(0, 3, 25));
+    } else {
+      post(g.id, owner, 'message', fill(lines.latest), at(0, 3, 40));
+    }
+  }
+  // Like the rest of the sample data, people last looked two days ago.
+  const lastLook = ts(addDays(today, -2), 18, 0);
+  for (const u of db.all('SELECT id FROM users')) {
+    for (const g of projects) db.run('INSERT OR IGNORE INTO seen (user_id, scope, seen_at) VALUES (?,?,?)', u.id, `group:${g.id}`, lastLook);
+  }
   return true;
 }
 

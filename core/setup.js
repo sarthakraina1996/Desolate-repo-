@@ -55,6 +55,11 @@ function upgradeTo3(db) {
   });
 }
 
+// Version 4: team group chats (the table itself comes from SCHEMA) and notification links.
+function upgradeTo4(db) {
+  addColumn(db, 'notifications', 'link', "TEXT DEFAULT ''");
+}
+
 export const SEEN_TABS = ['tasks', 'files', 'discussion'];
 
 export function migrate(db) {
@@ -65,6 +70,7 @@ export function migrate(db) {
   const version = fresh ? SCHEMA_VERSION : Number(row?.value || 1);
   if (version < 2) upgradeTo2(db);
   if (version < 3) upgradeTo3(db);
+  if (version < 4) upgradeTo4(db);
   db.run(
     "INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     String(SCHEMA_VERSION),

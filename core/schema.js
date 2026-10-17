@@ -1,7 +1,7 @@
 // Database schema shared by the Node server (node:sqlite) and the in-browser demo (sql.js).
 // Both run SQLite, so the same SQL works everywhere.
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 // Kept as a function so a migration can rebuild the table with the same definition.
 export function projectsTable(name) {
@@ -202,10 +202,32 @@ CREATE TABLE IF NOT EXISTS notifications (
   project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
   task_id INTEGER,
   text TEXT NOT NULL,
+  -- Where clicking the notification goes, when it is not the project or task (e.g. "/teams/12").
+  link TEXT DEFAULT '',
   read INTEGER DEFAULT 0,
   created_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
+
+-- Team groups: every project has a group chat for the people working on it (owner, team
+-- and anyone with a task). It closes when the project is delivered or cancelled.
+-- kind: message (chat), update (progress update), status (on track / need help / blocked / done),
+-- system (joins, status changes and the group closing).
+CREATE TABLE IF NOT EXISTS group_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, -- never reused, so a live chat can track messages by id
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id),
+  kind TEXT NOT NULL DEFAULT 'message' CHECK (kind IN ('message','update','status','system')),
+  status TEXT CHECK (status IN ('on_track','need_help','blocked','done')),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  -- Same rule as comments: 15 seconds to delete, then a head has to approve it.
+  delete_status TEXT CHECK (delete_status IN ('requested','approved','declined')),
+  delete_requested_at TEXT,
+  delete_decided_by INTEGER,
+  delete_decided_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_group_messages_project ON group_messages(project_id, id);
 `;
 
 export const FILE_CATEGORIES = [

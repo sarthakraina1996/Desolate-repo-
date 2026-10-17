@@ -14,7 +14,8 @@ The main rule: **people only see the verticals they have been given.** An Exhibi
 | **Project page** | Stage tracker, owner, dates, budget in ₹, location, progress, milestones, team, brief, and tabs for tasks, files and discussion. |
 | **Tasks** | Assignee, due date, priority, stage, status (To do, In progress, In review, Blocked, Done), checklist, files, comments with @mentions, and a change history. Shown grouped by stage, or as a Trello-style board. |
 | **Comments** | The author can delete a comment for 15 seconds after posting (with a countdown). After that it can only be removed if the author asks and a head of the vertical (a manager or an admin) approves; then the author gets the Delete option back. Heads cannot approve their own requests, but they can remove other people's comments directly; the author is told and the history records it. |
-| **New-item alerts** | Counts turn red when someone else has added something since you last looked: the Tasks, Files & assets and Discussion tabs on a project, My Work (newly assigned tasks), Projects in the sidebar, board columns and file categories. New items carry a red NEW tag. Once you open the tab, the count turns grey. Each person has their own read state. |
+| **Team Groups** | Every project has a group chat for the people working on it, like a Slack channel. People join automatically: the owner, the project team, and anyone who gets a task in the project. Post a **message**, a progress **update**, or your **status** (On track, Need help, Blocked, Done for today); the People panel shows everyone's latest status, and a Blocked or Need help post also notifies the project owner. @mentions with name suggestions, unread counts in red, and a "New" line where you left off. Heads of the vertical can look in on every group they oversee. When the project is delivered or cancelled, the group closes on its own: it drops off everyone's list and its messages stay with the project, read-only (open **Group history** on the project). Reopening the project reopens the group. Messages follow the same delete rule as comments. |
+| **New-item alerts** | Counts turn red when someone else has added something since you last looked: the Tasks, Files & assets and Discussion tabs on a project, My Work (newly assigned tasks), Projects and Team Groups in the sidebar, each group, board columns and file categories. New items carry a red NEW tag. Once you open the tab, the count turns grey. Each person has their own read state. |
 | **Files & assets** | Drag-and-drop uploads, links to Drive, Dropbox or Figma, automatic categories (Brief, Design, Contract & PO, Quotes & Invoices, Production, Photos & Videos, Final deliverables, Reports), and a star for final assets. |
 | **My Work** | Your tasks grouped into Overdue, Today, This week, Next week and Later. |
 | **Calendar** | Month view of event days, show openings, launches, milestones and task deadlines. |
@@ -22,15 +23,15 @@ The main rule: **people only see the verticals they have been given.** An Exhibi
 | **Past Projects** | Completed and cancelled projects by year, with a client view. **Run again** copies a past project's plan, team and milestones to new dates, which suits repeat clients and annual shows. |
 | **Templates** | Ready-made plans per vertical, such as Exhibition stall, Corporate event or Integrated campaign. Task dates count back from the event, show or launch date. Any finished project can be saved as a template. |
 | **Team & Access** | One grid to set each person's access per vertical: Viewer, Member or Manager. |
-| **Notifications** | Sent when someone assigns you work, mentions you, comments on your task or adds you to a project. |
+| **Notifications** | Sent when someone assigns you work, mentions you (in a comment or a group), comments on your task, adds you to a project, or asks for help in a group you own. |
 
 ### Access levels (set per vertical)
 
 | Level | Can do |
 | --- | --- |
-| **Viewer** | See projects, tasks and files. Cannot change anything. |
-| **Member** | Work on projects: tasks, files, milestones and comments. Can edit projects they own. |
-| **Manager** | Create, edit, close, re-open and copy projects. Manage templates. Approve or decline requests to delete old comments (the "head" of the vertical). |
+| **Viewer** | See projects, tasks and files. Cannot change anything. Can read the group of a project they are on, but not post. |
+| **Member** | Work on projects: tasks, files, milestones, comments and group chat. Can edit projects they own. |
+| **Manager** | Create, edit, close, re-open and copy projects. Manage templates. Look in on every group in the vertical. Approve or decline requests to delete old comments and messages (the "head" of the vertical). |
 | **Admin** (company-wide) | Everything in every vertical, plus people, access, verticals and settings. |
 
 ### Works for other industries
@@ -133,7 +134,7 @@ docker run -p 3000:3000 -v brainadz-data:/data \
 core/      the API, access rules, schema, templates and demo data (shared by server and demo)
 server/    Express server: sign-in, sessions, uploads and downloads, static files
 web/src/   React app (pages/, shared UI, theme.css copied from the HRMS)
-tests/     node:test suites for vertical isolation and the HTTP server
+tests/     node:test suites for vertical isolation, comments, boards, team groups and the HTTP server
 ```
 
 Security notes: passwords are hashed with scrypt; sessions are http-only cookies; every write needs a custom header so other sites cannot submit forms on your behalf; repeated failed sign-ins are slowed down; and uploaded files are served as downloads with a locked-down content policy. `npm audit` reports one moderate advisory in the Vite development server. It does not affect the production build or the server.

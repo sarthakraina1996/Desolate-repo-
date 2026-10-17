@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   LayoutDashboard, ListChecks, FolderKanban, CalendarDays, Images, FolderArchive, Users, Settings, Search, Bell,
-  Menu as MenuIcon, LogOut, KeyRound, UserRound, ChevronDown, FileText, FolderOpen, CheckCircle2,
+  Menu as MenuIcon, LogOut, KeyRound, UserRound, ChevronDown, FileText, FolderOpen, CheckCircle2, MessagesSquare,
 } from 'lucide-react';
 import { useApp, useLoad } from './store.jsx';
 import { useRouter, Link } from './router.jsx';
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/my', label: 'My Work', icon: ListChecks, count: 'my' },
   { to: '/projects', label: 'Projects', icon: FolderKanban, count: 'projects' },
+  { to: '/teams', label: 'Team Groups', icon: MessagesSquare, count: 'teams' },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/assets', label: 'Asset Library', icon: Images },
   { to: '/archive', label: 'Past Projects', icon: FolderArchive },
@@ -76,6 +77,11 @@ function Sidebar({ open, onClose, counts }) {
               )}
               {n.count === 'projects' && counts.projectsNew > 0 && (
                 <span className="count" title={`${counts.projectsNew} projects with something new for you`}>{counts.projectsNew}</span>
+              )}
+              {n.count === 'teams' && (counts.groupsUnread > 0 || counts.groups > 0) && (
+                <span className={`count ${counts.groupsUnread ? '' : 'seen'}`} title={counts.groupsUnread ? `${counts.groupsUnread} unread messages in your groups` : `${counts.groups} groups`}>
+                  {counts.groupsUnread || counts.groups}
+                </span>
               )}
             </Link>
           ))}
@@ -169,7 +175,8 @@ function Notifications() {
     setOpen(false);
     if (!n.read) await api.post('/notifications/read', { id: n.id }).catch(() => {});
     loadBoot();
-    if (n.project_id) navigate(n.task_id ? `/projects/${n.project_id}/tasks/${n.task_id}` : `/projects/${n.project_id}`);
+    if (n.link) navigate(n.link);
+    else if (n.project_id) navigate(n.task_id ? `/projects/${n.project_id}/tasks/${n.task_id}` : `/projects/${n.project_id}`);
   };
   const readAll = async () => {
     await api.post('/notifications/read', {});
@@ -242,23 +249,36 @@ function UserMenu({ onSignOut }) {
 export function Layout({ children, onSignOut }) {
   const { verticals, vertical, setVertical, version, countsVersion, me } = useApp();
   const [open, setOpen] = useState(false);
-  const [counts, setCounts] = useState({ my: 0, myNew: 0, projectsNew: 0 });
+  const [counts, setCounts] = useState({ my: 0, myNew: 0, projectsNew: 0, groups: 0, groupsUnread: 0 });
+  const [tick, setTick] = useState(0);
   const { path } = useRouter();
+
+  // Group chats change without anyone here clicking, so check the counts every half minute.
+  useEffect(() => {
+    const t = setInterval(() => document.visibilityState === 'visible' && setTick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
 
   // Sidebar counts: red while something new is waiting, grey once you have looked.
   useEffect(() => {
     let live = true;
-    Promise.all([api.get('/tasks', { assignee: 'me', scope: 'open' }), api.get('/projects')])
-      .then(([t, p]) => live && setCounts({
-        my: t.items.length,
-        myNew: t.items.filter((x) => x.is_new).length,
-        projectsNew: p.items.filter((x) => x.new_items > 0).length,
-      }))
+    Promise.all([api.get('/tasks', { assignee: 'me', scope: 'open' }), api.get('/projects'), api.get('/groups')])
+      .then(([t, p, g]) => {
+        if (!live) return;
+        const mine = g.items.filter((x) => x.member);
+        setCounts({
+          my: t.items.length,
+          myNew: t.items.filter((x) => x.is_new).length,
+          projectsNew: p.items.filter((x) => x.new_items > 0).length,
+          groups: mine.length,
+          groupsUnread: mine.reduce((n, x) => n + x.unread, 0),
+        });
+      })
       .catch(() => {});
     return () => {
       live = false;
     };
-  }, [version, countsVersion, path, me.id]);
+  }, [version, countsVersion, path, me.id, tick]);
 
   return (
     <div className="app">

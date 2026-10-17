@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Pencil, Copy, Trash2, CheckCircle2, PauseCircle, RotateCcw, Ban, LayoutTemplate, Download, Plus, Diamond, MapPin,
   IndianRupee, CalendarRange, Users, Flag, X, LayoutList, Columns3, MessageSquare, Paperclip, Lock, Grid2x2, List, Send, Check,
+  MessagesSquare,
 } from 'lucide-react';
 import { useApp, useLoad, usePref } from '../store.jsx';
 import { api } from '../api.js';
@@ -709,6 +710,12 @@ export default function Project({ id, tab = 'overview', taskId }) {
             <div className="sub">{[p.client, p.venue, p.city].filter(Boolean).join(' · ') || 'No client yet'}</div>
           </div>
           <div className="head-actions">
+            {p.group && (
+              <Link to={`/teams/${p.id}`} className="btn" title={closed ? 'The group closed with the project. Its messages are kept read-only.' : 'Chat with everyone working on this project'}>
+                <MessagesSquare size={17} />{closed ? 'Group history' : 'Team group'}
+                {!closed && p.group.unread > 0 && <span className="pill-num alert">{p.group.unread}</span>}
+              </Link>
+            )}
             {p.permissions.edit && !closed && p.ready_label && p.status !== 'ready' && (
               <button type="button" className="btn success" onClick={() => setStatus('ready', `Moved to ${p.ready_label}`)} title={`Move to ${p.ready_label}`}><CheckCircle2 size={17} />Mark ready</button>
             )}

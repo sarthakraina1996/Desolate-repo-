@@ -60,12 +60,31 @@ function log(ctx, project_id, action, detail = '', task_id = null) {
   );
 }
 
-function notify(ctx, user_id, project_id, textMsg, task_id = null) {
+function notify(ctx, user_id, project_id, textMsg, task_id = null, link = '') {
   if (!user_id || user_id === uid(ctx)) return;
   ctx.db.run(
-    'INSERT INTO notifications (user_id, project_id, task_id, text, created_at) VALUES (?,?,?,?,?)',
-    user_id, project_id, task_id, textMsg, ctx.now,
+    'INSERT INTO notifications (user_id, project_id, task_id, text, link, created_at) VALUES (?,?,?,?,?,?)',
+    user_id, project_id, task_id, textMsg, link, ctx.now,
   );
+}
+
+// People named with @First Last or @First in a message. A full name picks one person even
+// when others share the first name (@Sneha Kapoor is not Sneha Iyer).
+function mentionedUsers(db, body) {
+  const users = db.all('SELECT id, name FROM users WHERE active = 1').map((u) => ({ ...u, lower: u.name.toLowerCase() }));
+  const found = new Map();
+  for (const m of String(body).matchAll(/@([a-z][\w.'’-]*)(?:\s+([a-z][\w.'’-]*))?/gi)) {
+    const one = m[1].toLowerCase();
+    const two = m[2] ? `${one} ${m[2].toLowerCase()}` : null;
+    const full = two ? users.filter((u) => u.lower === two || u.lower.startsWith(two + ' ')) : [];
+    for (const u of full.length ? full : users.filter((x) => x.lower.split(' ')[0] === one)) found.set(u.id, u);
+  }
+  return [...found.values()];
+}
+
+// "Neha", "Neha and Kunal", "Neha, Kunal and Tanvi"
+function nameList(names) {
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 // Vertical ids the request may read, narrowed by ?vertical= when given.
@@ -231,8 +250,9 @@ function checkDates(p) {
 // ---------------------------------------------------------------- "new since you last looked"
 
 // Each person has a last-seen time per tab ("project:12:tasks", "project:12:files",
-// "project:12:discussion", "mywork"). Items added by someone else after that time are new.
-const SEEN_SCOPE = /^(mywork|project:(\d+):(tasks|files|discussion))$/;
+// "project:12:discussion", "mywork") and per team group ("group:12"). Items added by
+// someone else after that time are new.
+const SEEN_SCOPE = /^(mywork|project:(\d+):(tasks|files|discussion)|group:(\d+))$/;
 const NEW_SOURCES = [
   { tab: 'tasks', table: 'tasks', who: 'created_by' },
   { tab: 'files', table: 'files', who: 'uploaded_by' },
@@ -268,6 +288,7 @@ route('POST', '/seen', (ctx) => {
   const m = SEEN_SCOPE.exec(scope);
   if (!m) throw bad('Unknown scope');
   if (m[2]) getProjectRaw(ctx, m[2]);
+  if (m[4]) getGroup(ctx, m[4]);
   ctx.db.run(
     'INSERT INTO seen (user_id, scope, seen_at) VALUES (?,?,?) ON CONFLICT(user_id, scope) DO UPDATE SET seen_at = excluded.seen_at',
     uid(ctx), scope, ctx.now,
@@ -604,6 +625,7 @@ route('POST', '/projects', (ctx) => {
     } else {
       log(ctx, id, 'created', '');
     }
+    groupEvent(ctx, id, `${ctx.user.name} started this group for everyone working on ${code} · ${f.name}.`);
     notify(ctx, ownerId, id, `${ctx.user.name} made you the owner of ${code} · ${f.name}`);
     return { ...getProjectFull(ctx, id), tasks_created: created };
   });
@@ -632,7 +654,9 @@ route('GET', '/projects/:id', (ctx) => {
   const created_by = userBrief(db, p.created_by);
   const unseen = unseenByProject(ctx, [p.id]).get(p.id);
   const comment_total = db.get('SELECT COUNT(*) AS n FROM comments WHERE project_id = ?', p.id).n;
-  return { ...p, unseen, comment_total, members, milestones, task_stats: taskStats, stage_stats: stageStats, upcoming_tasks: upcoming, created_by_user: created_by, permissions: permissionsFor(ctx.user, p) };
+  const inGroup = groupMemberIds(db, p).has(uid(ctx)) || canManageVertical(ctx.user, p.vertical_id);
+  const group = inGroup ? { unread: groupUnread(ctx, p.id), messages: db.get("SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ? AND kind != 'system'", p.id).n } : null;
+  return { ...p, unseen, comment_total, group, members, milestones, task_stats: taskStats, stage_stats: stageStats, upcoming_tasks: upcoming, created_by_user: created_by, permissions: permissionsFor(ctx.user, p) };
 });
 
 const FIELD_LABELS = {
@@ -675,12 +699,17 @@ route('PATCH', '/projects/:id', (ctx) => {
   return db.tx(() => {
     db.run(`UPDATE projects SET ${sets.map(([k]) => `${k} = ?`).join(', ')}, updated_at = ? WHERE id = ?`, ...sets.map(([, v]) => v), ctx.now, p.id);
     const changed = sets.filter(([k, v]) => k !== 'completed_at' && String(p[k] ?? '') !== String(v ?? '')).map(([k]) => k);
-    if (changed.includes('status')) log(ctx, p.id, 'status', f.status);
+    if (changed.includes('status')) {
+      log(ctx, p.id, 'status', f.status);
+      const readyLabel = db.get('SELECT ready_label FROM verticals WHERE id = ?', vId)?.ready_label;
+      groupEvent(ctx, p.id, statusNotice(ctx.user.name, p.status, f.status, readyLabel));
+    }
     if (changed.includes('stage')) log(ctx, p.id, 'stage', f.stage);
     if (changed.includes('health')) log(ctx, p.id, 'health', f.health);
     if (changed.includes('owner_id')) {
       const o = userBrief(db, f.owner_id);
       log(ctx, p.id, 'owner', o?.name || '');
+      if (OPEN_STATUSES.includes(merged.status)) groupEvent(ctx, p.id, `${ctx.user.name} made ${o?.name || 'someone'} the project owner.`);
       notify(ctx, f.owner_id, p.id, `${ctx.user.name} made you the owner of ${p.code} · ${merged.name}`);
     }
     if (changed.includes('vertical_id')) {
@@ -715,8 +744,14 @@ route('PUT', '/projects/:id/members', (ctx) => {
     ctx.db.run('DELETE FROM project_members WHERE project_id = ?', p.id);
     for (const id of ids) ctx.db.run('INSERT INTO project_members (project_id, user_id) VALUES (?, ?)', p.id, id);
     const added = ids.filter((id) => !before.has(id));
+    const removed = [...before].filter((id) => !ids.includes(id));
     for (const id of added) notify(ctx, id, p.id, `${ctx.user.name} added you to ${p.code} · ${p.name}`);
     if (added.length || before.size !== ids.length) log(ctx, p.id, 'team', `${ids.length} people`);
+    if (OPEN_STATUSES.includes(p.status)) {
+      const names = (list) => nameList(list.map((id) => userBrief(ctx.db, id)?.name).filter(Boolean));
+      if (added.length) groupEvent(ctx, p.id, `${ctx.user.name} added ${names(added)} to the project team.`);
+      if (removed.length) groupEvent(ctx, p.id, `${ctx.user.name} removed ${names(removed)} from the project team.`);
+    }
   });
   return { members: ctx.db.all('SELECT u.id, u.name, u.title, u.color, u.email FROM project_members pm JOIN users u ON u.id = pm.user_id WHERE pm.project_id = ? ORDER BY u.name', p.id) };
 });
@@ -784,6 +819,7 @@ route('POST', '/projects/:id/tasks', (ctx) => {
   assertAssignable(ctx, f.assignee_id, p.vertical_id);
   const stages = parseJSON(p.stages, []);
   const sort = f.sort ?? (db.get('SELECT MAX(sort) AS m FROM tasks WHERE project_id = ?', p.id).m || 0) + 1;
+  const inGroup = groupMemberIds(db, p);
   return db.tx(() => {
     const status = f.status || 'todo';
     const { id } = db.run(
@@ -796,6 +832,7 @@ route('POST', '/projects/:id/tasks', (ctx) => {
     );
     log(ctx, p.id, 'task_added', f.title, id);
     if (f.assignee_id) notify(ctx, f.assignee_id, p.id, `${ctx.user.name} assigned you “${f.title}” in ${p.code}`, id);
+    announceJoin(ctx, p, inGroup, f.assignee_id, f.title);
     return taskDetail(ctx, id);
   });
 });
@@ -847,6 +884,7 @@ route('PATCH', '/tasks/:id', (ctx) => {
   }
   const sets = Object.entries(f).filter(([, v]) => v !== undefined);
   if (!sets.length) return taskDetail(ctx, task.id);
+  const inGroup = f.assignee_id ? groupMemberIds(db, project) : null;
   return db.tx(() => {
     db.run(`UPDATE tasks SET ${sets.map(([k]) => `${k} = ?`).join(', ')}, updated_at = ? WHERE id = ?`, ...sets.map(([, v]) => v), ctx.now, task.id);
     if (f.status !== undefined && f.status !== task.status) {
@@ -859,6 +897,7 @@ route('PATCH', '/tasks/:id', (ctx) => {
       const a = userBrief(db, f.assignee_id);
       log(ctx, project.id, 'task_assigned', `${merged.title} → ${a?.name || 'Unassigned'}`, task.id);
       if (f.assignee_id) notify(ctx, f.assignee_id, project.id, `${ctx.user.name} assigned you “${merged.title}” in ${project.code}`, task.id);
+      if (f.assignee_id) announceJoin(ctx, project, inGroup, f.assignee_id, merged.title);
     }
     if (f.due_date !== undefined && f.due_date !== task.due_date) {
       log(ctx, project.id, 'task_due', `${merged.title} → ${f.due_date || 'no date'}`, task.id);
@@ -1120,13 +1159,9 @@ route('POST', '/projects/:id/comments', (ctx) => {
   const where = task ? `on “${task.title}”` : `on ${p.code}`;
   const told = new Set();
   // @mentions of people who can see this vertical
-  const lower = body.toLowerCase();
-  for (const u of db.all('SELECT id, name FROM users WHERE active = 1')) {
-    const first = u.name.split(' ')[0].toLowerCase();
-    if (lower.includes('@' + u.name.toLowerCase()) || new RegExp(`@${first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(lower)) {
-      const lu = loadUser(db, u.id);
-      if (lu && levelFor(lu, p.vertical_id)) { notify(ctx, u.id, p.id, `${ctx.user.name} mentioned you ${where}`, task?.id); told.add(u.id); }
-    }
+  for (const u of mentionedUsers(db, body)) {
+    const lu = loadUser(db, u.id);
+    if (lu && levelFor(lu, p.vertical_id)) { notify(ctx, u.id, p.id, `${ctx.user.name} mentioned you ${where}`, task?.id); told.add(u.id); }
   }
   if (task?.assignee_id && !told.has(task.assignee_id)) { notify(ctx, task.assignee_id, p.id, `${ctx.user.name} commented ${where}`, task.id); told.add(task.assignee_id); }
   if (p.owner_id && !told.has(p.owner_id)) notify(ctx, p.owner_id, p.id, `${ctx.user.name} commented ${where}`, task?.id);
@@ -1196,6 +1231,320 @@ route('POST', '/comments/:id/delete-decision', (ctx) => {
       : `${ctx.user.name} asked to keep your comment in ${p.code}.`, c.task_id);
   });
   return commentById(ctx, c.id, p);
+});
+
+// ---------------------------------------------------------------- team groups
+
+// Every project has a group chat for the people working on it: the owner, the project team
+// and anyone with a task in it. People join and leave automatically as the team changes.
+// Heads of the vertical can look in on any group they oversee. The group closes when the
+// project is delivered or cancelled (it drops off everyone's list and turns read-only) and
+// opens again if the project is reopened.
+export const GROUP_STATUSES = ['on_track', 'need_help', 'blocked', 'done'];
+const GROUP_KINDS = ['message', 'update', 'status'];
+const STATUS_LABELS = { on_track: 'On track', need_help: 'Need help', blocked: 'Blocked', done: 'Done for today' };
+
+function groupMemberIds(db, p) {
+  const ids = new Set();
+  if (p.owner_id) ids.add(p.owner_id);
+  for (const r of db.all('SELECT user_id FROM project_members WHERE project_id = ?', p.id)) ids.add(r.user_id);
+  for (const r of db.all('SELECT DISTINCT assignee_id AS id FROM tasks WHERE project_id = ? AND assignee_id IS NOT NULL', p.id)) ids.add(r.id);
+  return ids;
+}
+
+// Members who can still open the project: active, with access to its vertical.
+function groupMembers(db, p) {
+  const ids = [...groupMemberIds(db, p)];
+  if (!ids.length) return [];
+  return db.all(
+    `SELECT u.id, u.name, u.title, u.color FROM users u WHERE u.id IN (${placeholders(ids)}) AND u.active = 1
+       AND (u.role = 'admin' OR EXISTS (SELECT 1 FROM user_verticals uv WHERE uv.user_id = u.id AND uv.vertical_id = ?))
+     ORDER BY u.name`,
+    ...ids, p.vertical_id,
+  );
+}
+
+const groupOpen = (p) => OPEN_STATUSES.includes(p.status);
+
+// Messages from others since I last opened the group (notices do not count).
+function groupUnread(ctx, projectId) {
+  return ctx.db.get(
+    "SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ? AND kind != 'system' AND COALESCE(user_id, 0) != ? AND created_at > ?",
+    projectId, uid(ctx), seenAt(ctx.db, uid(ctx), `group:${projectId}`),
+  ).n;
+}
+
+// A group exists for me only if I am in it or I am a head of its vertical.
+function getGroup(ctx, id) {
+  const p = ctx.db.get('SELECT * FROM projects WHERE id = ?', toId(id, 'Group'));
+  if (!p || !canView(ctx.user, p)) throw notFound('Group');
+  const member = groupMemberIds(ctx.db, p).has(uid(ctx));
+  const head = canManageVertical(ctx.user, p.vertical_id);
+  if (!member && !head) throw notFound('Group');
+  return { p, member, head };
+}
+
+// A grey notice in the group: joins, status changes, the group closing.
+function groupEvent(ctx, projectId, body) {
+  ctx.db.run("INSERT INTO group_messages (project_id, user_id, kind, body, created_at) VALUES (?,?,'system',?,?)", projectId, uid(ctx), body, ctx.now);
+}
+
+function statusNotice(who, from, to, readyLabel) {
+  if (to === 'completed') return `${who} marked the project delivered. This group is now closed and its messages stay with the project.`;
+  if (to === 'cancelled') return `${who} cancelled the project. This group is now closed and its messages stay with the project.`;
+  if (!OPEN_STATUSES.includes(from)) return `${who} reopened the project, so this group is open again.`;
+  if (to === 'ready') return `${who} moved the project to ${readyLabel || 'Ready'}.`;
+  if (to === 'on_hold') return `${who} put the project on hold.`;
+  if (to === 'planning') return `${who} moved the project back to Planning.`;
+  return from === 'on_hold' ? `${who} resumed the project.` : `${who} moved the project to Active.`;
+}
+
+// Someone given a task in a project they were not working on joins its group.
+function announceJoin(ctx, project, before, assigneeId, title) {
+  if (!assigneeId || before.has(assigneeId) || !groupOpen(project)) return;
+  const name = userBrief(ctx.db, assigneeId)?.name;
+  if (!name) return;
+  groupEvent(ctx, project.id, assigneeId === uid(ctx)
+    ? `${name} joined the group and picked up “${title}”.`
+    : `${name} joined the group: ${ctx.user.name} assigned them “${title}”.`);
+}
+
+// Each member's most recent status post: { userId: { status, body, created_at } }.
+function latestStatuses(db, projectId) {
+  const out = new Map();
+  for (const r of db.all(
+    `SELECT user_id, status, body, created_at FROM group_messages WHERE id IN
+       (SELECT MAX(id) FROM group_messages WHERE project_id = ? AND kind = 'status' GROUP BY user_id)`,
+    projectId,
+  )) out.set(r.user_id, r);
+  return out;
+}
+
+const MSG_COLS = 'g.*, u.name AS user_name, u.color AS user_color, d.name AS decided_by_name';
+const MSG_FROM = 'FROM group_messages g LEFT JOIN users u ON u.id = g.user_id LEFT JOIN users d ON d.id = g.delete_decided_by';
+
+function shapeMessage(ctx, m, head) {
+  const notice = m.kind === 'system';
+  const mine = !notice && m.user_id === uid(ctx);
+  const left = mine ? Math.max(0, DELETE_WINDOW_MS - (Date.parse(ctx.now) - Date.parse(m.created_at))) : 0;
+  return {
+    ...m,
+    mine,
+    delete_ms_left: left,
+    can_delete: mine && (left > 0 || m.delete_status === 'approved'),
+    can_request_delete: mine && left === 0 && m.delete_status !== 'requested' && m.delete_status !== 'approved',
+    can_decide: !notice && !mine && m.delete_status === 'requested' && head,
+    can_head_delete: !notice && !mine && head,
+  };
+}
+
+function messageById(ctx, id, head) {
+  return shapeMessage(ctx, ctx.db.get(`SELECT ${MSG_COLS} ${MSG_FROM} WHERE g.id = ?`, id), head);
+}
+
+route('GET', '/groups', (ctx) => {
+  const { db } = ctx;
+  const vids = scopeVerticals(ctx);
+  if (!vids.length) return { items: [] };
+  const me = uid(ctx);
+  const managed = vids.filter((v) => canManageVertical(ctx.user, v));
+  const isMember = `(p.owner_id = ? OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = p.id AND pm.user_id = ?)
+    OR EXISTS (SELECT 1 FROM tasks t WHERE t.project_id = p.id AND t.assignee_id = ?))`;
+  const rows = db.all(
+    `SELECT p.id, p.code, p.name, p.client, p.status, p.owner_id, p.vertical_id, p.key_date, p.created_at,
+       v.short AS vertical, v.color AS vertical_color, v.ready_label, v.key_date_label, ${isMember} AS member
+     FROM projects p JOIN verticals v ON v.id = p.vertical_id
+     WHERE p.vertical_id IN (${placeholders(vids)}) AND p.status IN ${OPEN_IN}
+       AND (${isMember}${managed.length ? ` OR p.vertical_id IN (${placeholders(managed)})` : ''})`,
+    me, me, me, ...vids, me, me, me, ...managed,
+  );
+  if (!rows.length) return { items: [] };
+  const ids = rows.map((r) => r.id);
+  const unread = new Map(db.all(
+    `SELECT g.project_id AS pid, COUNT(*) AS n FROM group_messages g
+     LEFT JOIN seen s ON s.user_id = ? AND s.scope = 'group:' || g.project_id
+     WHERE g.project_id IN (${placeholders(ids)}) AND g.kind != 'system' AND COALESCE(g.user_id, 0) != ? AND g.created_at > COALESCE(s.seen_at, '')
+     GROUP BY g.project_id`,
+    me, ...ids, me,
+  ).map((r) => [r.pid, r.n]));
+  const items = rows.map((p) => {
+    const members = groupMembers(db, p);
+    const inGroup = new Set(members.map((m) => m.id));
+    const flags = { blocked: 0, need_help: 0 };
+    for (const [userId, st] of latestStatuses(db, p.id)) if (inGroup.has(userId) && flags[st.status] !== undefined) flags[st.status]++;
+    const last = db.get(
+      `SELECT g.kind, g.status, g.body, g.created_at, g.user_id, u.name AS user_name FROM group_messages g
+       LEFT JOIN users u ON u.id = g.user_id WHERE g.project_id = ? ORDER BY g.id DESC LIMIT 1`,
+      p.id,
+    );
+    return {
+      ...p,
+      member: !!p.member,
+      role: p.member ? 'member' : 'head',
+      member_count: members.length,
+      members: members.slice(0, 5),
+      last: last || null,
+      unread: unread.get(p.id) || 0,
+      flags,
+    };
+  });
+  items.sort((a, b) => (b.last?.created_at || b.created_at || '').localeCompare(a.last?.created_at || a.created_at || ''));
+  return { items };
+});
+
+route('GET', '/groups/:id', (ctx) => {
+  const { db } = ctx;
+  const { p, member, head } = getGroup(ctx, ctx.params.id);
+  const v = db.get('SELECT short, name, color, ready_label, key_date_label FROM verticals WHERE id = ?', p.vertical_id);
+  const team = new Set(db.all('SELECT user_id FROM project_members WHERE project_id = ?', p.id).map((r) => r.user_id));
+  const openTasks = new Map(db.all(
+    "SELECT assignee_id AS id, COUNT(*) AS n FROM tasks WHERE project_id = ? AND assignee_id IS NOT NULL AND status != 'done' GROUP BY assignee_id",
+    p.id,
+  ).map((r) => [r.id, r.n]));
+  const statuses = latestStatuses(db, p.id);
+  const members = groupMembers(db, p).map((m) => ({
+    ...m,
+    owner: m.id === p.owner_id,
+    on_team: team.has(m.id),
+    open_tasks: openTasks.get(m.id) || 0,
+    status: statuses.get(m.id) || null,
+  }));
+  members.sort((a, b) => b.owner - a.owner || a.name.localeCompare(b.name));
+  const inGroup = new Set(members.map((m) => m.id));
+  const heads = headsOf(db, p.vertical_id).filter((id) => !inGroup.has(id)).map((id) => userBrief(db, id)).filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const open = groupOpen(p);
+  // When it closed: delivery time, else the last status change, else the closing notice.
+  const closedAt = open ? null : p.completed_at
+    || db.get("SELECT created_at FROM activity WHERE project_id = ? AND action = 'status' ORDER BY id DESC LIMIT 1", p.id)?.created_at
+    || db.get("SELECT created_at FROM group_messages WHERE project_id = ? AND kind = 'system' AND body LIKE '%group is now closed%' ORDER BY id DESC LIMIT 1", p.id)?.created_at
+    || p.updated_at;
+  return {
+    project: {
+      id: p.id, code: p.code, name: p.name, client: p.client, status: p.status, stage: p.stage, health: p.health,
+      key_date: p.key_date, due_date: p.due_date, owner_id: p.owner_id, vertical_id: p.vertical_id,
+      vertical: v.short, vertical_name: v.name, vertical_color: v.color, ready_label: v.ready_label, key_date_label: v.key_date_label,
+    },
+    open,
+    closed_at: closedAt,
+    members,
+    heads,
+    role: member ? 'member' : 'head',
+    can_post: open && canContribute(ctx.user, p),
+    seen_at: seenAt(db, uid(ctx), `group:${p.id}`),
+    message_count: db.get("SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ? AND kind != 'system'", p.id).n,
+  };
+});
+
+route('GET', '/groups/:id/messages', (ctx) => {
+  const { p, head } = getGroup(ctx, ctx.params.id);
+  const limit = Math.min(Math.max(Math.floor(Number(ctx.query.limit)) || 80, 1), 400);
+  const where = ['g.project_id = ?'];
+  const params = [p.id];
+  if (ctx.query.before) { where.push('g.id < ?'); params.push(Number(ctx.query.before) || 0); }
+  if (ctx.query.kind === 'updates') where.push("g.kind IN ('update','status')");
+  const rows = ctx.db.all(`SELECT ${MSG_COLS} ${MSG_FROM} WHERE ${where.join(' AND ')} ORDER BY g.id DESC LIMIT ?`, ...params, limit + 1);
+  return {
+    items: rows.slice(0, limit).reverse().map((m) => shapeMessage(ctx, m, head)),
+    has_more: rows.length > limit,
+  };
+});
+
+route('POST', '/groups/:id/messages', (ctx) => {
+  const { db } = ctx;
+  const { p, head } = getGroup(ctx, ctx.params.id);
+  if (!groupOpen(p)) {
+    throw new HttpError(409, `This group closed when the project was ${p.status === 'cancelled' ? 'cancelled' : 'delivered'}. Its messages are kept read-only.`, 'group_closed');
+  }
+  if (!canContribute(ctx.user, p)) throw forbidden('You have view-only access to this vertical');
+  const kind = oneOf(ctx.body.kind ?? 'message', GROUP_KINDS, 'Message type');
+  const status = kind === 'status' ? oneOf(ctx.body.status, GROUP_STATUSES, 'Status') : null;
+  if (kind === 'status' && !status) throw bad('Pick a status: on track, need help, blocked or done');
+  const body = text(ctx.body.body, { max: 4000, label: 'Message', required: kind !== 'status' }) || '';
+  const { id } = db.run(
+    'INSERT INTO group_messages (project_id, user_id, kind, status, body, created_at) VALUES (?,?,?,?,?,?)',
+    p.id, uid(ctx), kind, status, body, ctx.now,
+  );
+  const link = `/teams/${p.id}`;
+  const audience = new Set([...groupMemberIds(db, p), ...headsOf(db, p.vertical_id)]);
+  const told = new Set();
+  for (const u of mentionedUsers(db, body)) {
+    const lu = audience.has(u.id) && loadUser(db, u.id);
+    if (lu && levelFor(lu, p.vertical_id)) {
+      notify(ctx, u.id, p.id, `${ctx.user.name} mentioned you in the ${p.code} group`, null, link);
+      told.add(u.id);
+    }
+  }
+  // Asking for help reaches the project owner even if they are not watching the chat.
+  if ((status === 'blocked' || status === 'need_help') && p.owner_id && !told.has(p.owner_id)) {
+    const snippet = body.length > 60 ? body.slice(0, 57) + '…' : body;
+    notify(ctx, p.owner_id, p.id, `${ctx.user.name} is ${STATUS_LABELS[status].toLowerCase()} in the ${p.code} group${snippet ? `: “${snippet}”` : ''}`, null, link);
+  }
+  return messageById(ctx, id, head);
+});
+
+// Same rules as comments: 15 seconds to delete your own message, then a head has to approve it.
+// Heads can remove anyone's message, and the group sees a notice that they did.
+function getMessage(ctx) {
+  const m = ctx.db.get('SELECT * FROM group_messages WHERE id = ?', toId(ctx.params.id, 'Message'));
+  if (!m) throw notFound('Message');
+  const g = getGroup(ctx, m.project_id);
+  if (m.kind === 'system') throw forbidden('Group notices cannot be deleted');
+  return { m, ...g };
+}
+
+route('DELETE', '/group-messages/:id', (ctx) => {
+  const { m, p } = getMessage(ctx);
+  const author = userBrief(ctx.db, m.user_id);
+  if (m.user_id !== uid(ctx)) {
+    if (!canManageVertical(ctx.user, p.vertical_id)) throw forbidden('Only the author or a head of this vertical can delete this message');
+    ctx.db.tx(() => {
+      ctx.db.run('DELETE FROM group_messages WHERE id = ?', m.id);
+      groupEvent(ctx, p.id, `${ctx.user.name} removed a message by ${author?.name || 'someone'}.`);
+      notify(ctx, m.user_id, p.id, `${ctx.user.name} removed your message in the ${p.code} group`, null, `/teams/${p.id}`);
+    });
+    return { ok: true };
+  }
+  const age = Date.parse(ctx.now) - Date.parse(m.created_at);
+  if (age > DELETE_WINDOW_MS + DELETE_GRACE_MS && m.delete_status !== 'approved') {
+    throw forbidden('Messages can only be deleted within 15 seconds of sending. Ask a head to approve the deletion.');
+  }
+  const approver = m.delete_status === 'approved' ? userBrief(ctx.db, m.delete_decided_by) : null;
+  ctx.db.tx(() => {
+    ctx.db.run('DELETE FROM group_messages WHERE id = ?', m.id);
+    if (approver) groupEvent(ctx, p.id, `${ctx.user.name} deleted a message, approved by ${approver.name}.`);
+  });
+  return { ok: true };
+});
+
+route('POST', '/group-messages/:id/delete-request', (ctx) => {
+  const { m, p, head } = getMessage(ctx);
+  if (m.user_id !== uid(ctx)) throw forbidden('You can only ask to delete your own messages');
+  if (m.delete_status === 'requested') throw bad('A head has already been asked to approve this');
+  if (m.delete_status === 'approved') throw bad('Deletion is already approved. You can delete the message now.');
+  ctx.db.tx(() => {
+    ctx.db.run("UPDATE group_messages SET delete_status = 'requested', delete_requested_at = ?, delete_decided_by = NULL, delete_decided_at = NULL WHERE id = ?", ctx.now, m.id);
+    const snippet = m.body.length > 60 ? m.body.slice(0, 57) + '…' : m.body;
+    for (const h of headsOf(ctx.db, p.vertical_id)) {
+      notify(ctx, h, p.id, `${ctx.user.name} asks to delete a message in the ${p.code} group: “${snippet}”`, null, `/teams/${p.id}`);
+    }
+  });
+  return messageById(ctx, m.id, head);
+});
+
+route('POST', '/group-messages/:id/delete-decision', (ctx) => {
+  const { m, p, head } = getMessage(ctx);
+  if (!head) throw forbidden('Only a head of this vertical can approve deleting messages');
+  if (m.user_id === uid(ctx)) throw forbidden('Another head has to approve deleting your own message');
+  if (m.delete_status !== 'requested') throw bad('There is no pending request for this message');
+  const approve = !!ctx.body.approve;
+  ctx.db.tx(() => {
+    ctx.db.run('UPDATE group_messages SET delete_status = ?, delete_decided_by = ?, delete_decided_at = ? WHERE id = ?', approve ? 'approved' : 'declined', uid(ctx), ctx.now, m.id);
+    notify(ctx, m.user_id, p.id, approve
+      ? `${ctx.user.name} approved deleting your message in the ${p.code} group. You can delete it now.`
+      : `${ctx.user.name} asked to keep your message in the ${p.code} group.`, null, `/teams/${p.id}`);
+  });
+  return messageById(ctx, m.id, head);
 });
 
 // ---------------------------------------------------------------- calendar, search, notifications

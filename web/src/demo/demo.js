@@ -3,7 +3,7 @@
 import initSqlJs from 'sql.js/dist/sql-wasm.js';
 import wasmB64 from 'virtual:sql-wasm';
 import { migrate, seedBasics } from '../../../core/setup.js';
-import { seedDemo, DEMO_ACCOUNTS, DEMO_PEOPLE, demoEmail } from '../../../core/demo-seed.js';
+import { seedDemo, seedGroupChats, DEMO_ACCOUNTS, DEMO_PEOPLE, demoEmail } from '../../../core/demo-seed.js';
 import { handle } from '../../../core/api.js';
 import { loadUser } from '../../../core/access.js';
 import { todayIn } from '../../../core/util.js';
@@ -162,7 +162,10 @@ export async function startDemo() {
     const saved = fresh ? null : await idbGet('kv', DB_KEY);
     raw = saved ? new SQL.Database(saved) : new SQL.Database();
     db = adapter(raw);
+    const before = saved ? Number(db.get("SELECT value FROM settings WHERE key = 'schema_version'")?.value || 1) : 0;
     migrate(db);
+    // Sample data saved before team groups existed gets sample chats too.
+    if (saved && before < 4 && seedGroupChats(db, { today: today() })) await persist();
     if (!saved) {
       seedBasics(db);
       seedDemo(db, { today: today(), passwordHash: 'demo' });
