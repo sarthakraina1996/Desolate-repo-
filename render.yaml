@@ -1,0 +1,27 @@
+# Render Blueprint: one web service with a persistent disk for the database and uploads.
+# In Render: New → Blueprint → pick this repository (and branch) → fill in the admin login.
+services:
+  - type: web
+    name: brainadz-projects
+    runtime: node
+    plan: starter # persistent disks need a paid instance
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/auth/config
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: SECURE_COOKIES
+        value: "1"
+      - key: TIMEZONE
+        value: Asia/Kolkata
+      - key: ADMIN_NAME
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: brainadz-data
+      mountPath: /var/data
+      sizeGB: 5

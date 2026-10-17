@@ -13,6 +13,7 @@
     "dev:web": "vite",
     "build": "vite build",
     "build:demo": "vite build --mode demo && node scripts/build-artifact.js",
+    "build:pages": "npm run build:demo && node scripts/build-pages.js",
     "start": "node --no-warnings=ExperimentalWarning server/index.js",
     "seed:demo": "node --no-warnings=ExperimentalWarning server/seed-demo.js",
     "test": "node --no-warnings=ExperimentalWarning --test tests/*.test.js"

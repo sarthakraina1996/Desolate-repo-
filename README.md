@@ -79,11 +79,33 @@ npm run dev            # API on :3000 and the web app with hot reload on :5173
 npm test               # access-control and server tests
 ```
 
-## Deploy
+## Host it from this repository
 
-Everything lives in one folder set by `DATA_DIR` (default `./data`): the SQLite database `projects.db` and uploaded files under `uploads/`. Back up that folder and you have backed up everything.
+### Option 1: GitHub Pages (free, demo only)
 
-With Docker:
+`docs/index.html` is the one-file browser demo. GitHub can serve it straight from this repository:
+
+1. On GitHub, open **Settings → Pages**.
+2. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
+3. Pick the branch that holds this code and the **/docs** folder, then press **Save**.
+4. After a minute the site is live at `https://<github-user>.github.io/<repo-name>/`.
+
+Every visitor gets their own copy of the sample data, kept in their browser. Use it for showing the app, not for real work. After changing the code, run `npm run build:pages` and commit `docs/` to update it.
+
+### Option 2: Render (the real app for your team)
+
+`render.yaml` describes the whole setup: a Node web service plus a 5 GB disk for the database and uploaded files.
+
+1. Sign in at [render.com](https://render.com) with your GitHub account.
+2. Choose **New → Blueprint**, pick this repository and the branch that holds this code.
+3. Fill in `ADMIN_NAME`, `ADMIN_EMAIL` and `ADMIN_PASSWORD` for the first admin, then **Apply**.
+4. When the deploy finishes, open the `onrender.com` address Render shows, sign in as that admin, and add your team under **Team & Access**.
+
+The disk needs a paid instance (Render's Starter plan). Everything people add lives on the disk at `/var/data`, which Render keeps across deploys and restarts. A custom domain such as `projects.brainadz.com` can be added in the service's **Settings → Custom Domains**.
+
+### Other hosts
+
+Any host that runs Node.js 22 or Docker works. Build with `npm ci --include=dev && npm run build`, start with `npm start`, and point `DATA_DIR` at storage that survives restarts. With Docker:
 
 ```bash
 docker build -t brainadz-projects .
@@ -92,12 +114,10 @@ docker run -p 3000:3000 -v brainadz-data:/data \
   -e SECURE_COOKIES=1 brainadz-projects
 ```
 
-On a host such as Render or Railway, attach a persistent disk, point `DATA_DIR` at it, and set `SECURE_COOKIES=1` when the site is served over HTTPS.
-
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `3000` | Port to listen on |
-| `DATA_DIR` | `./data` | Database and uploaded files |
+| `DATA_DIR` | `./data` | Database and uploaded files. Back up this folder. |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | generated | First admin account (first start only) |
 | `SECURE_COOKIES` | off | Set to `1` behind HTTPS |
 | `MAX_UPLOAD_MB` | `200` | Largest file someone can upload |
