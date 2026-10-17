@@ -422,6 +422,11 @@ const GROUP_LINES = {
     help: 'I will call their purchase head now and get a date.',
     latest: '@{a} can you share the latest render here once the logo is fixed?',
     closing: ['Show went really well, the client is happy with the footfall.', 'Dismantle done and all material is back at the workshop.'],
+    share: ['Revised renders with the bigger logo, and the backwall artwork for print.', [
+      ['Stall 3D render – front view v4.jpg', 'image/jpeg', 'Design', 3200],
+      ['Stall 3D render – aerial v4.jpg', 'image/jpeg', 'Design', 2900],
+      ['Backwall graphics artwork v2.pdf', 'application/pdf', 'Design', 5400],
+    ]],
   },
   Live: {
     update: 'Update: venue and AV vendor are locked. Next up are the artist contract and the run-of-show.',
@@ -432,6 +437,10 @@ const GROUP_LINES = {
     help: 'Send me both options with fees, I will take it to the client today.',
     latest: '@{a} please check the green room booking for the show night.',
     closing: ['Great show everyone. Client sent a thank-you note this morning.', 'Vendor settlements done, final report is in Files.'],
+    share: ['Stage render with the new LED wall, and the floor plan with the seating.', [
+      ['Stage design render v3.jpg', 'image/jpeg', 'Design', 2800],
+      ['Ballroom floor plan and seating.pdf', 'application/pdf', 'Production', 1300],
+    ]],
   },
   Marketing: {
     update: 'Update: creative route approved. Adaptations this week and media goes live on schedule.',
@@ -442,6 +451,10 @@ const GROUP_LINES = {
     help: 'Checking with Siddharth, will confirm in an hour.',
     latest: '@{a} the client wants the performance numbers in Monday’s call, can you pull them?',
     closing: ['Campaign wrapped, results beat the target. Thanks all.', 'Final report shared with the client.'],
+    share: ['Key visual with the client’s comments done, plus the adaptations sheet.', [
+      ['Key visual – route B v2.jpg', 'image/jpeg', 'Design', 2400],
+      ['Adaptations sheet.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Production', 90],
+    ]],
   },
 };
 
@@ -462,7 +475,16 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
   const post = (pid, userId, kind, body, createdAt, status = null) => db.run(
     'INSERT INTO group_messages (project_id, user_id, kind, status, body, created_at) VALUES (?,?,?,?,?,?)',
     pid, userId, kind, status, body, createdAt,
-  );
+  ).id;
+  // Sample files have no bytes behind them; the app draws a placeholder for sample images.
+  const share = (pid, userId, body, files, createdAt) => {
+    const mid = post(pid, userId, 'message', body, createdAt);
+    files.forEach(([name, mime, category, kb], i) => db.run(
+      `INSERT INTO files (project_id, kind, name, mime, size, category, storage_key, is_final, note, uploaded_by, created_at, message_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      pid, 'file', name, mime, kb * 1024, category, `sample:chat-${mid}-${i}`, 0, 'Shared in the team group', userId, createdAt, mid,
+    ));
+  };
   const projects = db.all(
     `SELECT p.id, p.code, p.name, p.client, p.status, p.health, p.owner_id, p.due_date, p.created_at, p.completed_at, v.short, v.ready_label
      FROM projects p JOIN verticals v ON v.id = p.vertical_id ORDER BY p.id`,
@@ -510,6 +532,7 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
     post(g.id, owner, 'update', lines.update, at(-5, 9, 40));
     post(g.id, a, 'message', fill(lines.ask), at(-3, 11, 15));
     post(g.id, owner, 'message', lines.reply, at(-3, 11, 22));
+    share(g.id, b, lines.share[0], lines.share[1], at(-2, 15, 10));
     post(g.id, b, 'status', lines.onTrack, at(-1, 17, 30), 'on_track');
     if (g.status === 'ready') {
       post(g.id, owner, 'system', `${nameById.get(owner)} moved the project to ${g.ready_label || 'Ready'}.`, at(-1, 18, 5));

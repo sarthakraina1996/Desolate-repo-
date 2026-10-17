@@ -81,9 +81,14 @@ export function Composer({ onSend, placeholder = 'Write an update. Use @name to 
   );
 }
 
-export function CommentBody({ text }) {
+// Web links become clickable; @mentions are highlighted.
+const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?'")\]])/g;
+function Mentions({ text }) {
   const parts = text.split(/(@[A-Z][a-z]+(?: [A-Z][a-z]+)?)/g);
   return <>{parts.map((s, i) => (s.startsWith('@') ? <b key={i} className="mention">{s}</b> : s))}</>;
+}
+export function CommentBody({ text }) {
+  return <>{text.split(URL_RE).map((s, i) => (i % 2 ? <a key={i} href={s} target="_blank" rel="noopener noreferrer" className="t-link">{s}</a> : <Mentions key={i} text={s} />))}</>;
 }
 
 // Remember when comments arrived, so the 15-second countdown survives re-renders.

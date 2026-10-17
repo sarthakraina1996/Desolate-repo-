@@ -440,3 +440,43 @@
 .t-views button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 9px 2px; margin-bottom: -1px; border-bottom: 2px solid transparent; font-weight: 600; font-size: 13px; color: var(--muted); cursor: pointer; }
 .t-views button:hover { color: var(--text-2); }
 .t-views button.on { color: var(--blue); border-bottom-color: var(--blue); }
+
+/* team groups: shared files */
+.t-chat { position: relative; }
+.t-drop { position: absolute; inset: 8px; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 20px; border: 2px dashed var(--blue); border-radius: 12px; background: rgba(232, 240, 254, .94); color: var(--blue); pointer-events: none; }
+.t-drop span { color: var(--text-2); }
+.t-attach { width: 42px; height: 42px; padding: 0; flex-shrink: 0; color: var(--text-2); }
+.t-tray { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.t-chip-file { position: relative; display: flex; align-items: center; gap: 8px; width: 220px; max-width: 100%; padding: 6px 30px 6px 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); overflow: hidden; }
+.t-chip-file.failed { border-color: #f5b5c0; background: var(--red-soft); }
+.t-chip-file img { width: 36px; height: 36px; object-fit: cover; border-radius: 7px; flex-shrink: 0; }
+.t-chip-file .file-ic { width: 36px; height: 36px; flex-shrink: 0; }
+.t-chip-text { display: flex; flex-direction: column; min-width: 0; }
+.t-chip-text .xs { display: inline-flex; align-items: center; gap: 4px; }
+.t-chip-x { position: absolute; top: 6px; right: 6px; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 6px; display: inline-flex; }
+.t-chip-x:hover { background: #fff; color: var(--red); }
+.t-chip-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--blue); transition: width .2s; }
+.t-files { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; max-width: 520px; }
+.t-imgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
+.t-imgs.one { grid-template-columns: minmax(0, 340px); }
+.t-img { padding: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-2); cursor: zoom-in; display: block; }
+.t-img .thumb { border-bottom: 0; aspect-ratio: 4 / 3; }
+.t-imgs.one .t-img .thumb { aspect-ratio: 16 / 10; }
+.t-img:hover { border-color: var(--blue); }
+.t-file { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.t-file:hover { border-color: var(--border-strong); }
+.t-file .file-ic { width: 34px; height: 34px; flex-shrink: 0; }
+.t-file-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; border: 0; background: none; padding: 0; cursor: pointer; text-align: left; color: var(--text); }
+.t-file-main .small { max-width: 100%; }
+.t-link { overflow-wrap: anywhere; }
+.t-views .pill-num { margin-left: 2px; padding: 0 7px; font-size: 11px; }
+@media (max-width: 760px) {
+  .t-chip-file { width: 100%; }
+  .t-attach { width: 40px; }
+}
+.t-views { overflow-x: auto; scrollbar-width: none; }
+.t-views button { white-space: nowrap; flex-shrink: 0; }
+/* In the demo the "Viewing as" bar is fixed at the bottom of a phone screen: keep the chat's send box above it. */
+@media (max-width: 760px) {
+  body:has(.demo-badge) .teams { height: calc(100vh - var(--t-top, 190px) - 124px); height: calc(100dvh - var(--t-top, 190px) - 124px); }
+}

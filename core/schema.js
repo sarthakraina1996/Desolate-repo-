@@ -1,7 +1,7 @@
 // Database schema shared by the Node server (node:sqlite) and the in-browser demo (sql.js).
 // Both run SQLite, so the same SQL works everywhere.
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 // Kept as a function so a migration can rebuild the table with the same definition.
 export function projectsTable(name) {
@@ -157,7 +157,9 @@ CREATE TABLE IF NOT EXISTS files (
   is_final INTEGER DEFAULT 0,
   note TEXT DEFAULT '',
   uploaded_by INTEGER,
-  created_at TEXT
+  created_at TEXT,
+  -- Set when the file was shared in the project's team group (it is a project file too).
+  message_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_files_project ON files(project_id);
 

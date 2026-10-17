@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   MessagesSquare, Megaphone, CircleCheck, LifeBuoy, OctagonAlert, CheckCheck, Activity, MessageSquareText, Search, Send,
-  ChevronLeft, ExternalLink, Users, Info, Lock, ArrowDown, X,
+  ChevronLeft, ExternalLink, Users, Info, Lock, ArrowDown, X, Paperclip, Download, Upload, Loader2, AlertCircle,
 } from 'lucide-react';
 import { useApp, useLoad } from '../store.jsx';
 import { api } from '../api.js';
 import { Link, useRouter } from '../router.jsx';
-import { Avatar, AvatarStack, Empty, ErrorNote, Loading, Seg, StatusBadge, PROJECT_STATUS, alpha } from '../ui.jsx';
+import { Avatar, AvatarStack, Empty, ErrorNote, Loading, Seg, StatusBadge, PROJECT_STATUS, FileIcon, FileThumb, alpha } from '../ui.jsx';
 import { CommentBody, DeleteControls, stampReceived } from '../activity.jsx';
-import { fmtDate, fmtTime, timeAgo } from '../format.js';
+import { FilePreview, guessCategory } from '../files.jsx';
+import { bytes, fmtDate, fmtTime, timeAgo } from '../format.js';
 import { NoAccess } from './Dashboard.jsx';
 
 export const GROUP_STATUS = {
@@ -20,6 +21,7 @@ export const GROUP_STATUS = {
 
 const POLL_CHAT_MS = 4000;
 const POLL_LIST_MS = 15000;
+const MAX_FILES = 10; // per message, same as the server
 
 function useMedia(query) {
   const get = () => typeof window !== 'undefined' && window.matchMedia?.(query).matches;
@@ -76,6 +78,7 @@ function preview(last, meId) {
   if (!last) return 'No messages yet';
   if (last.kind === 'system') return last.body;
   const who = last.user_id === meId ? 'You' : (last.user_name || 'Someone').split(' ')[0];
+  if (last.file_count && !last.body) return `${who} shared ${last.file_count > 1 ? `${last.file_count} files` : last.file_name}`;
   if (last.kind === 'status') return `${who}: ${GROUP_STATUS[last.status]?.label || 'Status'}${last.body ? ` · ${last.body}` : ''}`;
   if (last.kind === 'update') return `${who} posted an update: ${last.body}`;
   return `${who}: ${last.body}`;
@@ -147,7 +150,39 @@ function StatusChip({ status, size = 13 }) {
   return <span className="t-st-chip" style={{ color: st.color, background: st.soft }}><st.icon size={size} />{st.label}</span>;
 }
 
-function Message({ m, compact, onChanged }) {
+// Images as a grid of thumbnails, everything else as a file row with a download button.
+function Attachments({ files, onOpen }) {
+  const { toast } = useApp();
+  const images = files.filter((f) => f.mime?.startsWith('image/'));
+  const others = files.filter((f) => !f.mime?.startsWith('image/'));
+  return (
+    <div className="t-files">
+      {images.length > 0 && (
+        <div className={`t-imgs ${images.length === 1 ? 'one' : ''}`}>
+          {images.map((f) => (
+            <button key={f.id} type="button" className="t-img" onClick={() => onOpen(f)} title={f.name} aria-label={`Open ${f.name}`}>
+              <FileThumb file={f} />
+            </button>
+          ))}
+        </div>
+      )}
+      {others.map((f) => (
+        <div key={f.id} className="t-file">
+          <FileIcon file={f} size={18} />
+          <button type="button" className="t-file-main" onClick={() => onOpen(f)} title={`Open ${f.name}`}>
+            <span className="small b6 ellipsis">{f.name}</span>
+            <span className="xs muted">{[f.category, bytes(f.size)].filter(Boolean).join(' · ')}</span>
+          </button>
+          <button type="button" className="icon-btn sm-x" aria-label={`Download ${f.name}`} title="Download" onClick={() => api.download(f).catch((e) => toast(e.message, 'error'))}>
+            <Download size={16} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Message({ m, compact, onChanged, onOpenFile }) {
   if (m.kind === 'system') {
     return (
       <div className="t-notice">
@@ -172,28 +207,79 @@ function Message({ m, compact, onChanged }) {
             <StatusChip status={m.status} />
             {m.body && <span className="t-text"><CommentBody text={m.body} /></span>}
           </div>
-        ) : (
+        ) : m.body ? (
           <div className={m.kind === 'update' ? 't-update' : 't-text'}><CommentBody text={m.body} /></div>
-        )}
+        ) : !m.files?.length && <div className="t-text muted"><i>File removed</i></div>}
+        {m.files?.length > 0 && <Attachments files={m.files} onOpen={onOpenFile} />}
         <DeleteControls c={m} base={`/group-messages/${m.id}`} noun="message" onChanged={onChanged} floating />
       </div>
     </div>
   );
 }
 
-function Composer({ g, onSent }) {
+// Files are uploaded to the project as soon as they are attached (so sending is instant),
+// then linked to the message when it is sent. Attachments removed or left unsent are deleted.
+const Composer = forwardRef(function Composer({ g, onSent }, outer) {
   const { me, toast } = useApp();
   const [mode, setMode] = useState('message');
   const [status, setStatus] = useState('on_track');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [mention, setMention] = useState(null); // { q, start, focus }
+  const [files, setFiles] = useState([]); // { key, name, size, mime, preview, progress, saved, error }
+  const filesRef = useRef(files);
+  filesRef.current = files;
   const ref = useRef(null);
+  const picker = useRef(null);
   const touch = useMedia('(hover: none)');
   const people = useMemo(() => [...g.members, ...g.heads].filter((p) => p.id !== me.id), [g, me.id]);
   const matches = mention
     ? people.filter((p) => p.name.toLowerCase().split(' ').some((w) => w.startsWith(mention.q.toLowerCase()))).slice(0, 6)
     : [];
+
+  const patchFile = (key, change) => setFiles((fs) => fs.map((f) => (f.key === key ? { ...f, ...change } : f)));
+  const addFiles = (list) => {
+    const incoming = [...(list || [])];
+    if (!incoming.length) return;
+    const room = MAX_FILES - filesRef.current.length;
+    if (incoming.length > room) toast(`You can share up to ${MAX_FILES} files in one message`, 'error');
+    for (let file of incoming.slice(0, Math.max(0, room))) {
+      // Pasted screenshots arrive as "image.png"; give them a findable name.
+      if (/^image\.\w+$/.test(file.name)) {
+        const d = new Date();
+        const two = (n) => String(n).padStart(2, '0');
+        const stamp = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}.${two(d.getMinutes())}.${two(d.getSeconds())}`;
+        file = new File([file], `Pasted image ${stamp}.${file.name.split('.').pop()}`, { type: file.type });
+      }
+      const key = Math.random().toString(36).slice(2);
+      const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+      setFiles((fs) => [...fs, { key, name: file.name, size: file.size, mime: file.type, preview, progress: 0 }]);
+      api.upload(g.project.id, file, { category: guessCategory(file.name, file.type), note: 'Shared in the team group' }, (p) => patchFile(key, { progress: p }))
+        .then((saved) => {
+          // Removed while it was still uploading: delete it straight away.
+          if (!filesRef.current.some((f) => f.key === key)) api.del(`/files/${saved.id}`).catch(() => {});
+          else patchFile(key, { saved, progress: 1 });
+        })
+        .catch((e) => {
+          patchFile(key, { error: e.message });
+          toast(`${file.name}: ${e.message}`, 'error');
+        });
+    }
+    ref.current?.focus();
+  };
+  const removeFile = (f) => {
+    if (f.preview) URL.revokeObjectURL(f.preview);
+    if (f.saved) api.del(`/files/${f.saved.id}`).catch(() => {});
+    setFiles((fs) => fs.filter((x) => x.key !== f.key));
+  };
+  useImperativeHandle(outer, () => ({ addFiles }));
+  // Leaving the group with attachments that were never sent removes them again.
+  useEffect(() => () => {
+    for (const f of filesRef.current) {
+      if (f.preview) URL.revokeObjectURL(f.preview);
+      if (f.saved) api.del(`/files/${f.saved.id}`).catch(() => {});
+    }
+  }, []);
 
   const grow = (el) => {
     el.style.height = 'auto';
@@ -218,12 +304,18 @@ function Composer({ g, onSent }) {
       ref.current?.setSelectionRange(pos, pos);
     });
   };
-  const canSend = !busy && (mode === 'status' || body.trim().length > 0);
+  const uploading = files.some((f) => !f.saved && !f.error);
+  const ready = files.filter((f) => f.saved);
+  const canSend = !busy && !uploading && (mode === 'status' || body.trim().length > 0 || ready.length > 0);
   const send = async () => {
     if (!canSend) return;
     setBusy(true);
     try {
-      const m = await api.post(`/groups/${g.project.id}/messages`, { kind: mode, status: mode === 'status' ? status : undefined, body });
+      const m = await api.post(`/groups/${g.project.id}/messages`, {
+        kind: mode, status: mode === 'status' ? status : undefined, body, file_ids: ready.map((f) => f.saved.id),
+      });
+      for (const f of files) if (f.preview) URL.revokeObjectURL(f.preview);
+      setFiles([]);
       setBody('');
       if (ref.current) ref.current.style.height = '';
       if (mode !== 'message') setMode('message');
@@ -258,9 +350,16 @@ function Composer({ g, onSent }) {
       send();
     }
   };
+  const onPaste = (e) => {
+    const pasted = [...(e.clipboardData?.files || [])];
+    if (pasted.length) {
+      e.preventDefault();
+      addFiles(pasted);
+    }
+  };
   const placeholder = mode === 'update'
     ? 'Share a progress update: what is done, what is next, anything the team should know'
-    : mode === 'status' ? 'Add a line about your status (optional)' : `Message the ${g.project.code} group`;
+    : mode === 'status' ? 'Add a line about your status (optional)' : files.length ? 'Add a message (optional)' : touch ? 'Message the group' : `Message the ${g.project.code} group`;
 
   return (
     <div className={`t-compose mode-${mode}`}>
@@ -281,11 +380,34 @@ function Composer({ g, onSent }) {
           ))}
         </div>
       )}
+      {files.length > 0 && (
+        <div className="t-tray" aria-label="Attachments">
+          {files.map((f) => (
+            <div key={f.key} className={`t-chip-file ${f.error ? 'failed' : ''}`} title={f.error || f.name}>
+              {f.preview ? <img src={f.preview} alt="" /> : <FileIcon file={{ name: f.name, mime: f.mime, kind: 'file' }} size={16} />}
+              <span className="t-chip-text">
+                <span className="small b6 ellipsis">{f.name}</span>
+                <span className="xs muted">
+                  {f.error ? <span className="red"><AlertCircle size={11} /> Not uploaded</span>
+                    : f.saved ? bytes(f.size)
+                      : <><Loader2 size={11} className="spin" /> {Math.round(f.progress * 100)}%</>}
+                </span>
+              </span>
+              <button type="button" className="t-chip-x" aria-label={`Remove ${f.name}`} onClick={() => removeFile(f)}><X size={14} /></button>
+              {!f.saved && !f.error && <span className="t-chip-bar" style={{ width: `${Math.round(f.progress * 100)}%` }} />}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="t-input">
-        <textarea ref={ref} id="group-message" rows={1} value={body} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} aria-label="Message"
+        <input ref={picker} id="group-attach" type="file" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+        <button type="button" className="btn t-attach" onClick={() => picker.current?.click()} aria-label="Attach files" title="Attach files: designs, drawings, photos, PDFs">
+          <Paperclip size={18} />
+        </button>
+        <textarea ref={ref} id="group-message" rows={1} value={body} onChange={onChange} onKeyDown={onKeyDown} onPaste={onPaste} placeholder={placeholder} aria-label="Message"
           onBlur={() => setTimeout(() => setMention(null), 150)} />
         <button type="button" className="btn primary" onClick={send} disabled={!canSend} aria-label="Send">
-          <Send size={16} /><span className="hide-sm">{mode === 'update' ? 'Post update' : mode === 'status' ? 'Set status' : 'Send'}</span>
+          <Send size={16} /><span className="hide-sm">{uploading ? 'Uploading…' : mode === 'update' ? 'Post update' : mode === 'status' ? 'Set status' : 'Send'}</span>
         </button>
         {mention && matches.length > 0 && (
           <div className="dropdown t-mention" role="listbox" aria-label="Mention someone">
@@ -300,10 +422,10 @@ function Composer({ g, onSent }) {
           </div>
         )}
       </div>
-      {!touch && <div className="t-hint xs faint">Enter to send · Shift + Enter for a new line · Type @ to mention someone</div>}
+      {!touch && <div className="t-hint xs faint" title="Shared files are also saved to the project’s Files & assets">Enter to send · Shift + Enter for a new line · @ to mention · Drop or paste files to share</div>}
     </div>
   );
-}
+});
 
 function PeoplePanel({ g, onClose, overlay }) {
   return (
@@ -356,6 +478,10 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
   const [hasMore, setHasMore] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [below, setBelow] = useState(0); // new messages that arrived while scrolled up
+  const [preview, setPreview] = useState(null); // a shared file opened full size
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+  const composerRef = useRef(null);
   const listRef = useRef(null);
   const baseline = useRef(null); // when I last looked before opening, for the "New" divider
   const lastMarked = useRef('');
@@ -364,7 +490,7 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
   const lastId = useRef(0);
 
   const load = useCallback(async () => {
-    const r = await api.get(`/groups/${id}/messages`, { limit, kind: view === 'updates' ? 'updates' : undefined });
+    const r = await api.get(`/groups/${id}/messages`, { limit, kind: view === 'all' ? undefined : view });
     setMsgs(stampReceived(r.items));
     setHasMore(r.has_more);
   }, [id, limit, view]);
@@ -451,7 +577,7 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
     setMsgs((list) => [...(list || []), ...stampReceived([m])]);
     onListChanged?.();
     load().catch(() => {});
-    if (m.kind === 'status') reloadGroup({ quiet: true });
+    if (m.kind === 'status' || m.files?.length) reloadGroup({ quiet: true });
   };
   const changed = () => {
     load().catch(() => {});
@@ -469,6 +595,21 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
     );
   }
   if (!g) return <section className="t-chat card"><Loading /></section>;
+
+  // Drop files anywhere on the chat to share them.
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+  const dropProps = g.can_post ? {
+    onDragEnter: (e) => { if (hasFiles(e)) { e.preventDefault(); dragDepth.current++; setDragging(true); } },
+    onDragOver: (e) => { if (hasFiles(e)) e.preventDefault(); },
+    onDragLeave: () => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); },
+    onDrop: (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDragging(false);
+      composerRef.current?.addFiles(e.dataTransfer.files);
+    },
+  } : {};
 
   const p = g.project;
   const flagged = g.members.filter((m) => m.status && (m.status.status === 'blocked' || m.status.status === 'need_help'));
@@ -494,7 +635,14 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
 
   return (
     <>
-      <section className="t-chat card flush" aria-label={`${p.name} group`}>
+      <section className="t-chat card flush" aria-label={`${p.name} group`} {...dropProps}>
+        {dragging && (
+          <div className="t-drop" aria-hidden="true">
+            <Upload size={30} />
+            <b>Drop to share with the {p.code} group</b>
+            <span className="small">Designs, drawings, photos, PDFs. They are saved to the project’s files too.</span>
+          </div>
+        )}
         <header className="t-chat-head">
           {narrow && <button type="button" className="icon-btn" aria-label="All groups" onClick={() => navigate('/teams')}><ChevronLeft size={20} /></button>}
           <span className="t-ic big" style={{ background: alpha(p.vertical_color, 0.15), color: p.vertical_color }} aria-hidden="true">{p.vertical[0]}</span>
@@ -520,10 +668,13 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
         </header>
         <div className="t-views" role="tablist" aria-label="Show">
           <button type="button" role="tab" aria-selected={view === 'all'} className={view === 'all' ? 'on' : ''} onClick={() => changeView('all')}>
-            <MessagesSquare size={14} />All messages
+            <MessagesSquare size={14} />{narrow ? 'All' : 'All messages'}
           </button>
           <button type="button" role="tab" aria-selected={view === 'updates'} className={view === 'updates' ? 'on' : ''} onClick={() => changeView('updates')}>
-            <Megaphone size={14} />Updates & status
+            <Megaphone size={14} />{narrow ? 'Updates' : 'Updates & status'}
+          </button>
+          <button type="button" role="tab" aria-selected={view === 'files'} className={view === 'files' ? 'on' : ''} onClick={() => changeView('files')}>
+            <Paperclip size={14} />Files{g.file_count ? <span className="pill-num">{g.file_count}</span> : null}
           </button>
         </div>
         {!g.open && (
@@ -546,13 +697,15 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
         <div className="t-msgs" ref={listRef} onScroll={onScroll} aria-live="polite">
           {hasMore && <div className="t-older"><button type="button" className="btn sm" onClick={loadOlder}>Show earlier messages</button></div>}
           {!msgs ? <Loading /> : msgs.length === 0 ? (
-            <Empty icon={view === 'updates' ? Megaphone : MessagesSquare} title={view === 'updates' ? 'No updates yet' : 'Say hello to the team'}>
-              {view === 'updates' ? 'Progress updates and status posts show here, so anyone can catch up quickly.' : 'Everyone working on this project is in this group. Post updates, share your status or just chat.'}
+            <Empty icon={view === 'updates' ? Megaphone : view === 'files' ? Paperclip : MessagesSquare} title={view === 'updates' ? 'No updates yet' : view === 'files' ? 'No files shared yet' : 'Say hello to the team'}>
+              {view === 'updates' ? 'Progress updates and status posts show here, so anyone can catch up quickly.'
+                : view === 'files' ? 'Designs, drawings, photos and documents shared in this group show here. Use the paperclip, or drop files on the chat.'
+                  : 'Everyone working on this project is in this group. Post updates, share your status or just chat.'}
             </Empty>
           ) : rows.map((r) => (
             r.day ? <div key={r.key} className="t-day"><span>{dayLabel(r.day)}</span></div>
               : r.divider ? <div key="new" className="t-new-divider"><span>New</span></div>
-                : <Message key={r.key} m={r.m} compact={r.compact} onChanged={changed} />
+                : <Message key={r.key} m={r.m} compact={r.compact} onChanged={changed} onOpenFile={setPreview} />
           ))}
         </div>
         {below > 0 && (
@@ -561,7 +714,7 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
           </button>
         )}
         </div>
-        {g.can_post ? <Composer g={g} onSent={sent} /> : (
+        {g.can_post ? <Composer ref={composerRef} g={g} onSent={sent} /> : (
           <div className="t-readonly xs muted">
             <Lock size={13} />
             {g.open ? 'You have view-only access to this vertical, so you can read this group but not post.' : 'This group is closed.'}
@@ -569,6 +722,10 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
         )}
       </section>
       {showPanel && <PeoplePanel g={g} overlay={!wide} onClose={() => setPeopleOpen(false)} />}
+      {preview && (
+        <FilePreview file={preview} canEdit={g.can_post} canDelete={false} onClose={() => setPreview(null)}
+          onChanged={(f) => { setPreview((x) => ({ ...x, ...f })); changed(); }} />
+      )}
     </>
   );
 }

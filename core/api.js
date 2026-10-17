@@ -1242,6 +1242,10 @@ route('POST', '/comments/:id/delete-decision', (ctx) => {
 // opens again if the project is reopened.
 export const GROUP_STATUSES = ['on_track', 'need_help', 'blocked', 'done'];
 const GROUP_KINDS = ['message', 'update', 'status'];
+// Files shared in a message are uploaded to the project first (so they land in Files & assets),
+// then attached when the message is sent. Only your own recent, unattached uploads qualify.
+export const MAX_ATTACHMENTS = 10;
+const ATTACH_WITHIN_MS = 6 * 3600 * 1000;
 const STATUS_LABELS = { on_track: 'On track', need_help: 'Need help', blocked: 'Blocked', done: 'Done for today' };
 
 function groupMemberIds(db, p) {
@@ -1339,7 +1343,7 @@ function shapeMessage(ctx, m, head) {
 }
 
 function messageById(ctx, id, head) {
-  return shapeMessage(ctx, ctx.db.get(`SELECT ${MSG_COLS} ${MSG_FROM} WHERE g.id = ?`, id), head);
+  return attachFiles(ctx, [shapeMessage(ctx, ctx.db.get(`SELECT ${MSG_COLS} ${MSG_FROM} WHERE g.id = ?`, id), head)])[0];
 }
 
 route('GET', '/groups', (ctx) => {
@@ -1373,8 +1377,10 @@ route('GET', '/groups', (ctx) => {
     const flags = { blocked: 0, need_help: 0 };
     for (const [userId, st] of latestStatuses(db, p.id)) if (inGroup.has(userId) && flags[st.status] !== undefined) flags[st.status]++;
     const last = db.get(
-      `SELECT g.kind, g.status, g.body, g.created_at, g.user_id, u.name AS user_name FROM group_messages g
-       LEFT JOIN users u ON u.id = g.user_id WHERE g.project_id = ? ORDER BY g.id DESC LIMIT 1`,
+      `SELECT g.kind, g.status, g.body, g.created_at, g.user_id, u.name AS user_name,
+         (SELECT COUNT(*) FROM files f WHERE f.message_id = g.id) AS file_count,
+         (SELECT f.name FROM files f WHERE f.message_id = g.id ORDER BY f.id LIMIT 1) AS file_name
+       FROM group_messages g LEFT JOIN users u ON u.id = g.user_id WHERE g.project_id = ? ORDER BY g.id DESC LIMIT 1`,
       p.id,
     );
     return {
@@ -1433,6 +1439,7 @@ route('GET', '/groups/:id', (ctx) => {
     can_post: open && canContribute(ctx.user, p),
     seen_at: seenAt(db, uid(ctx), `group:${p.id}`),
     message_count: db.get("SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ? AND kind != 'system'", p.id).n,
+    file_count: db.get('SELECT COUNT(*) AS n FROM files f JOIN group_messages g ON g.id = f.message_id WHERE g.project_id = ?', p.id).n,
   };
 });
 
@@ -1443,12 +1450,42 @@ route('GET', '/groups/:id/messages', (ctx) => {
   const params = [p.id];
   if (ctx.query.before) { where.push('g.id < ?'); params.push(Number(ctx.query.before) || 0); }
   if (ctx.query.kind === 'updates') where.push("g.kind IN ('update','status')");
+  else if (ctx.query.kind === 'files') where.push('EXISTS (SELECT 1 FROM files f WHERE f.message_id = g.id)');
   const rows = ctx.db.all(`SELECT ${MSG_COLS} ${MSG_FROM} WHERE ${where.join(' AND ')} ORDER BY g.id DESC LIMIT ?`, ...params, limit + 1);
-  return {
-    items: rows.slice(0, limit).reverse().map((m) => shapeMessage(ctx, m, head)),
-    has_more: rows.length > limit,
-  };
+  const items = rows.slice(0, limit).reverse().map((m) => shapeMessage(ctx, m, head));
+  attachFiles(ctx, items);
+  return { items, has_more: rows.length > limit };
 });
+
+// Adds each message's shared files as m.files.
+function attachFiles(ctx, messages) {
+  const ids = messages.map((m) => m.id);
+  const byMsg = new Map(ids.map((id) => [id, []]));
+  if (ids.length) {
+    for (const f of ctx.db.all(`SELECT ${FILE_COLS} ${FILE_FROM} WHERE f.message_id IN (${placeholders(ids)}) ORDER BY f.id`, ...ids)) byMsg.get(f.message_id)?.push(f);
+  }
+  for (const m of messages) m.files = byMsg.get(m.id) || [];
+  return messages;
+}
+
+// Removes a message's shared files with it. Files someone marked as a final asset stay in
+// the project (they only lose the link to the message).
+async function removeMessageFiles(ctx, m, p) {
+  const files = ctx.db.all('SELECT * FROM files WHERE message_id = ?', m.id);
+  const gone = [];
+  ctx.db.tx(() => {
+    for (const f of files) {
+      if (f.is_final) {
+        ctx.db.run('UPDATE files SET message_id = NULL WHERE id = ?', f.id);
+        continue;
+      }
+      ctx.db.run('DELETE FROM files WHERE id = ?', f.id);
+      log(ctx, p.id, 'file_deleted', f.name);
+      if (f.kind === 'file' && f.storage_key) gone.push(f.storage_key);
+    }
+  });
+  for (const key of gone) await ctx.services.removeStored?.(key);
+}
 
 route('POST', '/groups/:id/messages', (ctx) => {
   const { db } = ctx;
@@ -1460,11 +1497,24 @@ route('POST', '/groups/:id/messages', (ctx) => {
   const kind = oneOf(ctx.body.kind ?? 'message', GROUP_KINDS, 'Message type');
   const status = kind === 'status' ? oneOf(ctx.body.status, GROUP_STATUSES, 'Status') : null;
   if (kind === 'status' && !status) throw bad('Pick a status: on track, need help, blocked or done');
-  const body = text(ctx.body.body, { max: 4000, label: 'Message', required: kind !== 'status' }) || '';
-  const { id } = db.run(
-    'INSERT INTO group_messages (project_id, user_id, kind, status, body, created_at) VALUES (?,?,?,?,?,?)',
-    p.id, uid(ctx), kind, status, body, ctx.now,
-  );
+  const fileIds = [...new Set((Array.isArray(ctx.body.file_ids) ? ctx.body.file_ids : []).map(Number))];
+  if (fileIds.length > MAX_ATTACHMENTS) throw bad(`You can share up to ${MAX_ATTACHMENTS} files in one message`);
+  const oldest = new Date(Date.parse(ctx.now) - ATTACH_WITHIN_MS).toISOString();
+  for (const fid of fileIds) {
+    const f = Number.isInteger(fid) && fid > 0 && db.get('SELECT * FROM files WHERE id = ?', fid);
+    if (!f || f.project_id !== p.id || f.uploaded_by !== uid(ctx) || f.message_id || f.created_at < oldest) {
+      throw bad('One of the files could not be attached. Upload it again and send.');
+    }
+  }
+  const body = text(ctx.body.body, { max: 4000, label: 'Message', required: kind !== 'status' && !fileIds.length }) || '';
+  const id = db.tx(() => {
+    const row = db.run(
+      'INSERT INTO group_messages (project_id, user_id, kind, status, body, created_at) VALUES (?,?,?,?,?,?)',
+      p.id, uid(ctx), kind, status, body, ctx.now,
+    );
+    for (const fid of fileIds) db.run('UPDATE files SET message_id = ? WHERE id = ?', row.id, fid);
+    return row.id;
+  });
   const link = `/teams/${p.id}`;
   const audience = new Set([...groupMemberIds(db, p), ...headsOf(db, p.vertical_id)]);
   const told = new Set();
@@ -1493,11 +1543,13 @@ function getMessage(ctx) {
   return { m, ...g };
 }
 
-route('DELETE', '/group-messages/:id', (ctx) => {
+// Deleting a message also removes the files shared in it (see removeMessageFiles).
+route('DELETE', '/group-messages/:id', async (ctx) => {
   const { m, p } = getMessage(ctx);
   const author = userBrief(ctx.db, m.user_id);
   if (m.user_id !== uid(ctx)) {
     if (!canManageVertical(ctx.user, p.vertical_id)) throw forbidden('Only the author or a head of this vertical can delete this message');
+    await removeMessageFiles(ctx, m, p);
     ctx.db.tx(() => {
       ctx.db.run('DELETE FROM group_messages WHERE id = ?', m.id);
       groupEvent(ctx, p.id, `${ctx.user.name} removed a message by ${author?.name || 'someone'}.`);
@@ -1510,6 +1562,7 @@ route('DELETE', '/group-messages/:id', (ctx) => {
     throw forbidden('Messages can only be deleted within 15 seconds of sending. Ask a head to approve the deletion.');
   }
   const approver = m.delete_status === 'approved' ? userBrief(ctx.db, m.delete_decided_by) : null;
+  await removeMessageFiles(ctx, m, p);
   ctx.db.tx(() => {
     ctx.db.run('DELETE FROM group_messages WHERE id = ?', m.id);
     if (approver) groupEvent(ctx, p.id, `${ctx.user.name} deleted a message, approved by ${approver.name}.`);

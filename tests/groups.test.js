@@ -210,11 +210,82 @@ test('messages follow the comment rule: 15 seconds to delete, then a head approv
   await rejects(call('suresh', 'DELETE', `/group-messages/${notice.id}`), 403);
 });
 
+// What the server and demo do after storing an uploaded file.
+let stored = 0;
+const removed = [];
+services.removeStored = async (key) => { removed.push(key); };
+async function upload(who, pid, name = 'Stall render v4.jpg', mime = 'image/jpeg') {
+  stored++;
+  return handle({ db, user: loadUser(db, idOf(who)), body: { category: 'Design', note: 'Shared in the team group' }, upload: { storage_key: `t/${stored}`, name, mime, size: 2048 }, services },
+    'POST', `/projects/${pid}/files`);
+}
+
+test('files and designs can be shared in the group, and they land in the project files', async () => {
+  const p = await newProject('Attachment stall');
+  await call('neha', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('tanvi'), idOf('rohan')] } });
+  tick();
+  const render = await upload('tanvi', p.id);
+  const drawing = await upload('tanvi', p.id, 'Fabrication drawings.pdf', 'application/pdf');
+  const m = await call('tanvi', 'POST', `/groups/${p.id}/messages`, { body: { body: '', file_ids: [render.id, drawing.id] } });
+  assert.deepEqual(m.files.map((f) => f.name), ['Stall render v4.jpg', 'Fabrication drawings.pdf']);
+  assert.equal(m.body, '');
+
+  // Everyone in the group sees them, and so does the project's Files tab.
+  const seen = (await call('rohan', 'GET', `/groups/${p.id}/messages`)).items.find((x) => x.id === m.id);
+  assert.equal(seen.files.length, 2);
+  const projectFiles = (await call('rohan', 'GET', `/projects/${p.id}/files`)).items;
+  assert.ok(projectFiles.some((f) => f.id === render.id && f.message_id === m.id));
+  const g = await call('rohan', 'GET', `/groups/${p.id}`);
+  assert.equal(g.file_count, 2);
+  const listed = (await call('rohan', 'GET', '/groups')).items.find((x) => x.id === p.id);
+  assert.equal(listed.last.file_count, 2);
+  assert.equal(listed.last.file_name, 'Stall render v4.jpg');
+  tick();
+  await call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Looks great' } });
+  const onlyFiles = (await call('rohan', 'GET', `/groups/${p.id}/messages`, { query: { kind: 'files' } })).items;
+  assert.deepEqual(onlyFiles.map((x) => x.id), [m.id]);
+
+  // Only your own fresh uploads from this project, once.
+  await rejects(call('rohan', 'POST', `/groups/${p.id}/messages`, { body: { body: 'mine now', file_ids: [render.id] } }), 400);
+  await rejects(call('tanvi', 'POST', `/groups/${p.id}/messages`, { body: { body: 'again', file_ids: [render.id] } }), 400);
+  const elsewhere = await upload('tanvi', (await newProject('Other stall')).id);
+  await rejects(call('tanvi', 'POST', `/groups/${p.id}/messages`, { body: { body: 'x', file_ids: [elsewhere.id] } }), 400);
+  const old = await upload('tanvi', p.id, 'Old brief.pdf', 'application/pdf');
+  tick(7 * 3600 * 1000);
+  await rejects(call('tanvi', 'POST', `/groups/${p.id}/messages`, { body: { body: 'x', file_ids: [old.id] } }), 400);
+  await rejects(call('tanvi', 'POST', `/groups/${p.id}/messages`, { body: { body: '' } }), 400);
+});
+
+test('deleting a message removes its files, but keeps any marked as final', async () => {
+  const p = await newProject('Attachment delete stall');
+  await call('neha', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('tanvi')] } });
+  tick();
+  const wrong = await upload('tanvi', p.id, 'Wrong client render.jpg');
+  const m1 = await call('tanvi', 'POST', `/groups/${p.id}/messages`, { body: { file_ids: [wrong.id] } });
+  tick(5000);
+  await call('tanvi', 'DELETE', `/group-messages/${m1.id}`);
+  assert.equal(db.get('SELECT COUNT(*) AS n FROM files WHERE id = ?', wrong.id).n, 0);
+  assert.ok(removed.includes(wrong.storage_key));
+
+  tick();
+  const keep = await upload('tanvi', p.id, 'Final render.jpg');
+  const scrap = await upload('tanvi', p.id, 'Draft render.jpg');
+  const m2 = await call('tanvi', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Final and draft', file_ids: [keep.id, scrap.id] } });
+  await call('neha', 'PATCH', `/files/${keep.id}`, { body: { is_final: true } });
+  tick(60_000);
+  await call('suresh', 'DELETE', `/group-messages/${m2.id}`);
+  assert.equal(db.get('SELECT message_id FROM files WHERE id = ?', keep.id).message_id, null);
+  assert.equal(db.get('SELECT COUNT(*) AS n FROM files WHERE id = ?', scrap.id).n, 0);
+});
+
 test('the sample data has lively groups, with the delivered ones closed', async () => {
   const { items } = await call('rohan', 'GET', '/groups');
   assert.ok(items.length >= 3);
   assert.ok(items.every((g) => g.vertical === 'Exhibits' && g.member));
   assert.ok(items.some((g) => g.unread > 0));
+  // Sample chats include shared designs, which also sit in the project's files.
+  const shared = (await call('rohan', 'GET', `/groups/${items[0].id}/messages`, { query: { kind: 'files' } })).items;
+  assert.ok(shared.length > 0 && shared[0].files.some((f) => f.mime === 'image/jpeg'));
   const delivered = db.get("SELECT id FROM projects WHERE status = 'completed' AND vertical_id = ? ORDER BY id LIMIT 1", vid('Exhibits')).id;
   assert.ok(!items.some((g) => g.id === delivered));
   const history = await call('rohan', 'GET', `/groups/${delivered}`);

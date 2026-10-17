@@ -122,7 +122,7 @@ export function FileCard({ file, onOpen, onToggleFinal, showProject, canEdit }) 
       {!canEdit && file.is_final ? <span className="star on static"><Star size={16} fill="currentColor" /></span> : null}
       <div className="fbody">
         <div className="b6 small ellipsis" title={file.name}>{file.name}</div>
-        <div className="xs muted ellipsis">{file.category}{file.size ? ` · ${bytes(file.size)}` : ''}</div>
+        <div className="xs muted ellipsis">{file.category}{file.size ? ` · ${bytes(file.size)}` : ''}{file.message_id ? ' · Group chat' : ''}</div>
         {showProject && <div className="xs ellipsis mt-4"><span className="dot" style={{ background: file.vertical_color, marginRight: 5 }} />{file.client || file.code} · <span className="muted">{file.project_name}</span></div>}
       </div>
     </div>
@@ -135,7 +135,7 @@ export function FileRow({ file, onOpen }) {
       <FileIcon file={file} size={17} />
       <div className="grow">
         <div className="small b6 ellipsis">{file.is_new && <NewTag />}{file.is_final ? <Star size={12} fill="var(--amber)" color="var(--amber)" style={{ marginRight: 4, verticalAlign: '-1px' }} /> : null}{file.name}</div>
-        <div className="xs muted ellipsis">{file.category}{file.size ? ` · ${bytes(file.size)}` : ''} · {file.uploader_name || 'Someone'} · {fmtTime(file.created_at)}</div>
+        <div className="xs muted ellipsis">{file.category}{file.size ? ` · ${bytes(file.size)}` : ''} · {file.uploader_name || 'Someone'}{file.message_id ? ' in the group chat' : ''} · {fmtTime(file.created_at)}</div>
       </div>
     </div>
   );
