@@ -75,10 +75,10 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
   border-radius: 0 12px 12px 0; border-left: 4px solid transparent;
   text-decoration: none;
 }
-.nav a svg { color: var(--text-2); flex-shrink: 0; }
-.nav a:hover { background: var(--surface-2); }
-.nav a.active { background: var(--red-soft); color: var(--red); border-left-color: var(--red); font-weight: 600; }
-.nav a.active svg { color: var(--red); }
+.nav a svg { flex-shrink: 0; }
+/* --icon-cut: the row colour, used for the halo where one part of an icon overlaps another. */
+.nav a:hover { background: var(--surface-2); --icon-cut: var(--surface-2); }
+.nav a.active { background: var(--red-soft); color: var(--red); border-left-color: var(--red); font-weight: 600; --icon-cut: var(--red-soft); }
 .nav .count { margin-left: auto; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; border-radius: 10px; padding: 1px 7px; }
 .leaf-card {
   margin: 12px 14px 16px; border-radius: 16px; padding: 18px 16px 70px;
@@ -99,23 +99,25 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
 }
 .topbar .verticals { display: flex; align-items: center; gap: 4px; }
 .vlogo {
-  display: flex; flex-direction: column; align-items: flex-start; padding: 6px 18px; cursor: pointer;
+  display: flex; align-items: center; gap: 10px; padding: 6px 14px; cursor: pointer;
   border: 0; background: none; border-right: 1px solid var(--border); border-radius: 0; line-height: 1;
 }
 .vlogo:last-child { border-right: 0; }
 .vlogo:hover { background: rgba(255, 255, 255, 0.6); border-radius: 10px; }
 .vlogo.active { background: #fff; border-radius: 10px; box-shadow: var(--shadow); }
+.vlogo .vi { flex-shrink: 0; }
+.vlogo .vt { display: flex; flex-direction: column; align-items: flex-start; }
 .vlogo .b { font-weight: 800; font-size: 15px; color: var(--navy); letter-spacing: -0.5px; }
 .vlogo .n { font-weight: 800; font-size: 19px; letter-spacing: -0.5px; margin-top: 1px; }
 .vlogo .t { font-size: 8.5px; color: var(--muted); margin-top: 3px; white-space: nowrap; }
 .topbar .spacer { flex: 1; }
-.search { position: relative; width: min(330px, 30vw); }
+.search { position: relative; flex: 0 1 330px; min-width: 190px; }
 .search input {
   width: 100%; height: 42px; border-radius: 12px; border: 1px solid var(--border-strong); background: #fff;
   padding: 0 14px 0 40px; outline: none;
 }
 .search input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
-.search > svg { position: absolute; left: 13px; top: 12px; color: var(--muted); }
+.search > svg { position: absolute; left: 12px; top: 11.5px; pointer-events: none; }
 .dropdown {
   position: absolute; right: 0; top: calc(100% + 8px); background: #fff; border: 1px solid var(--border);
   border-radius: 14px; box-shadow: var(--shadow-lg); z-index: 60; min-width: 280px; overflow: hidden;
@@ -134,8 +136,8 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
 }
 .user-chip { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 8px 4px 4px; border-radius: 14px; border: 0; background: none; text-align: left; }
 .user-chip:hover { background: #fff; }
-.user-chip .nm { font-weight: 600; font-size: 14px; }
-.user-chip .rl { font-size: 12px; color: var(--muted); }
+.user-chip .nm { font-weight: 600; font-size: 14px; white-space: nowrap; }
+.user-chip .rl { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .content { padding: 22px 28px 40px; max-width: 1760px; width: 100%; }
 .burger { display: none; }
 
@@ -477,14 +479,14 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 }
 .work-clock .t { font-variant-numeric: tabular-nums; font-size: 15px; }
 .work-clock .lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-.work-clock.on { border-color: #b7e4c7; background: var(--green-soft); }
+.work-clock.on { border-color: #b7e4c7; background: #fff; }
 .work-clock.on .lbl { color: var(--green); }
 .work-clock.paused { background: #f4f6fa; }
 .work-clock.idle { background: var(--blue); border-color: var(--blue); color: #fff; }
 .work-clock:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.work-clock .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 rgba(31, 168, 85, 0.5); animation: clock-pulse 1.6s infinite; }
-@keyframes clock-pulse { 70% { box-shadow: 0 0 0 7px rgba(31, 168, 85, 0); } 100% { box-shadow: 0 0 0 0 rgba(31, 168, 85, 0); } }
-@media (prefers-reduced-motion: reduce) { .work-clock .pulse { animation: none; } }
+.status-halo { transform-box: fill-box; transform-origin: center; animation: status-halo 1.8s ease-in-out infinite; }
+@keyframes status-halo { 0%, 100% { transform: scale(0.8); opacity: 1; } 50% { transform: scale(1); opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .status-halo { animation: none; } }
 .clock-panel { width: 320px; max-width: calc(100vw - 24px); }
 .clock-big { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; margin-bottom: 8px; color: var(--navy); }
 .sess-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 13px; }
@@ -506,10 +508,14 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 /* Short screens: keep every menu item visible. */
 @media (max-height: 940px) { .leaf-card { display: none; } }
 
-@media (max-width: 1440px) {
+/* The top bar drops its least useful parts first as the screen narrows. */
+@media (max-width: 1560px) {
   .vlogo { padding: 6px 12px; }
   .vlogo .t { display: none; }
 }
+@media (max-width: 1366px) { .work-clock .lbl { display: none; } }
+@media (max-width: 1280px) { .user-chip .who { display: none; } }
+@media (max-width: 1200px) { .vlogo .vi { display: none; } }
 @media (max-width: 1280px) {
   .span-3 { grid-column: span 6; }
   .span-4 { grid-column: span 6; }
@@ -527,7 +533,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 @media (max-width: 760px) {
   .content { padding: 16px 16px 32px; }
   .topbar { padding: 10px 16px; gap: 8px; min-height: 64px; }
-  .search { width: auto; flex: 1; }
+  .search { flex: 1; min-width: 0; }
   .user-chip .who { display: none; }
   .work-clock { padding: 0 10px; }
   .work-clock .lbl { display: none; }
