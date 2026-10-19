@@ -30,16 +30,23 @@ function useMedia(query) {
   return on;
 }
 
-// Drag with mouse, touch or pen. Under 5px of movement counts as a tap, so a click never
-// moves anything and a drag never clicks.
-function useDrag({ getPos, setPos, getSize, onEnd, ignore }) {
+// Drag with mouse, touch or pen. While dragging, the element follows the pointer once per
+// frame by moving it directly (no re-rendering), so it stays smooth; React only hears about
+// the final position. Under 5px of movement counts as a tap, so a click never moves
+// anything and a drag never clicks.
+function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
   const s = useRef(null);
-  const [dragging, setDragging] = useState(false);
+  const frame = useRef(0);
+  const paint = () => {
+    frame.current = 0;
+    const d = s.current;
+    if (d?.next && elRef.current) elRef.current.style.transform = `translate3d(${d.next.x}px, ${d.next.y}px, 0)`;
+  };
   const onPointerDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (ignore?.(e)) return;
     const p = getPos();
-    s.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: p.x, y: p.y, moved: false };
+    s.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: p.x, y: p.y, moved: false, next: null };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e) => {
@@ -50,10 +57,13 @@ function useDrag({ getPos, setPos, getSize, onEnd, ignore }) {
     if (!d.moved && Math.hypot(dx, dy) < 5) return;
     if (!d.moved) {
       d.moved = true;
-      setDragging(true);
+      elRef.current?.classList.add('dragging');
+      document.body.classList.add('fnav-dragging');
+      onStart?.();
     }
     const { w, h } = getSize();
-    setPos(keepOnScreen({ ...getPos(), x: d.x + dx, y: d.y + dy }, w, h));
+    d.next = keepOnScreen({ x: d.x + dx, y: d.y + dy }, w, h);
+    if (!frame.current) frame.current = requestAnimationFrame(paint);
   };
   const finish = (e) => {
     const d = s.current;
@@ -63,20 +73,27 @@ function useDrag({ getPos, setPos, getSize, onEnd, ignore }) {
       s.current = null;
       return;
     }
-    setDragging(false);
-    onEnd?.();
+    cancelAnimationFrame(frame.current);
+    paint();
+    elRef.current?.classList.remove('dragging');
+    document.body.classList.remove('fnav-dragging');
+    if (d.next) onEnd?.(d.next);
     // The click that follows a drag must not open anything.
     s.current = { done: true };
     setTimeout(() => {
       if (s.current?.done) s.current = null;
     }, 400);
   };
+  useEffect(() => () => {
+    cancelAnimationFrame(frame.current);
+    document.body.classList.remove('fnav-dragging');
+  }, []);
   const justDragged = () => {
     const was = !!s.current?.done;
     if (was) s.current = null;
     return was;
   };
-  return { dragging, justDragged, handlers: { onPointerDown, onPointerMove, onPointerUp: finish, onPointerCancel: finish } };
+  return { justDragged, handlers: { onPointerDown, onPointerMove, onPointerUp: finish, onPointerCancel: finish } };
 }
 
 // Animated open/close: stays mounted while it plays its closing animation.
@@ -108,44 +125,50 @@ export function FloatingNav({ counts, onDock, focusOnMount }) {
   const small = useMedia('(max-width: 760px)');
   const size = small ? 48 : 52;
 
-  // The button: dragged anywhere, snaps to the nearer side, remembered between visits.
-  const [saved, setSaved] = usePref('bpm.floatButton', null); // { edge, yr }
-  const place = useCallback((edge, y) => {
+  // The button stays exactly where it is dropped, and there again next time. Its centre is
+  // saved as a share of the window, so it keeps its place if the window changes size.
+  const [saved, setSaved] = usePref('bpm.floatSpot', null); // { cx, cy } as fractions of the window
+  const fromSaved = useCallback((spot) => {
     const vp = viewport();
-    return keepOnScreen({ x: edge === 'left' ? MARGIN : vp.w - size - MARGIN, y, edge }, size, size);
+    const c = spot || { cx: 1 - (MARGIN + size / 2) / vp.w, cy: 1 - (110 + size / 2) / vp.h }; // first time: lower right
+    return keepOnScreen({ x: c.cx * vp.w - size / 2, y: c.cy * vp.h - size / 2 }, size, size);
   }, [size]);
-  const [pos, setPosState] = useState(() => place(saved?.edge || 'right', saved ? saved.yr * window.innerHeight : window.innerHeight - size - 110));
+  const [pos, setPosState] = useState(() => fromSaved(saved));
   const posRef = useRef(pos);
+  const spotRef = useRef(saved);
   const setPos = useCallback((p) => {
     posRef.current = p;
     setPosState(p);
   }, []);
-  const [snapping, setSnapping] = useState(false);
+  const floatRef = useRef(null);
   const btnDrag = useDrag({
+    elRef: floatRef,
     getPos: () => posRef.current,
-    setPos,
     getSize: () => ({ w: size, h: size }),
-    onEnd: () => {
-      const p = posRef.current;
-      const edge = p.x + size / 2 < window.innerWidth / 2 ? 'left' : 'right';
-      setSnapping(true);
-      setPos(place(edge, p.y));
-      setSaved({ edge, yr: p.y / window.innerHeight });
-      setTimeout(() => setSnapping(false), 280);
+    onStart: () => panelRef.current === 'menu' && closeRef.current(), // the menu is pinned to the button
+    onEnd: (p) => {
+      setPos(p);
+      const spot = { cx: (p.x + size / 2) / window.innerWidth, cy: (p.y + size / 2) / window.innerHeight };
+      spotRef.current = spot;
+      setSaved(spot);
     },
   });
-  // Stay on screen when the window changes size (or the button size changes on phones).
+  // Keep its place (and stay on screen) when the window changes size.
   useEffect(() => {
-    const onResize = () => setPos(place(posRef.current.edge || 'right', posRef.current.y));
+    const onResize = () => setPos(fromSaved(spotRef.current));
     onResize();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [place, setPos]);
+  }, [fromSaved, setPos]);
 
   // What the button opens: the floating menu or Quick Access (it remembers which).
   const [mode, setMode] = usePref('bpm.floatMode', 'menu');
   const [wideMenu, setWideMenu] = usePref('bpm.floatMenuWide', true);
   const { panel, closing, open, close } = usePanel();
+  const panelRef = useRef(panel);
+  panelRef.current = closing ? null : panel;
+  const closeRef = useRef(close);
+  closeRef.current = close;
   const btnRef = useRef(null);
   const rootRef = useRef(null);
   const toggle = useCallback(() => (panel && !closing ? close() : open(mode)), [panel, closing, close, open, mode]);
@@ -194,8 +217,7 @@ export function FloatingNav({ counts, onDock, focusOnMount }) {
 
   return (
     <div ref={rootRef} className="fnav-root">
-      <div className={`fnav-float ${btnDrag.dragging ? 'dragging' : ''} ${snapping ? 'snapping' : ''}`}
-        style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}>
+      <div ref={floatRef} className="fnav-float" style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}>
         <button ref={btnRef} type="button" className={`fnav-btn ${panel && !closing ? 'open' : ''}`} style={{ width: size, height: size }}
           {...btnDrag.handlers}
           onClick={() => !btnDrag.justDragged() && toggle()}
@@ -310,10 +332,12 @@ function QuickAccess({ anchor, items, counts, path, closing, onGo, onMenu, onDoc
     setPosState(p);
   }, []);
   const size = () => ({ w: cardRef.current?.offsetWidth || width, h: cardRef.current?.offsetHeight || 420 });
+  const moverRef = useRef(null);
   const drag = useDrag({
+    elRef: moverRef,
     getPos: () => posRef.current,
-    setPos,
     getSize: size,
+    onEnd: setPos,
     ignore: (e) => !!e.target.closest('button, input'),
   });
   // Once its real height is known, make sure all of it is on screen.
@@ -332,10 +356,10 @@ function QuickAccess({ anchor, items, counts, path, closing, onGo, onMenu, onDoc
 
   const shown = items.filter((n) => matches(n, q));
   return (
-    <div className="fnav-quick-pos" style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}>
+    <div ref={moverRef} className="fnav-quick-pos" style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}>
       <div ref={cardRef} role="dialog" aria-label="Quick Access" style={{ width }}
         className={`fnav-panel fnav-quick ${closing ? 'closing' : ''} ${anchor.onRight ? 'from-right' : 'from-left'}`}>
-        <div className={`fq-head ${drag.dragging ? 'dragging' : ''}`} {...drag.handlers} title="Drag to move">
+        <div className="fq-head" {...drag.handlers} title="Drag to move">
           <GripHorizontal size={16} className="fq-grip" aria-hidden="true" />
           <Monogram size={22} title="BrainADZ" />
           <b>Quick Access</b>
