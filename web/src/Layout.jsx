@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  LayoutDashboard, ListChecks, FolderKanban, CalendarDays, Images, FolderArchive, Users, Settings, Search, Bell,
-  Menu as MenuIcon, LogOut, KeyRound, UserRound, ChevronDown, FileText, FolderOpen, CheckCircle2, MessagesSquare,
+  Search, Bell, Menu as MenuIcon, LogOut, KeyRound, UserRound, ChevronDown, FileText, FolderOpen, CheckCircle2,
 } from 'lucide-react';
+import {
+  DashboardIcon, MyWorkIcon, ProjectsIcon, TeamGroupsIcon, CalendarIcon, AssetsIcon, PastProjectsIcon, TeamAccessIcon, SettingsIcon,
+} from './navIcons.jsx';
 import { useApp, useLoad } from './store.jsx';
 import { useRouter, Link } from './router.jsx';
 import { api } from './api.js';
@@ -10,15 +12,15 @@ import { Avatar, useClickOutside, alpha } from './ui.jsx';
 import { timeAgo } from './format.js';
 
 const NAV = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { to: '/my', label: 'My Work', icon: ListChecks, count: 'my' },
-  { to: '/projects', label: 'Projects', icon: FolderKanban, count: 'projects' },
-  { to: '/teams', label: 'Team Groups', icon: MessagesSquare, count: 'teams' },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { to: '/assets', label: 'Asset Library', icon: Images },
-  { to: '/archive', label: 'Past Projects', icon: FolderArchive },
-  { to: '/team', label: 'Team & Access', icon: Users, admin: true },
-  { to: '/settings', label: 'Settings', icon: Settings, manager: true },
+  { to: '/', label: 'Dashboard', icon: DashboardIcon, exact: true },
+  { to: '/my', label: 'My Work', icon: MyWorkIcon, count: 'my' },
+  { to: '/projects', label: 'Projects', icon: ProjectsIcon, count: 'projects' },
+  { to: '/teams', label: 'Team Groups', icon: TeamGroupsIcon, count: 'teams' },
+  { to: '/calendar', label: 'Calendar', icon: CalendarIcon },
+  { to: '/assets', label: 'Asset Library', icon: AssetsIcon },
+  { to: '/archive', label: 'Past Projects', icon: PastProjectsIcon },
+  { to: '/team', label: 'Team & Access', icon: TeamAccessIcon, admin: true },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon, manager: true },
 ];
 
 export function Logo({ size = '' }) {
@@ -70,7 +72,7 @@ function Sidebar({ open, onClose, counts }) {
         <nav className="nav" aria-label="Main">
           {NAV.filter((n) => (!n.admin || isAdmin) && (!n.manager || isAdmin || manageableVerticals.length)).map((n) => (
             <Link key={n.to} to={n.to} className={isActive(n) ? 'active' : ''} onClick={onClose} aria-current={isActive(n) ? 'page' : undefined}>
-              <n.icon size={21} strokeWidth={1.9} />
+              <n.icon size={26} />
               {n.label}
               {n.count === 'my' && counts.my > 0 && (
                 <span className={`count ${counts.myNew ? '' : 'seen'}`} title={counts.myNew ? `${counts.myNew} newly assigned to you` : `${counts.my} open tasks`}>{counts.my}</span>

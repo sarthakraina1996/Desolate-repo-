@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderKanban, CalendarClock, AlertTriangle, Trophy, Plus, ArrowUpRight, Diamond, Flag, CalendarCheck, Lock } from 'lucide-react';
+import { FolderKanban, CalendarClock, TriangleAlert, Trophy, Plus, ArrowUpRight, Diamond, Flag, CalendarCheck, Lock } from 'lucide-react';
 import { useApp, useLoad } from '../store.jsx';
 import { api } from '../api.js';
 import { Link, useRouter } from '../router.jsx';
@@ -18,7 +18,7 @@ function greeting() {
 function Kpi({ icon: Icon, tone, label, value, sub, onClick }) {
   return (
     <button type="button" className="card kpi kpi-btn" onClick={onClick}>
-      <div className={`ic tone-${tone}`}><Icon size={30} strokeWidth={1.8} /></div>
+      <div className={`ic tone-${tone}`}><Icon size={30} strokeWidth={2} /></div>
       <div style={{ minWidth: 0, textAlign: 'left' }}>
         <div className="lbl">{label}</div>
         <div className="val">{value}{sub && <small>{sub}</small>}</div>
@@ -84,7 +84,7 @@ export default function Dashboard() {
           <div className="kpis">
             <Kpi icon={FolderKanban} tone="blue" label="Active projects" value={data.kpis.active} sub={data.kpis.planning ? `+${data.kpis.planning} planning or on hold` : null} onClick={() => navigate('/projects')} />
             <Kpi icon={CalendarClock} tone="purple" label="Tasks due this week" value={data.kpis.due_week} onClick={() => navigate('/my')} />
-            <Kpi icon={AlertTriangle} tone={data.kpis.overdue ? 'red' : 'green'} label="Overdue tasks" value={data.kpis.overdue} sub={data.kpis.at_risk ? `${data.kpis.at_risk} projects need attention` : null} onClick={() => navigate('/projects')} />
+            <Kpi icon={TriangleAlert} tone="red" label="Overdue tasks" value={data.kpis.overdue} sub={data.kpis.at_risk ? `${data.kpis.at_risk} projects need attention` : null} onClick={() => navigate('/projects')} />
             <Kpi icon={Trophy} tone="green" label={`Delivered in ${today.slice(0, 4)}`} value={data.kpis.delivered} onClick={() => navigate('/archive')} />
           </div>
 
