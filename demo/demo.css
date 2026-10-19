@@ -24,3 +24,5 @@
   body:has(.bnav) .demo-badge { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
   body:has(.bnav) .demo-notice { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
 }
+/* Out of the way while a sheet or floating panel is open, so it covers none of it. */
+body:has(.sheet, .fnav-panel) .demo-badge { opacity: 0; pointer-events: none; }

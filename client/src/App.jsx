@@ -40,6 +40,12 @@ class PageBoundary extends Component {
     return { failed: true };
   }
 
+  // Going to another page clears the message (without rebuilding the page, which would drop
+  // dialogs that stay open across a navigation, such as a new employee's temporary password).
+  componentDidUpdate(prev) {
+    if (prev.path !== this.props.path && this.state.failed) this.setState({ failed: false });
+  }
+
   render() {
     if (!this.state.failed) return this.props.children;
     const offline = navigator.onLine === false;
@@ -74,7 +80,7 @@ function AppRoutes() {
         <Route path="/print/:kind/:id" element={<Print />} />
         <Route path="*" element={(
           <Layout>
-            <PageBoundary key={pathname}>
+            <PageBoundary path={pathname}>
             <Suspense fallback={<Loading />}>
               <Routes>
                 <Route path="/" element={user.role === 'employee' ? <Navigate to="/my" replace /> : <Dashboard />} />

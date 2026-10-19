@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Inbox, LoaderCircle, Ellipsis, X } from 'lucide-react';
 import { colorFor, initials } from '../lib/format.js';
@@ -122,7 +123,9 @@ export function Modal({ title, onClose, children, footer, size = '' }) {
       document.body.style.overflow = prev;
     };
   }, [onClose]);
-  return (
+  // Drawn at the top of the page: inside the top bar (whose blur makes it the frame for fixed
+  // elements) a dialog would be squeezed into the bar.
+  return createPortal(
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div className={`modal ${size}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined}>
         <div className="modal-head">
@@ -132,7 +135,8 @@ export function Modal({ title, onClose, children, footer, size = '' }) {
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

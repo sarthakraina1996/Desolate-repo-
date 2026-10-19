@@ -37,7 +37,9 @@ export function useClickOutside(onOutside) {
   const ref = useRef(null);
   useEffect(() => {
     const h = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onOutside();
+      // Dialogs are drawn at the top of the page, outside the panel that opened them, so a
+      // click inside one must not close that panel (and the dialog with it).
+      if (ref.current && !ref.current.contains(e.target) && !e.target.closest?.('.overlay')) onOutside();
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
