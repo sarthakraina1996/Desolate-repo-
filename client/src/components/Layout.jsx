@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, ChevronsLeft, PanelLeftClose } from 'lucide-react';
+import { Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, ChevronsLeft } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
 import { ago } from '../lib/format.js';
@@ -123,10 +123,16 @@ function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
               <n.icon size={22} /><span className="lbl">{n.label}</span>
             </NavLink>
           ))}
+          {/* Hide this menu and use the draggable Br button instead. */}
+          <button
+            type="button" className="nav-act" onClick={() => { onClose(); onFloat(); }} aria-label={collapsed ? 'Floating menu' : undefined}
+            title="Hide the menu and use a floating Br button you can drag anywhere"
+            onMouseEnter={showTip('Floating menu')} onMouseLeave={hideTip} onFocus={showTip('Floating menu')} onBlur={hideTip}
+          >
+            <span className="nav-act-ic"><Monogram height={13} color="#fff" label={null} /></span>
+            <span className="lbl">Floating menu</span>
+          </button>
         </nav>
-        <button type="button" className="side-float" onClick={onFloat} onMouseEnter={showTip('Hide sidebar (use the floating button)')} onMouseLeave={hideTip} onFocus={showTip('Hide sidebar (use the floating button)')} onBlur={hideTip}>
-          <PanelLeftClose size={20} /><span className="lbl">Hide sidebar</span>
-        </button>
         {collapsed && tip && <div className="nav-tip" style={{ top: tip.top }} aria-hidden="true">{tip.label}</div>}
         <div className="leaf-card">
           <b>Great People Build Brighter Tomorrows</b>
@@ -308,27 +314,49 @@ export default function Layout({ children }) {
     }
     return !c;
   });
-  // 'floating' hides the docked sidebar on large screens; the floating Br button then leads everywhere.
-  const [navLayout, setNavLayout] = useState(() => {
+  // Floating: the side menu hides and a draggable Br button opens the menu instead.
+  const [floating, setFloatingState] = useState(() => {
     try {
-      return localStorage.getItem(NAV_LAYOUT_KEY) === 'floating' ? 'floating' : 'docked';
+      return localStorage.getItem(NAV_LAYOUT_KEY) === 'floating';
     } catch {
-      return 'docked';
+      return false;
     }
   });
-  const chooseLayout = (v) => {
-    setNavLayout(v);
+  const setFloating = (on) => {
+    setFloatingState(on);
     try {
-      localStorage.setItem(NAV_LAYOUT_KEY, v);
+      localStorage.setItem(NAV_LAYOUT_KEY, on ? 'floating' : 'docked');
     } catch {
       // Storage blocked: the choice lasts for this visit.
     }
   };
+  const focusFloat = useRef(false); // move keyboard focus along when someone switches menu style
+  const goFloating = () => {
+    focusFloat.current = true;
+    setFloating(true);
+  };
+  const dock = () => {
+    setFloating(false);
+    setTimeout(() => document.querySelector('.nav .nav-act')?.focus({ preventScroll: true }), 60);
+  };
+  // "[" collapses or expands the side menu, unless you are typing (the floating menu has its own).
+  useEffect(() => {
+    if (floating) return undefined;
+    const onKey = (e) => {
+      if (e.key !== '[' || e.ctrlKey || e.metaKey || e.altKey || window.innerWidth <= 1100) return;
+      const t = e.target;
+      if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      toggleCollapsed();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [floating]); // eslint-disable-line react-hooks/exhaustive-deps
   const items = NAV.filter((n) => !n.roles || n.roles.includes(user.role));
   const verticals = (meta?.verticals || []).filter((v) => v.short !== 'Corporate');
   return (
-    <div className={`app ${navLayout === 'floating' ? 'nav-floating' : ''}`}>
-      <Sidebar items={items} open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggle={toggleCollapsed} onFloat={() => chooseLayout('floating')} />
+    <div className={`app ${floating ? 'nav-floating' : ''}`}>
+      <Sidebar items={items} open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggle={toggleCollapsed} onFloat={goFloating} />
+      {floating && <FloatingNav items={items} onDock={dock} focusOnMount={focusFloat} />}
       <div className="main">
         <header className="topbar no-print">
           <button type="button" className="icon-btn burger" aria-label="Open menu" onClick={() => setOpen(true)}><MenuIcon size={22} /></button>
@@ -345,7 +373,6 @@ export default function Layout({ children }) {
         </header>
         <main className="content">{children}</main>
       </div>
-      <FloatingNav items={items} docked={navLayout === 'docked'} onDock={() => chooseLayout('docked')} onUndock={() => chooseLayout('floating')} brand={<Logo size="sm" />} />
       {user.mustChangePassword && <ChangePassword forced onClose={() => {}} />}
       <SignInPrompts />
       <LocationGuard />
