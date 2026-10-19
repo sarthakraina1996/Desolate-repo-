@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, ChevronsLeft } from 'lucide-react';
+import { Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, ChevronsLeft, PanelLeftClose } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
 import { ago } from '../lib/format.js';
@@ -12,6 +12,7 @@ import {
   IconChevronDown, VERTICAL_ICONS, Monogram,
 } from './icons.jsx';
 import WorkClock, { SignInPrompts, SignOutModal, LocationGuard } from './WorkClock.jsx';
+import FloatingNav from './FloatingNav.jsx';
 import { useWorkday } from '../lib/workday.js';
 
 export function Logo({ size = '' }) {
@@ -83,6 +84,7 @@ const NAV = [
 ];
 
 const COLLAPSE_KEY = 'hrms.sidebar';
+const NAV_LAYOUT_KEY = 'hrms.navLayout';
 function readCollapsed() {
   try {
     return localStorage.getItem(COLLAPSE_KEY) === 'collapsed';
@@ -91,9 +93,8 @@ function readCollapsed() {
   }
 }
 
-function Sidebar({ open, onClose, collapsed, onToggle }) {
+function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
   const { user } = useApp();
-  const items = NAV.filter((n) => !n.roles || n.roles.includes(user.role));
   // Labels for the icon-only rail; drawn outside the scrolling menu so they are not clipped.
   const [tip, setTip] = useState(null);
   const showTip = (label) => (e) => {
@@ -123,6 +124,9 @@ function Sidebar({ open, onClose, collapsed, onToggle }) {
             </NavLink>
           ))}
         </nav>
+        <button type="button" className="side-float" onClick={onFloat} onMouseEnter={showTip('Hide sidebar (use the floating button)')} onMouseLeave={hideTip} onFocus={showTip('Hide sidebar (use the floating button)')} onBlur={hideTip}>
+          <PanelLeftClose size={20} /><span className="lbl">Hide sidebar</span>
+        </button>
         {collapsed && tip && <div className="nav-tip" style={{ top: tip.top }} aria-hidden="true">{tip.label}</div>}
         <div className="leaf-card">
           <b>Great People Build Brighter Tomorrows</b>
@@ -304,10 +308,27 @@ export default function Layout({ children }) {
     }
     return !c;
   });
+  // 'floating' hides the docked sidebar on large screens; the floating Br button then leads everywhere.
+  const [navLayout, setNavLayout] = useState(() => {
+    try {
+      return localStorage.getItem(NAV_LAYOUT_KEY) === 'floating' ? 'floating' : 'docked';
+    } catch {
+      return 'docked';
+    }
+  });
+  const chooseLayout = (v) => {
+    setNavLayout(v);
+    try {
+      localStorage.setItem(NAV_LAYOUT_KEY, v);
+    } catch {
+      // Storage blocked: the choice lasts for this visit.
+    }
+  };
+  const items = NAV.filter((n) => !n.roles || n.roles.includes(user.role));
   const verticals = (meta?.verticals || []).filter((v) => v.short !== 'Corporate');
   return (
-    <div className="app">
-      <Sidebar open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggle={toggleCollapsed} />
+    <div className={`app ${navLayout === 'floating' ? 'nav-floating' : ''}`}>
+      <Sidebar items={items} open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggle={toggleCollapsed} onFloat={() => chooseLayout('floating')} />
       <div className="main">
         <header className="topbar no-print">
           <button type="button" className="icon-btn burger" aria-label="Open menu" onClick={() => setOpen(true)}><MenuIcon size={22} /></button>
@@ -324,6 +345,7 @@ export default function Layout({ children }) {
         </header>
         <main className="content">{children}</main>
       </div>
+      <FloatingNav items={items} docked={navLayout === 'docked'} onDock={() => chooseLayout('docked')} onUndock={() => chooseLayout('floating')} brand={<Logo size="sm" />} />
       {user.mustChangePassword && <ChangePassword forced onClose={() => {}} />}
       <SignInPrompts />
       <LocationGuard />

@@ -25,6 +25,7 @@ It is a complete application: a Node.js server with a SQLite database, real logi
 | **Resignation** | Submit → manager approval → HR acceptance → offboarding checklist, clearance matrix, exit interview, full & final settlement, experience and relieving letters, rehire eligibility. |
 | **Reports** | Headcount, attrition, payroll cost and leave trends, plus CSV downloads of every register. |
 | **Settings** | Company rules (including working hours per day), weekly offs, payroll rules, verticals / departments / locations, leave types, users and roles, audit log, and data reset. |
+| **Navigation** | The sidebar collapses to an icon rail (the logo turns into the Br monogram) or hides completely for the full screen width. The floating Br button can be dragged anywhere (mouse, touch or pen; it settles onto a nearby edge and remembers its place) and opens either a floating sidebar with every module you may open, or **Quick Access**: a movable card with module search and shortcut tiles. Pop-up messages take the colour and icon of the section they come from. |
 
 ### Roles
 
