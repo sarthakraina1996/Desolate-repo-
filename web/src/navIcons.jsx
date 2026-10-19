@@ -1,117 +1,200 @@
-// Two-tone sidebar icons. Each keeps its own colours (they do not follow the link colour),
-// so the menu reads at a glance: blue home, purple folders, red team, green calendar and so on.
+// Two-tone sidebar icons, drawn on a 48-unit grid with soft top-to-bottom gradients.
+// Each keeps its own colours (they do not follow the link colour), so the menu reads at a
+// glance: blue home, purple folder, red team, green calendar and so on.
+import { useId } from 'react';
+
+function useIds(...names) {
+  const base = useId().replace(/:/g, '');
+  return Object.fromEntries(names.map((n) => [n, `${base}-${n}`]));
+}
 
 function Svg({ size = 24, children }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false" className="nav-ic">
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true" focusable="false" className="nav-ic" shapeRendering="geometricPrecision">
       {children}
     </svg>
   );
 }
 
+// Vertical gradient, light at the top.
+function Grad({ id, from, to, x2 = 0, y2 = 1 }) {
+  return (
+    <linearGradient id={id} x1="0" y1="0" x2={x2} y2={y2}>
+      <stop offset="0" stopColor={from} />
+      <stop offset="1" stopColor={to} />
+    </linearGradient>
+  );
+}
+
 export function DashboardIcon(props) {
+  const id = useIds('wall', 'roof', 'door');
   return (
     <Svg {...props}>
-      <path d="M4.9 10.4V18.6A2.4 2.4 0 0 0 7.3 21h9.4a2.4 2.4 0 0 0 2.4-2.4v-8.2" fill="#dbe6fd" stroke="#8ba8f5" strokeWidth="2" />
-      <path d="M2.6 11.4 12 3.5l9.4 7.9" stroke="#1d3fd1" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M9.9 21v-4.3a2.1 2.1 0 0 1 4.2 0V21z" fill="#1d3fd1" />
+      <defs>
+        <Grad id={id.wall} from="#a9bffa" to="#7f9df3" />
+        <Grad id={id.roof} from="#2f55e6" to="#1834c4" />
+        <Grad id={id.door} from="#2448d8" to="#1530b8" />
+      </defs>
+      <path d="M9 21.5 24 9.6l15 11.9v15a5.5 5.5 0 0 1-5.5 5.5h-19A5.5 5.5 0 0 1 9 36.5z" fill={`url(#${id.wall})`} />
+      <path d="M13.2 23.6 24 15l10.8 8.6v12.6a1.6 1.6 0 0 1-1.6 1.6H14.8a1.6 1.6 0 0 1-1.6-1.6z" fill="#e7eefe" />
+      <path d="M5.8 22.4 24 7.6l18.2 14.8" stroke={`url(#${id.roof})`} strokeWidth="5.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M18.6 42V31a3 3 0 0 1 3-3h4.8a3 3 0 0 1 3 3v11z" fill={`url(#${id.door})`} />
     </Svg>
   );
 }
 
 export function MyWorkIcon(props) {
+  const id = useIds('tile', 'dash');
   return (
     <Svg {...props}>
-      <rect x="1.8" y="2" width="20.4" height="20" rx="5.2" fill="#e2ebfd" />
-      <path d="m6 8.3 1.6 1.6 3-3" stroke="#1d3fd1" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="m6 14.9 1.6 1.6 3-3" stroke="#1d3fd1" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M13.3 8.7h4.6M13.3 15.3h4.6" stroke="#4a78f0" strokeWidth="2.3" strokeLinecap="round" />
+      <defs>
+        <Grad id={id.tile} from="#ecf2ff" to="#dde7fd" />
+        <Grad id={id.dash} from="#5a86f6" to="#3a68ee" x2="1" y2="0" />
+      </defs>
+      <rect x="3.5" y="4" width="41" height="40" rx="10.5" fill={`url(#${id.tile})`} />
+      <path d="m12.6 17.4 3.9 3.9 7-7" stroke="#1f3fcf" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m12.6 29.6 3.9 3.9 7-7" stroke="#1f3fcf" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M28.6 17.9h7.4M28.6 30.1h7.4" stroke={`url(#${id.dash})`} strokeWidth="4.6" strokeLinecap="round" />
     </Svg>
   );
 }
 
 export function ProjectsIcon(props) {
+  const id = useIds('back', 'front');
   return (
     <Svg {...props}>
-      <path d="M2 6.4A2.4 2.4 0 0 1 4.4 4h4.1c.7 0 1.3.3 1.8.8l1.4 1.5h7.9A2.4 2.4 0 0 1 22 8.7v9.9a2.4 2.4 0 0 1-2.4 2.4H4.4A2.4 2.4 0 0 1 2 18.6z" fill="#8a62e8" />
-      <path d="M20.6 8.7v12.1A2.4 2.4 0 0 0 22 18.6V8.7a2.4 2.4 0 0 0-1.4-2.2z" fill="#6b43d6" />
-      <path d="M4 10.9a1.9 1.9 0 0 1 1.9-1.9h12.6a1.6 1.6 0 0 1 1.6 1.7l-.4 8.4A2 2 0 0 1 17.7 21H4.4A2.4 2.4 0 0 1 2.9 20.5z" fill="#c4b2fb" />
+      <defs>
+        <Grad id={id.back} from="#9d7ff2" to="#6a45d8" x2="1" y2="0.35" />
+        <Grad id={id.front} from="#cdbdfc" to="#b29af8" />
+      </defs>
+      <path d="M4.5 11.5a5 5 0 0 1 5-5h7.6a4 4 0 0 1 2.9 1.2l3.3 3.4h15.2a5 5 0 0 1 5 5v20.4a5 5 0 0 1-5 5h-29a5 5 0 0 1-5-5z" fill={`url(#${id.back})`} />
+      <rect x="10" y="16.2" width="26.5" height="14" rx="2.6" fill="#fbf9ff" />
+      <path d="M9 24a3.4 3.4 0 0 1 3.4-3.4h22.9a2.6 2.6 0 0 1 2.6 2.9l-1.7 15.3a3.4 3.4 0 0 1-3.4 2.7H9.5a5 5 0 0 1-.5-.1z" fill={`url(#${id.front})`} />
     </Svg>
   );
 }
 
 export function TeamGroupsIcon(props) {
+  const id = useIds('mid', 'side', 'gap');
+  const midBody = 'M12.8 32.6a10.6 10.6 0 0 1 10.6-10.6h1.2a10.6 10.6 0 0 1 10.6 10.6v6.6a2.8 2.8 0 0 1-2.8 2.8H15.6a2.8 2.8 0 0 1-2.8-2.8z';
   return (
     <Svg {...props}>
-      <circle cx="5.5" cy="8.4" r="2.4" fill="#e8243f" />
-      <circle cx="18.5" cy="8.4" r="2.4" fill="#e8243f" />
-      <path d="M1.4 17.9a4.2 4.2 0 0 1 4.2-4.2h1.1c.6 0 1.1.1 1.6.3a5.7 5.7 0 0 0-1.3 3.7V20H2.5a1.1 1.1 0 0 1-1.1-1.1z" fill="#e8243f" />
-      <path d="M22.6 17.9a4.2 4.2 0 0 0-4.2-4.2h-1.1c-.6 0-1.1.1-1.6.3a5.7 5.7 0 0 1 1.3 3.7V20h4.5a1.1 1.1 0 0 0 1.1-1.1z" fill="#e8243f" />
-      <circle cx="12" cy="6.6" r="3.3" fill="#fb5b70" />
-      <path d="M6.6 17.9a4.7 4.7 0 0 1 4.7-4.7h1.4a4.7 4.7 0 0 1 4.7 4.7v2a1.1 1.1 0 0 1-1.1 1.1H7.7a1.1 1.1 0 0 1-1.1-1.1z" fill="#fb5b70" />
+      <defs>
+        <Grad id={id.mid} from="#ff7489" to="#f04661" />
+        <Grad id={id.side} from="#f2475e" to="#d81f39" />
+        {/* Clear a thin gap around the middle person so the three figures stay separate. */}
+        <mask id={id.gap} maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+          <rect width="48" height="48" fill="#fff" />
+          <path d={midBody} fill="#000" stroke="#000" strokeWidth="3.4" />
+        </mask>
+      </defs>
+      <g mask={`url(#${id.gap})`}>
+        <circle cx="9.8" cy="15.6" r="4.7" fill={`url(#${id.mid})`} />
+        <circle cx="38.2" cy="15.6" r="4.7" fill={`url(#${id.mid})`} />
+        <path d="M2.4 33a8.4 8.4 0 0 1 8.4-8.4h6.4V41H5.2a2.8 2.8 0 0 1-2.8-2.8z" fill={`url(#${id.side})`} />
+        <path d="M45.6 33a8.4 8.4 0 0 0-8.4-8.4h-6.4V41h12a2.8 2.8 0 0 0 2.8-2.8z" fill={`url(#${id.side})`} />
+      </g>
+      <circle cx="24" cy="11.6" r="6.2" fill={`url(#${id.mid})`} />
+      <path d={midBody} fill={`url(#${id.mid})`} />
     </Svg>
   );
 }
 
 export function CalendarIcon(props) {
+  const id = useIds('body', 'head', 'panel', 'ring');
   return (
     <Svg {...props}>
-      <rect x="2.6" y="4.2" width="18.8" height="17.6" rx="3.6" fill="#3fd6a2" />
-      <path d="M2.6 7.8a3.6 3.6 0 0 1 3.6-3.6h11.6a3.6 3.6 0 0 1 3.6 3.6v1.5H2.6z" fill="#13c08a" />
-      <rect x="4.6" y="10.9" width="14.8" height="9" rx="1.8" fill="#d5f7eb" />
-      <path d="M7.7 2.4v4M16.3 2.4v4" stroke="#0e9f70" strokeWidth="2.2" strokeLinecap="round" />
-      <g fill="#14b981">
-        <rect x="7" y="12.6" width="2.4" height="2.2" rx=".7" />
-        <rect x="10.8" y="12.6" width="2.4" height="2.2" rx=".7" />
-        <rect x="14.6" y="12.6" width="2.4" height="2.2" rx=".7" />
-        <rect x="7" y="16.3" width="2.4" height="2.2" rx=".7" />
-        <rect x="10.8" y="16.3" width="2.4" height="2.2" rx=".7" />
-        <rect x="14.6" y="16.3" width="2.4" height="2.2" rx=".7" />
+      <defs>
+        <Grad id={id.body} from="#4fdcae" to="#2bc996" />
+        <Grad id={id.head} from="#22cc93" to="#12b781" />
+        <Grad id={id.panel} from="#f1fcf8" to="#dcf6ec" />
+        <Grad id={id.ring} from="#13a875" to="#0b8f62" />
+      </defs>
+      <rect x="5" y="8.6" width="38" height="34.4" rx="7.2" fill={`url(#${id.body})`} />
+      <path d="M5 15.8a7.2 7.2 0 0 1 7.2-7.2h23.6a7.2 7.2 0 0 1 7.2 7.2v2.6H5z" fill={`url(#${id.head})`} />
+      <rect x="9" y="18.4" width="30" height="20.6" rx="2.8" fill={`url(#${id.panel})`} />
+      <path d="M15.4 4.2v8.4M32.6 4.2v8.4" stroke={`url(#${id.ring})`} strokeWidth="4.6" strokeLinecap="round" />
+      <g fill="#17b17f">
+        <rect x="13.6" y="22.6" width="5.6" height="5.2" rx="1.7" />
+        <rect x="21.2" y="22.6" width="5.6" height="5.2" rx="1.7" />
+        <rect x="28.8" y="22.6" width="5.6" height="5.2" rx="1.7" />
+        <rect x="13.6" y="30" width="5.6" height="5.2" rx="1.7" />
+        <rect x="21.2" y="30" width="5.6" height="5.2" rx="1.7" />
+        <rect x="28.8" y="30" width="5.6" height="5.2" rx="1.7" />
       </g>
     </Svg>
   );
 }
 
 export function AssetsIcon(props) {
+  const id = useIds('frame', 'panel', 'hill', 'clip');
   return (
     <Svg {...props}>
-      <rect x="2.2" y="2.6" width="19.6" height="18.8" rx="3.6" fill="#ff9f1c" />
-      <rect x="4.4" y="4.8" width="15.2" height="14.4" rx="1.8" fill="#fff3e0" />
-      <circle cx="9" cy="9.3" r="1.9" fill="#f59e0b" />
-      <path d="M4.4 17.4 8.9 13l2.6 2.4 3.9-4.1 4.2 4.6v1.5a1.8 1.8 0 0 1-1.8 1.8H6.2a1.8 1.8 0 0 1-1.8-1.8z" fill="#fdba55" />
+      <defs>
+        <Grad id={id.frame} from="#ffad3d" to="#ff8a1c" />
+        <Grad id={id.panel} from="#fffbf5" to="#ffefd9" />
+        <Grad id={id.hill} from="#ffc56b" to="#ffaa42" />
+        <clipPath id={id.clip}><rect x="9.2" y="10.8" width="29.6" height="26.4" rx="2.6" /></clipPath>
+      </defs>
+      <rect x="4" y="5.6" width="40" height="36.8" rx="7.4" fill={`url(#${id.frame})`} />
+      <rect x="9.2" y="10.8" width="29.6" height="26.4" rx="2.6" fill={`url(#${id.panel})`} />
+      <g clipPath={`url(#${id.clip})`}>
+        <path d="M6 39 17.3 27.4a1.6 1.6 0 0 1 2.3 0l4.3 4.4 7-7.8a1.6 1.6 0 0 1 2.4 0L42 34.6V39z" fill={`url(#${id.hill})`} />
+      </g>
+      <circle cx="17.4" cy="19.2" r="4.3" fill="#ff9a1f" />
     </Svg>
   );
 }
 
 export function PastProjectsIcon(props) {
+  const id = useIds('arc', 'hand');
   return (
     <Svg {...props}>
-      <path d="M4.3 9.2A8.4 8.4 0 1 1 3.6 13" stroke="#a88bf3" strokeWidth="2.3" strokeLinecap="round" />
-      <path d="M1.6 9.6 4.4 12.6 7.3 9.8" stroke="#9471ee" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12.6 7.6V12.4l3.1 2.4" stroke="#6b43d6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <defs>
+        <Grad id={id.arc} from="#ad92f6" to="#8a66ec" x2="1" y2="1" />
+        <Grad id={id.hand} from="#7550e0" to="#5d36cf" />
+      </defs>
+      {/* From nine o'clock over the top and round to seven o'clock. */}
+      <path d="M10.2 24A16 16 0 1 1 18.2 37.86" stroke={`url(#${id.arc})`} strokeWidth="4.6" strokeLinecap="round" />
+      <path d="M4.6 22.4h11.2L10.2 29.6z" fill="#9775ef" stroke="#9775ef" strokeWidth="2.2" strokeLinejoin="round" />
+      <path d="M26.2 14.8v9.6l6.2 5.8" stroke={`url(#${id.hand})`} strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
 
-// Not in the reference set: drawn to match it (people and their access, so a shield).
+// Not in the reference set: drawn to match it (who can see what, so a shield with a person).
 export function TeamAccessIcon(props) {
+  const id = useIds('shield', 'inner', 'person');
   return (
     <Svg {...props}>
-      <path d="M12 2.2 20 5.3v6.1c0 5-3.4 8.9-8 10.4-4.6-1.5-8-5.4-8-10.4V5.3z" fill="#c6eef4" stroke="#22b4c8" strokeWidth="1.8" strokeLinejoin="round" />
-      <circle cx="12" cy="9.6" r="2.4" fill="#0e8fa3" />
-      <path d="M7.9 16.6a4.1 4.1 0 0 1 8.2 0 8.3 8.3 0 0 1-4.1 3.1 8.3 8.3 0 0 1-4.1-3.1z" fill="#0e8fa3" />
+      <defs>
+        <Grad id={id.shield} from="#3ccfe0" to="#12a8bd" />
+        <Grad id={id.inner} from="#f0fcfd" to="#d6f4f8" />
+        <Grad id={id.person} from="#14a0b3" to="#0b8395" />
+      </defs>
+      <path d="M24 3.6 41 9.8v12.4c0 10.2-7 18.4-17 21.8C14 40.6 7 32.4 7 22.2V9.8z" fill={`url(#${id.shield})`} strokeLinejoin="round" />
+      <path d="M24 8.8 36.4 13.4v8.8c0 7.6-5 13.8-12.4 16.7C16.6 36 11.6 29.8 11.6 22.2v-8.8z" fill={`url(#${id.inner})`} />
+      <circle cx="24" cy="19.4" r="4.6" fill={`url(#${id.person})`} />
+      <path d="M15.6 32.4a8.4 8.4 0 0 1 16.8 0A15.4 15.4 0 0 1 24 38.9a15.4 15.4 0 0 1-8.4-6.5z" fill={`url(#${id.person})`} />
     </Svg>
   );
 }
+
+const GEAR = 'M19.13 10.24 L19.42 4.94 L28.58 4.94 L28.87 10.24 L30.29 10.82 L34.24 7.29 L40.71 13.76 L37.18 17.71 L37.76 19.13 L43.06 19.42 L43.06 28.58 L37.76 28.87 L37.18 30.29 L40.71 34.24 L34.24 40.71 L30.29 37.18 L28.87 37.76 L28.58 43.06 L19.42 43.06 L19.13 37.76 L17.71 37.18 L13.76 40.71 L7.29 34.24 L10.82 30.29 L10.24 28.87 L4.94 28.58 L4.94 19.42 L10.24 19.13 L10.82 17.71 L7.29 13.76 L13.76 7.29 L17.71 10.82Z';
 
 export function SettingsIcon(props) {
+  const id = useIds('gear', 'hole');
   return (
     <Svg {...props}>
-      <path
-        d="M10.3 1.9h3.4l.6 2.7c.7.2 1.4.5 2 .9l2.4-1.5 2.4 2.4-1.5 2.4c.4.6.7 1.3.9 2l2.7.6v3.4l-2.7.6c-.2.7-.5 1.4-.9 2l1.5 2.4-2.4 2.4-2.4-1.5c-.6.4-1.3.7-2 .9l-.6 2.7h-3.4l-.6-2.7c-.7-.2-1.4-.5-2-.9l-2.4 1.5-2.4-2.4 1.5-2.4c-.4-.6-.7-1.3-.9-2l-2.7-.6v-3.4l2.7-.6c.2-.7.5-1.4.9-2L3.9 6.4l2.4-2.4 2.4 1.5c.6-.4 1.3-.7 2-.9z"
-        fill="#6e7a8e" strokeLinejoin="round"
-      />
-      <circle cx="12" cy="12" r="3.4" fill="#fff" />
+      <defs>
+        <Grad id={id.gear} from="#7f8ba1" to="#5f6b82" />
+        <mask id={id.hole} maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+          <rect width="48" height="48" fill="#fff" />
+          <circle cx="24" cy="24" r="6.4" fill="#000" />
+        </mask>
+      </defs>
+      {/* The same-colour stroke with round joins softens every corner of the teeth. */}
+      <path d={GEAR} fill={`url(#${id.gear})`} stroke={`url(#${id.gear})`} strokeWidth="2.6" strokeLinejoin="round" mask={`url(#${id.hole})`} />
     </Svg>
   );
 }
