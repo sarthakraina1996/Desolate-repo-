@@ -22,14 +22,40 @@ const STAGE_STYLE = {
 };
 
 export default function Hiring() {
-  const { meta, vertical, isHR } = useApp();
+  const { meta, vertical, isHR, toast } = useApp();
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
   const [f, setF] = useState({ department: '', location: '', type: '', from: '', to: '' });
   const qs = new URLSearchParams({ ...(vertical ? { vertical } : {}), ...Object.fromEntries(Object.entries(f).filter(([, v]) => v)), ...(sp.get('job') ? { job: sp.get('job') } : {}) });
-  const { data, error, reload } = useApi(`/hiring?${qs}`);
+  const { data, error, reload, setData } = useApi(`/hiring?${qs}`);
   const selected = Number(sp.get('candidate')) || null;
   const [modal, setModal] = useState(null);
+  const [run] = useAction(toast);
+  // Drag and drop on the pipeline: drag is the card being moved, over the column under it.
+  const [drag, setDrag] = useState(null);
+  const [over, setOver] = useState(null);
+  const [panelVersion, setPanelVersion] = useState(0);
+  const canDrop = (stage) => Boolean(drag) && stage !== drag.from && stage !== 'Hired';
+  const endDrag = () => { setDrag(null); setOver(null); };
+  const drop = async (stage) => {
+    const d = drag;
+    endDrag();
+    if (!d || stage === d.from || stage === 'Hired') return;
+    const card = data.pipeline.find((c) => c.stage === d.from)?.candidates.find((x) => x.id === d.id);
+    if (!card) return;
+    // Show the move straight away; the reload afterwards brings back the server's counts and order.
+    setData((cur) => ({
+      ...cur,
+      pipeline: cur.pipeline.map((col) => {
+        if (col.stage === d.from) return { ...col, total: col.total - 1, candidates: col.candidates.filter((x) => x.id !== d.id) };
+        if (col.stage === stage) return { ...col, total: col.total + 1, candidates: [{ ...card, updated_at: new Date().toISOString() }, ...col.candidates] };
+        return col;
+      }),
+    }));
+    await run(() => api.post(`/candidates/${d.id}/move`, { stage }), `Moved ${card.name} to ${stage}`);
+    reload();
+    setPanelVersion((v) => v + 1);
+  };
   const select = (id) => setSp((p) => { const n = new URLSearchParams(p); if (id) n.set('candidate', id); else n.delete('candidate'); return n; });
   const flat = useMemo(() => (data?.pipeline || []).flatMap((c) => c.candidates.map((x) => x.id)), [data]);
   const current = selected || flat[0];
@@ -62,11 +88,34 @@ export default function Hiring() {
           <div className="kanban">
             {data.pipeline.map((col) => {
               const [bg, fg] = STAGE_STYLE[col.stage];
+              const target = drag ? (canDrop(col.stage) ? 'drop-ok' : col.stage === drag.from ? '' : 'drop-no') : '';
               return (
-                <div key={col.stage} className="kcol" style={{ background: bg }}>
+                <div
+                  key={col.stage} className={`kcol ${target} ${over === col.stage ? 'over' : ''}`} style={{ background: bg, '--fg': fg }}
+                  onDragOver={(e) => {
+                    if (!canDrop(col.stage)) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (over !== col.stage) setOver(col.stage);
+                  }}
+                  onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver((o) => (o === col.stage ? null : o)); }}
+                  onDrop={(e) => { e.preventDefault(); drop(col.stage); }}
+                >
                   <h4 style={{ color: fg }}>{col.stage}<span style={{ color: fg, fontWeight: 500 }}>({col.total})</span></h4>
+                  {drag && col.stage === 'Hired' && drag.from !== 'Hired' && <div className="drop-hint">Hire from the candidate's offer with "Convert to employee"</div>}
+                  {over === col.stage && <div className="kdrop">Move here</div>}
                   {col.candidates.map((c) => (
-                    <div key={c.id} className={`kcard ${c.id === current ? 'sel' : ''}`} onClick={() => select(c.id)}>
+                    <div
+                      key={c.id} className={`kcard ${c.id === current ? 'sel' : ''} ${drag?.id === c.id ? 'dragging' : ''}`} onClick={() => select(c.id)}
+                      draggable={col.stage !== 'Hired'} title={col.stage !== 'Hired' ? 'Drag to another stage to move' : undefined}
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', String(c.id));
+                        // Wait a tick so the browser takes its drag picture before the card fades.
+                        setTimeout(() => setDrag({ id: c.id, from: col.stage }), 0);
+                      }}
+                      onDragEnd={endDrag}
+                    >
                       <div className="row" style={{ gap: 8 }}>
                         <Avatar name={c.name} size={30} />
                         <div style={{ minWidth: 0 }}><div className="small b6 ellipsis">{c.name}</div><div className="xs muted ellipsis">{c.title}</div></div>
@@ -83,7 +132,7 @@ export default function Hiring() {
         </Card>
         <div className="span-3">
           <Card title="Candidate Details" action={<div className="row gap-4"><Button size="xs" variant="ghost" disabled={idx <= 0} onClick={() => select(flat[idx - 1])} aria-label="Previous candidate"><ChevronLeft size={16} /></Button><Button size="xs" variant="ghost" disabled={idx < 0 || idx >= flat.length - 1} onClick={() => select(flat[idx + 1])} aria-label="Next candidate"><ChevronRight size={16} /></Button></div>}>
-            {current ? <CandidatePanel key={current} id={current} onChanged={reload} /> : <Empty text="Select a candidate" />}
+            {current ? <CandidatePanel key={`${current}-${panelVersion}`} id={current} onChanged={reload} /> : <Empty text="Select a candidate" />}
           </Card>
         </div>
       </div>

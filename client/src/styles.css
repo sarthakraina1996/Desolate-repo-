@@ -28,6 +28,8 @@
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
   --shadow-lg: 0 12px 40px rgba(16, 24, 40, 0.16);
   --sidebar: 236px;
+  --sidebar-mini: 70px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -65,9 +67,31 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
   display: flex;
   flex-direction: column;
   z-index: 30;
+  transition: width 0.34s var(--ease-out);
 }
-.sidebar .brand { padding: 18px 20px 10px; }
-.nav { flex: 1; overflow-y: auto; padding: 8px 0; }
+.sidebar .brand { padding: 18px 20px 10px; position: relative; overflow: hidden; }
+.brand-link { display: block; text-decoration: none; }
+.brand-link:hover { text-decoration: none; }
+.sidebar .brand .logo { width: max-content; transform-origin: left center; transition: opacity 0.22s ease 0.1s, transform 0.34s var(--ease-out); }
+/* Monogram centred on the icon column (35px from the left edge). */
+.sidebar .brand .mono { position: absolute; left: 16px; top: 50%; opacity: 0; transform: translateY(-50%) scale(0.4); transition: opacity 0.14s ease, transform 0.2s ease; pointer-events: none; }
+.collapse-btn {
+  position: absolute; top: 44px; right: -13px; z-index: 2; width: 26px; height: 26px; border-radius: 50%; padding: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; background: #fff; color: var(--text-2);
+  border: 1px solid var(--border-strong); box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12);
+}
+.collapse-btn:hover { color: var(--navy); border-color: var(--navy); }
+.collapse-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.collapse-btn svg { transition: transform 0.34s var(--ease-out); }
+.nav { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 0; }
+.nav .lbl { transition: opacity 0.2s ease 0.12s; }
+.nav-tip {
+  position: fixed; left: calc(var(--sidebar-mini) + 10px); transform: translateY(-50%); z-index: 70; pointer-events: none;
+  background: var(--navy); color: #fff; font-size: 12.5px; font-weight: 600; white-space: nowrap; padding: 6px 10px; border-radius: 8px;
+  box-shadow: var(--shadow-lg); animation: tip-in 0.12s ease;
+}
+.nav-tip::before { content: ''; position: absolute; left: -4px; top: 50%; width: 8px; height: 8px; background: inherit; transform: translateY(-50%) rotate(45deg); border-radius: 1px; }
+@keyframes tip-in { from { opacity: 0; transform: translate(-4px, -50%); } }
 .nav a {
   display: flex; align-items: center; gap: 13px;
   padding: 11px 18px 11px 20px; margin: 2px 12px 2px 0;
@@ -84,6 +108,22 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
   margin: 12px 14px 16px; border-radius: 16px; padding: 18px 16px 70px;
   background: linear-gradient(180deg, #f2f7f1 0%, #e5f1e3 100%);
   position: relative; overflow: hidden; min-height: 150px;
+  transition: opacity 0.2s ease 0.28s;
+}
+
+/* Collapsed sidebar (desktop only): the logo slides out, the Br monogram scales in, labels fade
+   and the icons stay where they are. Tablets and phones keep the slide-out drawer. */
+@media (min-width: 1101px) {
+  .sidebar.collapsed { width: var(--sidebar-mini); }
+  .sidebar.collapsed .brand .logo { opacity: 0; transform: translateX(-26px) scale(0.9); transition: opacity 0.16s ease, transform 0.3s var(--ease-out); }
+  .sidebar.collapsed .brand .mono { opacity: 1; transform: translateY(-50%) scale(1); transition: opacity 0.22s ease 0.16s, transform 0.42s cubic-bezier(0.34, 1.5, 0.64, 1) 0.16s; pointer-events: auto; }
+  .sidebar.collapsed .collapse-btn svg { transform: rotate(180deg); }
+  .sidebar.collapsed .nav a { margin-right: 8px; }
+  .sidebar.collapsed .nav .lbl { opacity: 0; transition: opacity 0.1s ease; }
+  .sidebar.collapsed .leaf-card { opacity: 0; visibility: hidden; transition: opacity 0.1s ease, visibility 0s 0.1s; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .sidebar .brand .logo, .sidebar .brand .mono, .collapse-btn svg, .nav .lbl, .leaf-card { transition: none !important; }
 }
 .leaf-card b { display: block; font-size: 16px; line-height: 1.3; font-weight: 600; color: var(--text); max-width: 130px; }
 .leaf-card i { display: block; width: 30px; height: 3px; background: var(--green); border-radius: 3px; margin-top: 10px; }
@@ -258,9 +298,10 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
 .vchip { display: inline-flex; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 
 /* ---------- avatar ---------- */
-.avatar { border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; flex-shrink: 0; overflow: hidden; position: relative; }
-.avatar img { width: 100%; height: 100%; object-fit: cover; }
-.avatar .online { position: absolute; right: 2px; bottom: 2px; width: 22%; height: 22%; border-radius: 50%; background: var(--green); border: 2px solid #fff; }
+.avatar { border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; flex-shrink: 0; position: relative; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+/* Centred on the circle's edge at 45 degrees (85.4% across and down), so it sits on the frame rather than outside it. */
+.avatar .online { position: absolute; left: 85.4%; top: 85.4%; width: 22%; height: 22%; transform: translate(-50%, -50%); border-radius: 50%; background: var(--green); border: 2px solid #fff; box-sizing: content-box; }
 .person { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .person .pn { font-weight: 600; font-size: 14px; color: var(--text); }
 .person .ps { font-size: 12px; color: var(--muted); }
@@ -363,11 +404,20 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .prose ul { padding-left: 20px; margin: 6px 0; }
 .prose p { margin: 6px 0; }
 .kanban { display: grid; grid-template-columns: repeat(7, minmax(126px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 4px; }
-.kcol { border-radius: 12px; padding: 9px; min-width: 126px; }
+.kcol { border-radius: 12px; padding: 9px; min-width: 126px; outline: 2px dashed transparent; outline-offset: -2px; transition: outline-color 0.15s, box-shadow 0.15s, opacity 0.15s; }
 .kcol h4 { font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; margin-bottom: 10px; }
-.kcard { background: #fff; border-radius: 10px; padding: 9px; box-shadow: 0 1px 2px rgba(16,24,40,.06); margin-bottom: 8px; cursor: pointer; border: 1.5px solid transparent; }
+.kcard { background: #fff; border-radius: 10px; padding: 9px; box-shadow: 0 1px 2px rgba(16,24,40,.06); margin-bottom: 8px; cursor: pointer; border: 1.5px solid transparent; user-select: none; -webkit-user-select: none; }
+.kcard[draggable="true"] { cursor: grab; }
+.kcard[draggable="true"]:active { cursor: grabbing; }
 .kcard:hover { border-color: var(--border-strong); }
 .kcard.sel { border-color: var(--red); }
+.kcard.dragging { opacity: 0.4; }
+/* While a card is dragged: columns it can go to are outlined, the one under the pointer is solid. */
+.kcol.drop-ok { outline-color: color-mix(in srgb, var(--fg) 45%, transparent); }
+.kcol.over { outline-style: solid; outline-color: var(--fg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--fg) 14%, transparent); }
+.kcol.drop-no { opacity: 0.6; }
+.kdrop { border: 1.5px dashed var(--fg); border-radius: 10px; height: 52px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--fg); background: rgba(255, 255, 255, 0.6); }
+.drop-hint { font-size: 11.5px; line-height: 1.35; color: var(--fg); background: rgba(255, 255, 255, 0.7); border-radius: 8px; padding: 6px 8px; margin-bottom: 8px; }
 .more { text-align: center; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 4px; }
 .stepper { display: flex; align-items: flex-start; }
 .step { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; min-width: 0; }
@@ -526,6 +576,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   .sidebar { position: fixed; left: 0; top: 0; transform: translateX(-100%); transition: transform 0.2s; box-shadow: var(--shadow-lg); background: #fff; }
   .sidebar.open { transform: none; }
   .burger { display: inline-flex; }
+  .collapse-btn, .nav-tip { display: none; }
   .topbar .verticals { display: none; }
   .span-6, .span-8, .span-9 { grid-column: span 12; }
   .scrim { position: fixed; inset: 0; background: rgba(16,24,40,.35); z-index: 29; }

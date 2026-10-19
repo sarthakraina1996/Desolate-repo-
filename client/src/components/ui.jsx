@@ -74,7 +74,7 @@ export function Avatar({ name = '', id, hasPhoto, size = 36, online, square }) {
   return (
     <span className="avatar" style={style}>
       {src && !broken ? <img src={src} alt="" onError={() => setBroken(true)} /> : initials(name)}
-      {online && <span className="online" />}
+      {online && <span className="online" style={{ borderWidth: Math.max(2, Math.round(size / 28)) }} />}
     </span>
   );
 }
