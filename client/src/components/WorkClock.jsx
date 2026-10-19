@@ -14,6 +14,12 @@ import { getPosition, setLocationStatus, useLocationStatus, fmtDistance } from '
 import { Button, Modal, Field, Textarea, Progress, Badge } from './ui.jsx';
 import { IconTimer, IconWorking } from './icons.jsx';
 
+// Clock, gap and location messages belong to Attendance whichever page is open.
+function useClockToast() {
+  const { toast } = useApp();
+  return useCallback((text, kind) => toast(text, kind, { module: '/attendance' }), [toast]);
+}
+
 const OFF_DAYS = ['H', 'WO', 'L'];
 const BASE_TITLE = 'BrainADZ HRMS';
 const POP_PREF = 'hrms.popOutOnCheckIn';
@@ -62,7 +68,7 @@ function usePipWindow() {
 
 function FloatingClock({ s }) {
   const now = useNow(1000);
-  const { toast } = useApp();
+  const toast = useClockToast();
   const w = s.workday;
   const worked = workedNow(s, now);
   const running = Boolean(w.openSince);
@@ -81,7 +87,7 @@ function FloatingClock({ s }) {
 
 // ---------- reason for the gap ----------
 export function GapReasonModal({ welcome, onClose }) {
-  const { toast } = useApp();
+  const toast = useClockToast();
   const s = useWorkday();
   const now = useNow(30000);
   const [reason, setReason] = useState('');
@@ -123,7 +129,7 @@ export function GapReasonModal({ welcome, onClose }) {
 
 // Buttons used by the check-in cards on My Space and Attendance.
 export function ClockActions({ light }) {
-  const { toast } = useApp();
+  const toast = useClockToast();
   const s = useWorkday();
   const [run, busy] = useAction(toast);
   const [ask, setAsk] = useState(false);
@@ -164,7 +170,8 @@ export function SessionList({ w, compact }) {
 
 // ---------- top-bar clock ----------
 export default function WorkClock() {
-  const { user, toast } = useApp();
+  const { user } = useApp();
+  const toast = useClockToast();
   const s = useWorkday();
   const now = useNow(1000);
   const pip = usePipWindow();
@@ -249,7 +256,8 @@ export function AttentionBanner() {
 // minutes during work (all the time in strict mode) and records it. In
 // strict mode the server signs the user out after leaving the office.
 export function LocationGuard() {
-  const { meta, logout, toast } = useApp();
+  const { meta, logout } = useApp();
+  const toast = useClockToast();
   const s = useWorkday();
   const geo = meta?.geofence;
   const running = Boolean(s?.workday?.openSince);
@@ -314,7 +322,7 @@ function LocationLine() {
 
 // ---------- explain a short day ----------
 export function ExplainModal({ item, onClose, onDone }) {
-  const { toast } = useApp();
+  const toast = useClockToast();
   const prefill = item.gaps.filter((g) => g.reason).map((g) => `${g.reason}${g.note ? ` (${g.note})` : ''}, ${fmtTime(g.from)}–${fmtTime(g.to)}`).join('; ');
   const [reason, setReason] = useState(item.reason || prefill);
   const [run, busy] = useAction(toast);
