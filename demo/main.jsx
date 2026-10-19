@@ -87,7 +87,19 @@ async function boot() {
   let downloads = null;
   const photos = new Map();
   const saveFile = async (blob, filename) => {
-    if (!downloads) return notice('Downloads are not available in this view of the demo.');
+    if (!downloads) {
+      // Opened as a file on someone's own computer: a normal browser download works.
+      if (!window.claude) {
+        const url = URL.createObjectURL(blob);
+        const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return undefined;
+      }
+      return notice('Downloads are not available in this view of the demo.');
+    }
     try {
       await downloads.save({ filename, data: blob });
     } catch (e) {
