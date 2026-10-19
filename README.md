@@ -10,6 +10,7 @@ The main rule: **people only see the verticals they have been given.** An Exhibi
 | --- | --- |
 | **Menu** | Colourful icons for every page. On a computer the menu collapses to a slim rail of icons with the BrainADZ "Br" monogram (button on the menu's edge, the monogram itself, or the `[` key); hovering an icon shows its name and counts sit on the icon. The choice is remembered. Phones and tablets keep the slide-out menu. |
 | **Floating menu** | For the most room, choose **Floating menu** at the bottom of the side menu: the menu steps aside and a navy Br button floats on screen, with a red count when something new is waiting. Drag it anywhere with mouse, touch or pen; it follows smoothly, stays exactly where you drop it (also after a refresh), and never leaves the screen. A tap opens either the floating menu (icons only or with names, opening on whichever side has room) or **Quick Access**, a card of page tiles with a search that you can drag by its header. `[` opens and closes it, Escape or a click elsewhere closes it, and **Show the side menu** brings the normal menu back. |
+| **Mobile app** | Install BrainADZ Projects on Android phones, iPhones and computers: it gets the Br icon on the home screen, opens full screen without the browser bar, and starts quicker. Phones start with the floating Br button (it keeps clear of the notch and home bar and gives a light tick when you pick it up and put it down), and Quick Access opens as a bottom sheet you swipe down to close. See [Install it as an app](#install-it-as-an-app). |
 | **Dashboard** | Active projects, tasks due this week, overdue tasks, projects that need attention, upcoming event, show and launch dates, and recent activity. |
 | **Projects** | List, board and timeline views. The board works like Trello: cards with cover images, labels and badges, drag between and within columns, **Add a card** at the bottom of each column, and a list menu to sort or collapse. Filter by status, health, owner or client. Export to CSV. |
 | **Board columns** | Planning → Active → On hold → **Delivered** for Live and Marketing. Exhibits ends at **Ready for Event / Exhibition** instead, and only people with Exhibits access see that column. An admin can give any vertical its own last column under Settings → Verticals. |
@@ -126,6 +127,16 @@ docker run -p 3000:3000 -v brainadz-data:/data \
 | `MAX_UPLOAD_MB` | `200` | Largest file someone can upload |
 | `TIMEZONE` | `Asia/Kolkata` | Decides what "today" and "overdue" mean |
 
+### Install it as an app
+
+Once the app is hosted on an HTTPS address (any of the options above), each person can install it from that address:
+
+- **Android (Chrome, Edge, Samsung Internet):** open the profile menu (your initials, top right) and choose **Install app**, or use the browser's **Install app** / **Add to Home screen** option.
+- **iPhone and iPad:** open the address in Safari, choose **Add to Home Screen** in the profile menu for the steps, or tap **Share → Add to Home Screen** directly.
+- **Windows and Mac (Chrome, Edge):** choose **Install app** in the profile menu, or the install icon in the address bar.
+
+The installed app always shows the latest version: it checks the server first and only falls back to the saved copy when there is no connection, and it never saves project data on the device. The browser demo is a single file, so it cannot be installed.
+
 ## Browser demo
 
 `npm run build:demo` produces `dist-demo/brainadz-projects.html`, a single file that runs the same API against an in-browser copy of SQLite with the sample data. It has a person switcher so you can see how access changes between verticals. Data in the demo stays in that browser, so use the server version for real work.
@@ -136,6 +147,7 @@ docker run -p 3000:3000 -v brainadz-data:/data \
 core/      the API, access rules, schema, templates and demo data (shared by server and demo)
 server/    Express server: sign-in, sessions, uploads and downloads, static files
 web/src/   React app (pages/, shared UI, theme.css copied from the HRMS)
+web/public/ app icons, manifest and service worker that make it installable on phones
 tests/     node:test suites for vertical isolation, comments, boards, team groups and the HTTP server
 ```
 

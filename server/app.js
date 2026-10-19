@@ -205,7 +205,15 @@ export function createApp({ db, dataDir, distDir, timeZone = 'Asia/Kolkata', sec
   // ---------------------------------------------------------------- web app
 
   if (distDir && existsSync(distDir)) {
-    app.use(express.static(distDir, { index: false, maxAge: '1h' }));
+    app.use(express.static(distDir, {
+      index: false,
+      maxAge: '1h',
+      // The installed app checks these for updates, so they must never be served stale.
+      setHeaders: (res, file) => {
+        if (/(sw\.js|manifest\.webmanifest)$/.test(file)) res.setHeader('Cache-Control', 'no-cache');
+        if (file.endsWith('.webmanifest')) res.setHeader('Content-Type', 'application/manifest+json');
+      },
+    }));
     app.get('*', (req, res) => res.sendFile(path.join(distDir, 'index.html')));
   } else {
     app.get('/', (req, res) => res.type('text').send('API is running. Build the web app with `npm run build`, or use `npm run dev` during development.'));

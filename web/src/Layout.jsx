@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search, Bell, Menu as MenuIcon, LogOut, KeyRound, UserRound, ChevronDown, ChevronLeft, FileText, FolderOpen, CheckCircle2,
+  Smartphone, Share, SquarePlus,
 } from 'lucide-react';
 import { useNavItems, isActivePath, navCount, CountBadge } from './nav.jsx';
 import { FloatingNav } from './FloatingNav.jsx';
@@ -8,7 +10,8 @@ import { useApp, useLoad, usePref } from './store.jsx';
 import { Monogram } from './monogram.jsx';
 import { useRouter, Link } from './router.jsx';
 import { api } from './api.js';
-import { Avatar, useClickOutside, alpha } from './ui.jsx';
+import { Avatar, useClickOutside, alpha, Modal } from './ui.jsx';
+import { useInstallApp } from './installApp.js';
 import { timeAgo } from './format.js';
 
 
@@ -47,6 +50,19 @@ function VerticalLogo({ v, active, onClick }) {
       <span className="t">{v.tagline}</span>
     </button>
   );
+}
+
+function usePhone() {
+  const query = '(max-width: 760px)';
+  const [on, setOn] = useState(() => window.matchMedia?.(query).matches ?? false);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return undefined;
+    const fn = () => setOn(mq.matches);
+    mq.addEventListener('change', fn);
+    return () => mq.removeEventListener('change', fn);
+  }, []);
+  return on;
 }
 
 // Wide enough for the menu to sit beside the page (narrower screens use the slide-out menu).
@@ -240,9 +256,25 @@ function Notifications() {
   );
 }
 
+// How to add the app to an iPhone's home screen (Safari has no install button).
+function IPhoneInstall({ onClose }) {
+  return (
+    <Modal title="Add BrainADZ to your home screen" sub="It opens full screen, like any other app" onClose={onClose}
+      footer={<button type="button" className="btn primary" onClick={onClose}>Got it</button>}>
+      <ol className="modal-body install-steps">
+        <li><span className="step-ic"><Share size={18} /></span><span>In Safari, tap the <b>Share</b> button at the bottom of the screen.</span></li>
+        <li><span className="step-ic"><SquarePlus size={18} /></span><span>Scroll down and tap <b>Add to Home Screen</b>.</span></li>
+        <li><span className="step-ic"><Monogram size={18} color="#fff" title="" /></span><span>Tap <b>Add</b>. BrainADZ appears on your home screen with the Br icon.</span></li>
+      </ol>
+    </Modal>
+  );
+}
+
 function UserMenu({ onSignOut }) {
   const { me, verticals } = useApp();
   const [open, setOpen] = useState(false);
+  const [iphoneHelp, setIphoneHelp] = useState(false);
+  const installApp = useInstallApp();
   const close = useCallback(() => setOpen(false), []);
   const ref = useClickOutside(close);
   const { navigate } = useRouter();
@@ -265,9 +297,16 @@ function UserMenu({ onSignOut }) {
           </div>
           <button type="button" className="item" role="menuitem" onClick={() => (close(), navigate('/profile'))}><UserRound size={16} />My profile</button>
           {!api.isDemo() && <button type="button" className="item" role="menuitem" onClick={() => (close(), navigate('/profile'))}><KeyRound size={16} />Change password</button>}
+          {installApp && (
+            <button type="button" className="item" role="menuitem" onClick={() => { close(); if (installApp.kind === 'ios') setIphoneHelp(true); else installApp.install(); }}>
+              <Smartphone size={16} />{installApp.kind === 'ios' ? 'Add to Home Screen' : 'Install app'}
+            </button>
+          )}
           <button type="button" className="item danger" role="menuitem" onClick={() => (close(), onSignOut())}><LogOut size={16} />{api.isDemo() ? 'Switch person' : 'Sign out'}</button>
         </div>
       )}
+      {/* At page level: the top bar's blur would otherwise trap the window inside the bar. */}
+      {iphoneHelp && createPortal(<IPhoneInstall onClose={() => setIphoneHelp(false)} />, document.body)}
     </div>
   );
 }
@@ -278,7 +317,10 @@ export function Layout({ children, onSignOut }) {
   const [counts, setCounts] = useState({ my: 0, myNew: 0, projectsNew: 0, groups: 0, groupsUnread: 0 });
   const [miniPref, setMini] = usePref('bpm.sidebarMini', false);
   // Floating: the side menu hides and a draggable Br button opens the menu instead.
-  const [floating, setFloating] = usePref('bpm.menuFloating', false);
+  // Phones start with it (like a mobile app); anyone can switch either way and that sticks.
+  const [floatingPref, setFloating] = usePref('bpm.menuFloating', null);
+  const phone = usePhone();
+  const floating = floatingPref ?? phone;
   const focusFloat = useRef(false); // move keyboard focus along when someone switches menu style
   const goFloating = useCallback(() => {
     focusFloat.current = true;
@@ -340,6 +382,7 @@ export function Layout({ children, onSignOut }) {
       <div className="main">
         <header className="topbar">
           <button type="button" className="icon-btn burger" aria-label="Open menu" onClick={() => setOpen(true)}><MenuIcon size={22} /></button>
+          {floating && <span className="app-mark"><Monogram size={30} title="BrainADZ Projects" /></span>}
           {verticals.length > 1 && (
             <div className="verticals" role="group" aria-label="Filter by vertical">
               {verticals.map((v) => (

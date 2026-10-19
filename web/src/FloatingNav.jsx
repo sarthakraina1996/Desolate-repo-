@@ -13,9 +13,36 @@ const CLOSE_MS = 220;
 
 const viewport = () => ({ w: window.innerWidth, h: window.innerHeight });
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
+
+// Space taken by a phone's notch, rounded corners and home bar (zero elsewhere), read
+// once and again whenever the screen turns or resizes.
+let insets = null;
+function safeInsets() {
+  if (insets) return insets;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none;'
+    + 'padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  insets = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+  probe.remove();
+  return insets;
+}
+if (typeof window !== 'undefined') window.addEventListener('resize', () => { insets = null; });
+
 const keepOnScreen = (p, w, h) => {
   const vp = viewport();
-  return { ...p, x: clamp(p.x, MARGIN, vp.w - w - MARGIN), y: clamp(p.y, MARGIN, vp.h - h - MARGIN) };
+  const s = safeInsets();
+  return { ...p, x: clamp(p.x, MARGIN + s.l, vp.w - w - MARGIN - s.r), y: clamp(p.y, MARGIN + s.t, vp.h - h - MARGIN - s.b) };
+};
+
+// A light tick when you pick the button up or put it down (phones that support it).
+const tick = () => {
+  try {
+    navigator.vibrate?.(8);
+  } catch {
+    /* not supported */
+  }
 };
 
 function useMedia(query) {
@@ -145,8 +172,12 @@ export function FloatingNav({ counts, onDock, focusOnMount }) {
     elRef: floatRef,
     getPos: () => posRef.current,
     getSize: () => ({ w: size, h: size }),
-    onStart: () => panelRef.current === 'menu' && closeRef.current(), // the menu is pinned to the button
+    onStart: () => {
+      tick();
+      if (panelRef.current === 'menu') closeRef.current(); // the menu is pinned to the button
+    },
     onEnd: (p) => {
+      tick();
       setPos(p);
       const spot = { cx: (p.x + size / 2) / window.innerWidth, cy: (p.y + size / 2) / window.innerHeight };
       spotRef.current = spot;
@@ -216,7 +247,7 @@ export function FloatingNav({ counts, onDock, focusOnMount }) {
   const anchor = { ...pos, size, onRight };
 
   return (
-    <div ref={rootRef} className="fnav-root">
+    <div ref={rootRef} className={`fnav-root ${small && panel === 'quick' && !closing ? 'sheet-open' : ''}`}>
       <div ref={floatRef} className="fnav-float" style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}>
         <button ref={btnRef} type="button" className={`fnav-btn ${panel && !closing ? 'open' : ''}`} style={{ width: size, height: size }}
           {...btnDrag.handlers}
@@ -232,10 +263,12 @@ export function FloatingNav({ counts, onDock, focusOnMount }) {
         <FloatMenu anchor={anchor} items={items} counts={counts} path={path} wide={wideMenu} setWide={setWideMenu} closing={closing}
           onPicked={close} onQuick={() => show('quick')} onDock={onDock} />
       )}
-      {panel === 'quick' && (
+      {panel === 'quick' && (small ? (
+        <QuickSheet items={items} counts={counts} path={path} closing={closing} onGo={go} onMenu={() => show('menu')} onDock={onDock} onClose={close} />
+      ) : (
         <QuickAccess anchor={anchor} items={items} counts={counts} path={path} closing={closing}
           onGo={go} onMenu={() => show('menu')} onDock={onDock} onClose={close} />
-      )}
+      ))}
     </div>
   );
 }
@@ -315,7 +348,41 @@ const matches = (n, q) => {
   return !t || `${n.label} ${n.keys || ''}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(t)) || n.label.toLowerCase().includes(t);
 };
 
-// Quick Access: a small card of shortcuts with a search, dragged around by its header.
+// Search, page tiles and the two ways out: shared by the card (computers) and the sheet (phones).
+function QuickBody({ items, counts, path, q, setQ, autoFocus, onGo, onMenu, onDock }) {
+  const shown = items.filter((n) => matches(n, q));
+  return (
+    <>
+      <div className="fq-search">
+        <Search size={16} aria-hidden="true" />
+        <input id="quick-search" autoFocus={autoFocus} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search pages, e.g. tasks, files, chat"
+          aria-label="Search pages" enterKeyHint="go" onKeyDown={(e) => e.key === 'Enter' && shown[0] && onGo(shown[0].to)} />
+      </div>
+      {shown.length ? (
+        <div className="fq-grid">
+          {shown.map((n) => {
+            const c = navCount(n, counts);
+            return (
+              <button key={n.to} type="button" className={`fq-tile ${isActivePath(n, path) ? 'active' : ''}`} onClick={() => onGo(n.to)}>
+                <span className="fq-ic" style={{ background: n.tint }}><n.icon size={30} /></span>
+                <span className="fq-lbl">{n.label}</span>
+                {c && <span className={`fq-count ${c.fresh ? '' : 'seen'}`} title={c.title}>{c.value}</span>}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="fq-none small muted">No page matches “{q}”. To find a project, task or file, use the search at the top.</div>
+      )}
+      <div className="fq-foot">
+        <button type="button" className="fq-link" onClick={onMenu}><MenuIcon size={15} />Full menu</button>
+        <button type="button" className="fq-link" onClick={onDock}><PanelLeft size={15} />Show the side menu</button>
+      </div>
+    </>
+  );
+}
+
+// Quick Access on a computer: a small card of shortcuts, dragged around by its header.
 function QuickAccess({ anchor, items, counts, path, closing, onGo, onMenu, onDock, onClose }) {
   const cardRef = useRef(null);
   const touch = useMedia('(hover: none)');
@@ -354,7 +421,6 @@ function QuickAccess({ anchor, items, counts, path, closing, onGo, onMenu, onDoc
     return () => window.removeEventListener('resize', onResize);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shown = items.filter((n) => matches(n, q));
   return (
     <div ref={moverRef} className="fnav-quick-pos" style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}>
       <div ref={cardRef} role="dialog" aria-label="Quick Access" style={{ width }}
@@ -365,32 +431,58 @@ function QuickAccess({ anchor, items, counts, path, closing, onGo, onMenu, onDoc
           <b>Quick Access</b>
           <button type="button" className="fq-x" onClick={onClose} aria-label="Close Quick Access"><X size={17} /></button>
         </div>
-        <div className="fq-search">
-          <Search size={16} aria-hidden="true" />
-          <input id="quick-search" autoFocus={!touch} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search pages, e.g. tasks, files, chat"
-            aria-label="Search pages" onKeyDown={(e) => e.key === 'Enter' && shown[0] && onGo(shown[0].to)} />
-        </div>
-        {shown.length ? (
-          <div className="fq-grid">
-            {shown.map((n) => {
-              const c = navCount(n, counts);
-              return (
-                <button key={n.to} type="button" className={`fq-tile ${isActivePath(n, path) ? 'active' : ''}`} onClick={() => onGo(n.to)}>
-                  <span className="fq-ic" style={{ background: n.tint }}><n.icon size={30} /></span>
-                  <span className="fq-lbl">{n.label}</span>
-                  {c && <span className={`fq-count ${c.fresh ? '' : 'seen'}`} title={c.title}>{c.value}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="fq-none small muted">No page matches “{q}”. To find a project, task or file, use the search at the top.</div>
-        )}
-        <div className="fq-foot">
-          <button type="button" className="fq-link" onClick={onMenu}><MenuIcon size={15} />Full menu</button>
-          <button type="button" className="fq-link" onClick={onDock}><PanelLeft size={15} />Show the side menu</button>
-        </div>
+        <QuickBody items={items} counts={counts} path={path} q={q} setQ={setQ} autoFocus={!touch} onGo={onGo} onMenu={onMenu} onDock={onDock} />
       </div>
     </div>
+  );
+}
+
+// Quick Access on a phone: a bottom sheet, like a native app. Swipe it down (or tap
+// outside) to close.
+function QuickSheet({ items, counts, path, closing, onGo, onMenu, onDock, onClose }) {
+  const sheetRef = useRef(null);
+  const swipe = useRef(null);
+  const [q, setQ] = useState('');
+  const onPointerDown = (e) => {
+    if (e.target.closest('button, input')) return;
+    swipe.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    sheetRef.current.style.transition = 'none';
+  };
+  const onPointerMove = (e) => {
+    const d = swipe.current;
+    if (!d || d.id !== e.pointerId) return;
+    d.dy = Math.max(0, e.clientY - d.y); // only downwards
+    sheetRef.current.style.transform = `translate3d(0, ${d.dy}px, 0)`;
+  };
+  const onPointerUp = (e) => {
+    const d = swipe.current;
+    if (!d || d.id !== e.pointerId) return;
+    swipe.current = null;
+    const el = sheetRef.current;
+    el.style.transition = '';
+    const fast = d.dy / Math.max(1, performance.now() - d.t) > 0.6;
+    if (d.dy > 110 || (fast && d.dy > 30)) {
+      el.style.transform = 'translate3d(0, 100%, 0)';
+      onClose();
+    } else {
+      el.style.transform = '';
+    }
+  };
+  return (
+    <>
+      <div className={`fq-backdrop ${closing ? 'closing' : ''}`} onClick={onClose} aria-hidden="true" />
+      <div ref={sheetRef} role="dialog" aria-label="Quick Access" className={`fq-sheet ${closing ? 'closing' : ''}`}>
+        <div className="fq-grab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+          <span className="fq-handle" aria-hidden="true" />
+          <div className="fq-head">
+            <Monogram size={24} title="BrainADZ" />
+            <b>Quick Access</b>
+            <button type="button" className="fq-x" onClick={onClose} aria-label="Close Quick Access"><X size={18} /></button>
+          </div>
+        </div>
+        <QuickBody items={items} counts={counts} path={path} q={q} setQ={setQ} autoFocus={false} onGo={onGo} onMenu={onMenu} onDock={onDock} />
+      </div>
+    </>
   );
 }

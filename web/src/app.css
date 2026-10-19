@@ -634,3 +634,38 @@ body.fnav-dragging, body.fnav-dragging * { user-select: none !important; -webkit
 @media (prefers-reduced-motion: reduce) {
   .fnav-btn, .fnav-panel, .fnav-quick, .fnav-menu, .fnav-tip { animation: none !important; transition: none !important; }
 }
+
+/* Mobile app: Quick Access as a bottom sheet on phones */
+.fq-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(16, 24, 40, .38); touch-action: none; animation: fq-fade .26s ease; }
+.fq-backdrop.closing { animation: fq-fade-out .22s ease forwards; pointer-events: none; }
+@keyframes fq-fade { from { opacity: 0; } }
+@keyframes fq-fade-out { to { opacity: 0; } }
+.fq-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 91; display: flex; flex-direction: column; max-height: 82vh; max-height: 82dvh; padding-bottom: env(safe-area-inset-bottom); background: #fff; border-radius: 22px 22px 0 0; box-shadow: 0 -12px 40px rgba(16, 24, 40, .18); transition: transform .26s cubic-bezier(.16, 1, .3, 1); animation: fq-sheet-in .3s cubic-bezier(.16, 1, .3, 1); will-change: transform; }
+.fq-sheet.closing { animation: fq-sheet-out .22s cubic-bezier(.4, 0, 1, 1) forwards; pointer-events: none; }
+@keyframes fq-sheet-in { from { transform: translate3d(0, 100%, 0); } }
+@keyframes fq-sheet-out { to { transform: translate3d(0, 100%, 0); } }
+.fq-grab { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.fq-handle { display: block; width: 40px; height: 5px; margin: 8px auto 2px; border-radius: 3px; background: #d3d9e3; }
+.fq-sheet .fq-head { padding: 8px 12px 10px 18px; cursor: inherit; }
+.fq-sheet .fq-head b { font-size: 16px; }
+.fq-sheet .fq-search { margin: 0 16px 12px; }
+.fq-sheet .fq-search input { height: 42px; font-size: 16px; } /* 16px stops iPhones zooming in */
+.fq-sheet .fq-grid { flex: 1; min-height: 0; max-height: none; padding: 0 16px 12px; overscroll-behavior: contain; }
+.fq-sheet .fq-tile { padding: 16px 6px 14px; }
+.fq-sheet .fq-foot { padding: 10px 16px 12px; }
+
+/* Mobile app: the Br mark in the top bar when the floating button is the menu */
+.app-mark { display: none; }
+@media (max-width: 1100px) {
+  .app.menu-floating .app-mark { display: inline-flex; align-items: center; margin-right: 2px; }
+}
+.install-steps { margin: 0; padding: 18px 24px 20px; list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.install-steps li { display: flex; gap: 12px; align-items: center; line-height: 1.45; }
+.step-ic { width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; background: var(--blue-soft); color: var(--blue); }
+.install-steps li:last-child .step-ic { background: radial-gradient(circle at 32% 26%, #33489c, #1f2b7b 60%, #151d5a); }
+/* The sheet has its own close button and swipe, so the Br button steps aside while it is open. */
+.fnav-float { transition: opacity .15s ease; }
+.fnav-root.sheet-open .fnav-float { opacity: 0; pointer-events: none; }
+/* Demo only: the demo controls step aside while the floating menu or Quick Access is open. */
+.demo-badge { transition: opacity .15s ease; }
+body:has(.fnav-panel, .fq-sheet) .demo-badge { opacity: 0; pointer-events: none; }
