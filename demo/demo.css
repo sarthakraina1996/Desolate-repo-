@@ -19,3 +19,8 @@
 .demo-badge button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .demo-notice { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(60px + env(safe-area-inset-bottom, 0px)); z-index: 260; max-width: calc(100vw - 32px);
   background: var(--text); color: #fff; padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow-lg); font-size: 13px; }
+/* Phones: sit above the bottom tab bar when there is one. */
+@media (max-width: 760px) {
+  body:has(.bnav) .demo-badge { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  body:has(.bnav) .demo-notice { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
+}

@@ -148,6 +148,18 @@ Environment variables:
 
 **Backups:** copy the whole `DATA_DIR` folder (it holds the database and every uploaded resume, document and photo). A nightly copy is enough for most teams.
 
+## Use it on your phone
+
+The HRMS installs as an app on Android phones, iPhones and computers, straight from the browser. There is nothing to download from an app store, and it updates itself whenever the HRMS is updated.
+
+- **Open it on the phone.** On a computer, open your name at the top right and choose **Get the mobile app**: it shows a QR code to scan with the phone's camera. (On the computer running the HRMS it shows the office Wi-Fi address, since phones cannot open "localhost".)
+- **Android:** Chrome shows a "Get the app" card (or open the ⋮ menu and choose **Install app**).
+- **iPhone:** in Safari tap **Share**, then **Add to Home Screen**.
+
+On a phone the HRMS has bottom tabs for the pages each person uses most (for employees: My Space, Attendance, Leave and Documents) and **More** for every other module. Long-pressing the app icon offers shortcuts to check in, apply for leave, payslips and the holiday calendar.
+
+The app opens even without a connection and says so; people's data is never stored on the phone, so anything that needs the server waits until it is back. Installing it as a full app needs the online `https://` address (for example on Render). On the office Wi-Fi (`http://`) it works in the phone's browser and can be added to the home screen as a shortcut.
+
 ## Turn on office-only sign-in
 
 1. Go to **Settings → Office Locations** and edit each office. Stand inside the office and press **Use my current location**, or paste the coordinates from Google Maps (right-click the building). A radius of 200–500 m suits most buildings.

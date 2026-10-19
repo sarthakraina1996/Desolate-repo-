@@ -1,7 +1,7 @@
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
+import { lanAddresses } from './lib/network.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(here, '..', 'data');
@@ -10,13 +10,6 @@ const { app } = createApp({
   dataDir,
   seed: process.env.SEED === 'empty' ? 'empty' : 'demo',
 });
-
-// Addresses other computers on the same network (office Wi-Fi) can open.
-function lanAddresses() {
-  return Object.values(os.networkInterfaces()).flat()
-    .filter((i) => i && i.family === 'IPv4' && !i.internal)
-    .map((i) => i.address);
-}
 
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';

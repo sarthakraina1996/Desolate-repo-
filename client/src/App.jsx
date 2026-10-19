@@ -1,9 +1,10 @@
-import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Component, lazy, Suspense } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useApp } from './context.jsx';
 import Layout from './components/Layout.jsx';
 import { Loading } from './components/ui.jsx';
 import Login from './pages/Login.jsx';
+import { OfflineBanner } from './components/InstallApp.jsx';
 
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const MySpace = lazy(() => import('./pages/MySpace.jsx'));
@@ -28,8 +29,42 @@ function Guard({ roles, children }) {
   return children;
 }
 
+// A page that cannot load (most often its code, while offline) shows a message, not a blank app.
+class PageBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    const offline = navigator.onLine === false;
+    return (
+      <div className="card" style={{ padding: 28, maxWidth: 520, margin: '40px auto', textAlign: 'center' }}>
+        <h3 style={{ marginBottom: 8 }}>{offline ? 'This page needs a connection' : 'This page could not open'}</h3>
+        <p className="muted" style={{ marginBottom: 16 }}>{offline ? 'Connect to the internet or office Wi-Fi, then try again.' : 'Reload the app and try again.'}</p>
+        <button type="button" className="btn primary" onClick={() => window.location.reload()}>Try again</button>
+      </div>
+    );
+  }
+}
+
 export default function App() {
+  return (
+    <>
+      <OfflineBanner />
+      <AppRoutes />
+    </>
+  );
+}
+
+function AppRoutes() {
   const { user, meta } = useApp();
+  const { pathname } = useLocation();
   if (user === undefined || (user && !meta)) return <Loading text="Loading BrainADZ HRMS…" />;
   if (!user) return <Login />;
   const HR = ['admin', 'hr'];
@@ -39,6 +74,7 @@ export default function App() {
         <Route path="/print/:kind/:id" element={<Print />} />
         <Route path="*" element={(
           <Layout>
+            <PageBoundary key={pathname}>
             <Suspense fallback={<Loading />}>
               <Routes>
                 <Route path="/" element={user.role === 'employee' ? <Navigate to="/my" replace /> : <Dashboard />} />
@@ -60,6 +96,7 @@ export default function App() {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
+            </PageBoundary>
           </Layout>
         )} />
       </Routes>

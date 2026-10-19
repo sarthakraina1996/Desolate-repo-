@@ -24,6 +24,8 @@ export function AppProvider({ children }) {
   const [meta, setMeta] = useState(null);
   const [vertical, setVerticalState] = useState(readVertical);
   const [toasts, setToasts] = useState([]);
+  const userRef = useRef(user);
+  userRef.current = user;
 
   // A message takes the look of the section it was raised in (or opts.module, a section path such
   // as '/attendance', for messages that belong elsewhere); it closes itself when its countdown ends.
@@ -56,7 +58,13 @@ export function AppProvider({ children }) {
     loadMe();
     const h = () => setUser(null);
     window.addEventListener('hrms:unauthorized', h);
-    return () => window.removeEventListener('hrms:unauthorized', h);
+    // Opened without a connection, the app could not check the sign-in; check again once back.
+    const back = () => userRef.current === null && loadMe();
+    window.addEventListener('online', back);
+    return () => {
+      window.removeEventListener('hrms:unauthorized', h);
+      window.removeEventListener('online', back);
+    };
   }, [loadMe]);
 
   const setVertical = useCallback((v) => {

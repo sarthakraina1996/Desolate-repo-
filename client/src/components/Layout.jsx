@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, ChevronsLeft } from 'lucide-react';
+import { Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, ChevronsLeft, Smartphone } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
 import { ago } from '../lib/format.js';
@@ -13,6 +13,9 @@ import {
 } from './icons.jsx';
 import WorkClock, { SignInPrompts, SignOutModal, LocationGuard } from './WorkClock.jsx';
 import FloatingNav from './FloatingNav.jsx';
+import { BottomBar, MoreSheet } from './MobileNav.jsx';
+import { GetAppModal, InstallBanner } from './InstallApp.jsx';
+import { canOfferApp, useInstall } from '../lib/pwa.js';
 import { useWorkday } from '../lib/workday.js';
 
 export function Logo({ size = '' }) {
@@ -267,7 +270,7 @@ export function ChangePassword({ onClose, forced }) {
   );
 }
 
-function UserMenu() {
+function UserMenu({ onGetApp }) {
   const { user, logout } = useApp();
   const workday = useWorkday();
   const [open, setOpen] = useState(false);
@@ -293,6 +296,7 @@ function UserMenu() {
           <div className="item" onClick={() => { setOpen(false); nav('/my'); }}><LayoutGrid size={16} />My Space</div>
           {user.employeeId && <div className="item" onClick={() => { setOpen(false); nav(`/employees/${user.employeeId}`); }}><User size={16} />My profile</div>}
           <div className="item" onClick={() => { setOpen(false); setPw(true); }}><KeyRound size={16} />Change password</div>
+          {onGetApp && <div className="item" onClick={() => { setOpen(false); onGetApp(); }}><Smartphone size={16} />Get the mobile app</div>}
           <div className="item" style={{ color: 'var(--red)' }} onClick={signOut}><LogOut size={16} />Sign out</div>
         </div>
       )}
@@ -353,6 +357,11 @@ export default function Layout({ children }) {
   }, [floating]); // eslint-disable-line react-hooks/exhaustive-deps
   const items = NAV.filter((n) => !n.roles || n.roles.includes(user.role));
   const verticals = (meta?.verticals || []).filter((v) => v.short !== 'Corporate');
+  // Phones: bottom tabs with "More" for everything else, and the app install offer.
+  const [more, setMore] = useState(false);
+  const [getApp, setGetApp] = useState(false);
+  const app = useInstall();
+  const offerApp = canOfferApp() && !app.installed ? () => setGetApp(true) : null;
   return (
     <div className={`app ${floating ? 'nav-floating' : ''}`}>
       <Sidebar items={items} open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggle={toggleCollapsed} onFloat={goFloating} />
@@ -369,10 +378,16 @@ export default function Layout({ children }) {
           <GlobalSearch />
           <WorkClock />
           <Notifications />
-          <UserMenu />
+          <UserMenu onGetApp={offerApp} />
         </header>
-        <main className="content">{children}</main>
+        <main className="content">
+          <InstallBanner onHow={() => setGetApp(true)} />
+          {children}
+        </main>
       </div>
+      <BottomBar items={items} moreOpen={more} onMore={() => setMore(true)} />
+      {more && <MoreSheet items={items} onClose={() => setMore(false)} onGetApp={offerApp} />}
+      {getApp && <GetAppModal onClose={() => setGetApp(false)} />}
       {user.mustChangePassword && <ChangePassword forced onClose={() => {}} />}
       <SignInPrompts />
       <LocationGuard />

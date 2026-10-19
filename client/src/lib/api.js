@@ -7,7 +7,15 @@ export async function api(path, { method = 'GET', body, form } = {}) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  const res = await fetch(`/api${path}`, opts);
+  let res;
+  try {
+    res = await fetch(`/api${path}`, opts);
+  } catch {
+    // The request never reached the server (no signal, Wi-Fi dropped, server stopped).
+    const err = new Error(navigator.onLine === false ? "You're offline. Connect to the internet or office Wi-Fi and try again." : "Can't reach the HRMS server. Check your connection and try again.");
+    err.offline = true;
+    throw err;
+  }
   if (res.status === 401 && !path.startsWith('/auth')) window.dispatchEvent(new Event('hrms:unauthorized'));
   const type = res.headers.get('content-type') || '';
   const data = type.includes('application/json') ? await res.json() : await res.text();

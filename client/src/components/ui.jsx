@@ -195,6 +195,12 @@ export function Empty({ icon: Icon = Inbox, text = 'Nothing here yet', children 
 }
 export const Loading = ({ text = 'Loading…' }) => <div className="loading"><LoaderCircle className="spin" size={20} />{text}</div>;
 export function ErrorBox({ error, onRetry }) {
+  // Retries by itself once the connection comes back.
+  useEffect(() => {
+    if (!onRetry) return undefined;
+    window.addEventListener('online', onRetry);
+    return () => window.removeEventListener('online', onRetry);
+  }, [onRetry]);
   return <div className="alert error">{error}{onRetry && <button type="button" className="link" onClick={onRetry}>Retry</button>}</div>;
 }
 

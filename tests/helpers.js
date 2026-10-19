@@ -4,9 +4,9 @@ import path from 'node:path';
 import { createApp } from '../server/app.js';
 
 // Boots an app on a random port with a fresh demo database in a temp dir.
-export async function boot() {
+export async function boot({ serveClient = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hrms-test-'));
-  const { app, db } = createApp({ dbFile: path.join(dir, 'test.db'), dataDir: dir, serveClient: false });
+  const { app, db } = createApp({ dbFile: path.join(dir, 'test.db'), dataDir: dir, serveClient });
   const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
   const base = `http://127.0.0.1:${server.address().port}/api`;
   const close = () => new Promise((resolve) => server.close(() => { db.close(); fs.rmSync(dir, { recursive: true, force: true }); resolve(); }));
