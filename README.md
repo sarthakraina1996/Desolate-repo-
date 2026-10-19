@@ -8,6 +8,7 @@ The main rule: **people only see the verticals they have been given.** An Exhibi
 
 | Area | What you get |
 | --- | --- |
+| **Menu** | Colourful icons for every page. On a computer the menu collapses to a slim rail of icons with the BrainADZ "Br" monogram (button on the menu's edge, the monogram itself, or the `[` key); hovering an icon shows its name and counts sit on the icon. The choice is remembered. Phones and tablets keep the slide-out menu. |
 | **Dashboard** | Active projects, tasks due this week, overdue tasks, projects that need attention, upcoming event, show and launch dates, and recent activity. |
 | **Projects** | List, board and timeline views. The board works like Trello: cards with cover images, labels and badges, drag between and within columns, **Add a card** at the bottom of each column, and a list menu to sort or collapse. Filter by status, health, owner or client. Export to CSV. |
 | **Board columns** | Planning → Active → On hold → **Delivered** for Live and Marketing. Exhibits ends at **Ready for Event / Exhibition** instead, and only people with Exhibits access see that column. An admin can give any vertical its own last column under Settings → Verticals. |

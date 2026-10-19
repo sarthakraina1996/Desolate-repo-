@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Search, Bell, Menu as MenuIcon, LogOut, KeyRound, UserRound, ChevronDown, FileText, FolderOpen, CheckCircle2,
+  Search, Bell, Menu as MenuIcon, LogOut, KeyRound, UserRound, ChevronDown, ChevronLeft, FileText, FolderOpen, CheckCircle2,
 } from 'lucide-react';
 import {
   DashboardIcon, MyWorkIcon, ProjectsIcon, TeamGroupsIcon, CalendarIcon, AssetsIcon, PastProjectsIcon, TeamAccessIcon, SettingsIcon,
 } from './navIcons.jsx';
-import { useApp, useLoad } from './store.jsx';
+import { useApp, useLoad, usePref } from './store.jsx';
+import { Monogram } from './monogram.jsx';
 import { useRouter, Link } from './router.jsx';
 import { api } from './api.js';
 import { Avatar, useClickOutside, alpha } from './ui.jsx';
@@ -60,20 +61,57 @@ function VerticalLogo({ v, active, onClick }) {
   );
 }
 
-function Sidebar({ open, onClose, counts }) {
+// Wide enough for the menu to sit beside the page (narrower screens use the slide-out menu).
+function useWide() {
+  const query = '(min-width: 1101px)';
+  const [wide, setWide] = useState(() => window.matchMedia?.(query).matches ?? true);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return undefined;
+    const on = () => setWide(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return wide;
+}
+
+// On wide screens the menu can collapse to a slim rail of icons with the Br monogram
+// (remembered per browser). Phones and tablets keep the slide-out menu.
+function Sidebar({ open, onClose, counts, mini, onToggleMini }) {
   const { isAdmin, manageableVerticals } = useApp();
   const { path } = useRouter();
+  const asideRef = useRef(null);
+  const [tip, setTip] = useState(null); // { label, top } while hovering an icon in the rail
   const isActive = (n) => (n.exact ? path === n.to : path === n.to || path.startsWith(n.to + '/'));
+  const showTip = (e, label) => {
+    if (!mini || !asideRef.current) return;
+    const a = e.currentTarget.getBoundingClientRect();
+    const s = asideRef.current.getBoundingClientRect();
+    setTip({ label, top: a.top - s.top + a.height / 2 });
+  };
+  useEffect(() => setTip(null), [mini, path]);
+
   return (
     <>
       {open && <div className="scrim" onClick={onClose} />}
-      <aside className={`sidebar ${open ? 'open' : ''}`}>
-        <div className="brand"><Logo /></div>
+      <aside ref={asideRef} className={`sidebar ${open ? 'open' : ''} ${mini ? 'mini' : ''}`}>
+        <div className="brand">
+          <div className="brand-full"><Logo /></div>
+          <button type="button" className="brand-mono" onClick={onToggleMini} tabIndex={mini ? 0 : -1} aria-hidden={!mini} title="Expand the menu">
+            <Monogram size={42} />
+          </button>
+        </div>
+        <button type="button" className="side-toggle" onClick={onToggleMini} aria-expanded={!mini}
+          aria-label={mini ? 'Expand the menu' : 'Collapse the menu'} title={`${mini ? 'Expand' : 'Collapse'} the menu  [`}>
+          <ChevronLeft size={15} strokeWidth={2.4} />
+        </button>
         <nav className="nav" aria-label="Main">
           {NAV.filter((n) => (!n.admin || isAdmin) && (!n.manager || isAdmin || manageableVerticals.length)).map((n) => (
-            <Link key={n.to} to={n.to} className={isActive(n) ? 'active' : ''} onClick={onClose} aria-current={isActive(n) ? 'page' : undefined}>
+            <Link key={n.to} to={n.to} className={isActive(n) ? 'active' : ''} onClick={onClose} aria-current={isActive(n) ? 'page' : undefined}
+              aria-label={mini ? n.label : undefined}
+              onMouseEnter={(e) => showTip(e, n.label)} onMouseLeave={() => setTip(null)} onFocus={(e) => showTip(e, n.label)} onBlur={() => setTip(null)}>
               <n.icon size={26} />
-              {n.label}
+              <span className="lbl">{n.label}</span>
               {n.count === 'my' && counts.my > 0 && (
                 <span className={`count ${counts.myNew ? '' : 'seen'}`} title={counts.myNew ? `${counts.myNew} newly assigned to you` : `${counts.my} open tasks`}>{counts.my}</span>
               )}
@@ -88,6 +126,7 @@ function Sidebar({ open, onClose, counts }) {
             </Link>
           ))}
         </nav>
+        {mini && tip && <div className="side-tip" style={{ top: tip.top }} role="tooltip">{tip.label}</div>}
         <div className="leaf-card">
           <b>Great Projects Start With a Clear Plan</b>
           <i />
@@ -252,6 +291,21 @@ export function Layout({ children, onSignOut }) {
   const { verticals, vertical, setVertical, version, countsVersion, me } = useApp();
   const [open, setOpen] = useState(false);
   const [counts, setCounts] = useState({ my: 0, myNew: 0, projectsNew: 0, groups: 0, groupsUnread: 0 });
+  const [miniPref, setMini] = usePref('bpm.sidebarMini', false);
+  const wide = useWide();
+  const mini = miniPref && wide;
+  const toggleMini = useCallback(() => wide && setMini(!miniPref), [wide, miniPref, setMini]);
+  // "[" collapses or expands the menu, unless you are typing.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== '[' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target;
+      if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      toggleMini();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggleMini]);
   const [tick, setTick] = useState(0);
   const { path } = useRouter();
 
@@ -284,7 +338,7 @@ export function Layout({ children, onSignOut }) {
 
   return (
     <div className="app">
-      <Sidebar open={open} onClose={() => setOpen(false)} counts={counts} />
+      <Sidebar open={open} onClose={() => setOpen(false)} counts={counts} mini={mini} onToggleMini={toggleMini} />
       <div className="main">
         <header className="topbar">
           <button type="button" className="icon-btn burger" aria-label="Open menu" onClick={() => setOpen(true)}><MenuIcon size={22} /></button>
