@@ -3,7 +3,8 @@ const PATH = 'M379.0 949.0C324.1 948.5 305.1 948.0 293.0 946.7C284.5 945.8 275.0
 
 export function Monogram({ size = 40, color = '#2d3d6c', title = 'BrainADZ' }) {
   return (
-    <svg width={size} height={Math.round((size * 950) / 1000)} viewBox="0 0 1000 950" role="img" aria-label={title} className="monogram">
+    <svg width={size} height={Math.round((size * 950) / 1000)} viewBox="0 0 1000 950" className="monogram"
+      {...(title ? { role: 'img', 'aria-label': title } : { 'aria-hidden': true, focusable: 'false' })}>
       <path d={PATH} fill={color} fillRule="evenodd" />
     </svg>
   );

@@ -2,9 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Search, Bell, Menu as MenuIcon, LogOut, KeyRound, UserRound, ChevronDown, ChevronLeft, FileText, FolderOpen, CheckCircle2,
 } from 'lucide-react';
-import {
-  DashboardIcon, MyWorkIcon, ProjectsIcon, TeamGroupsIcon, CalendarIcon, AssetsIcon, PastProjectsIcon, TeamAccessIcon, SettingsIcon,
-} from './navIcons.jsx';
+import { useNavItems, isActivePath, navCount, CountBadge } from './nav.jsx';
+import { FloatingNav } from './FloatingNav.jsx';
 import { useApp, useLoad, usePref } from './store.jsx';
 import { Monogram } from './monogram.jsx';
 import { useRouter, Link } from './router.jsx';
@@ -12,17 +11,6 @@ import { api } from './api.js';
 import { Avatar, useClickOutside, alpha } from './ui.jsx';
 import { timeAgo } from './format.js';
 
-const NAV = [
-  { to: '/', label: 'Dashboard', icon: DashboardIcon, exact: true },
-  { to: '/my', label: 'My Work', icon: MyWorkIcon, count: 'my' },
-  { to: '/projects', label: 'Projects', icon: ProjectsIcon, count: 'projects' },
-  { to: '/teams', label: 'Team Groups', icon: TeamGroupsIcon, count: 'teams' },
-  { to: '/calendar', label: 'Calendar', icon: CalendarIcon },
-  { to: '/assets', label: 'Asset Library', icon: AssetsIcon },
-  { to: '/archive', label: 'Past Projects', icon: PastProjectsIcon },
-  { to: '/team', label: 'Team & Access', icon: TeamAccessIcon, admin: true },
-  { to: '/settings', label: 'Settings', icon: SettingsIcon, manager: true },
-];
 
 export function Logo({ size = '' }) {
   return (
@@ -77,12 +65,12 @@ function useWide() {
 
 // On wide screens the menu can collapse to a slim rail of icons with the Br monogram
 // (remembered per browser). Phones and tablets keep the slide-out menu.
-function Sidebar({ open, onClose, counts, mini, onToggleMini }) {
-  const { isAdmin, manageableVerticals } = useApp();
+function Sidebar({ open, onClose, counts, mini, onToggleMini, onFloat }) {
+  const items = useNavItems();
   const { path } = useRouter();
   const asideRef = useRef(null);
   const [tip, setTip] = useState(null); // { label, top } while hovering an icon in the rail
-  const isActive = (n) => (n.exact ? path === n.to : path === n.to || path.startsWith(n.to + '/'));
+  const isActive = (n) => isActivePath(n, path);
   const showTip = (e, label) => {
     if (!mini || !asideRef.current) return;
     const a = e.currentTarget.getBoundingClientRect();
@@ -106,25 +94,22 @@ function Sidebar({ open, onClose, counts, mini, onToggleMini }) {
           <ChevronLeft size={15} strokeWidth={2.4} />
         </button>
         <nav className="nav" aria-label="Main">
-          {NAV.filter((n) => (!n.admin || isAdmin) && (!n.manager || isAdmin || manageableVerticals.length)).map((n) => (
+          {items.map((n) => (
             <Link key={n.to} to={n.to} className={isActive(n) ? 'active' : ''} onClick={onClose} aria-current={isActive(n) ? 'page' : undefined}
               aria-label={mini ? n.label : undefined}
               onMouseEnter={(e) => showTip(e, n.label)} onMouseLeave={() => setTip(null)} onFocus={(e) => showTip(e, n.label)} onBlur={() => setTip(null)}>
               <n.icon size={26} />
               <span className="lbl">{n.label}</span>
-              {n.count === 'my' && counts.my > 0 && (
-                <span className={`count ${counts.myNew ? '' : 'seen'}`} title={counts.myNew ? `${counts.myNew} newly assigned to you` : `${counts.my} open tasks`}>{counts.my}</span>
-              )}
-              {n.count === 'projects' && counts.projectsNew > 0 && (
-                <span className="count" title={`${counts.projectsNew} projects with something new for you`}>{counts.projectsNew}</span>
-              )}
-              {n.count === 'teams' && (counts.groupsUnread > 0 || counts.groups > 0) && (
-                <span className={`count ${counts.groupsUnread ? '' : 'seen'}`} title={counts.groupsUnread ? `${counts.groupsUnread} unread messages in your groups` : `${counts.groups} groups`}>
-                  {counts.groupsUnread || counts.groups}
-                </span>
-              )}
+              <CountBadge c={navCount(n, counts)} />
             </Link>
           ))}
+          {/* Hide this menu and use the draggable Br button instead. */}
+          <button type="button" className="nav-act" onClick={() => { onClose(); onFloat(); }} aria-label={mini ? 'Floating menu' : undefined}
+            title="Hide the menu and use a floating Br button you can drag anywhere"
+            onMouseEnter={(e) => showTip(e, 'Floating menu')} onMouseLeave={() => setTip(null)} onFocus={(e) => showTip(e, 'Floating menu')} onBlur={() => setTip(null)}>
+            <span className="nav-act-ic"><Monogram size={15} color="#fff" title="" /></span>
+            <span className="lbl">Floating menu</span>
+          </button>
         </nav>
         {mini && tip && <div className="side-tip" style={{ top: tip.top }} role="tooltip">{tip.label}</div>}
         <div className="leaf-card">
@@ -292,11 +277,23 @@ export function Layout({ children, onSignOut }) {
   const [open, setOpen] = useState(false);
   const [counts, setCounts] = useState({ my: 0, myNew: 0, projectsNew: 0, groups: 0, groupsUnread: 0 });
   const [miniPref, setMini] = usePref('bpm.sidebarMini', false);
+  // Floating: the side menu hides and a draggable Br button opens the menu instead.
+  const [floating, setFloating] = usePref('bpm.menuFloating', false);
+  const focusFloat = useRef(false); // move keyboard focus along when someone switches menu style
+  const goFloating = useCallback(() => {
+    focusFloat.current = true;
+    setFloating(true);
+  }, [setFloating]);
+  const dock = useCallback(() => {
+    setFloating(false);
+    setTimeout(() => document.querySelector('.nav .nav-act')?.focus({ preventScroll: true }), 60);
+  }, [setFloating]);
   const wide = useWide();
   const mini = miniPref && wide;
   const toggleMini = useCallback(() => wide && setMini(!miniPref), [wide, miniPref, setMini]);
-  // "[" collapses or expands the menu, unless you are typing.
+  // "[" collapses or expands the menu, unless you are typing (the floating menu has its own).
   useEffect(() => {
+    if (floating) return undefined;
     const onKey = (e) => {
       if (e.key !== '[' || e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target;
@@ -305,7 +302,7 @@ export function Layout({ children, onSignOut }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [toggleMini]);
+  }, [toggleMini, floating]);
   const [tick, setTick] = useState(0);
   const { path } = useRouter();
 
@@ -337,8 +334,9 @@ export function Layout({ children, onSignOut }) {
   }, [version, countsVersion, path, me.id, tick]);
 
   return (
-    <div className="app">
-      <Sidebar open={open} onClose={() => setOpen(false)} counts={counts} mini={mini} onToggleMini={toggleMini} />
+    <div className={`app ${floating ? 'menu-floating' : ''}`}>
+      <Sidebar open={open} onClose={() => setOpen(false)} counts={counts} mini={mini} onToggleMini={toggleMini} onFloat={goFloating} />
+      {floating && <FloatingNav counts={counts} onDock={dock} focusOnMount={focusFloat} />}
       <div className="main">
         <header className="topbar">
           <button type="button" className="icon-btn burger" aria-label="Open menu" onClick={() => setOpen(true)}><MenuIcon size={22} /></button>
