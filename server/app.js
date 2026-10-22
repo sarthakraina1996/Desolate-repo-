@@ -26,6 +26,7 @@ import settingsRoutes from './routes/settings.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
+// Builds the Express app: opens the database, seeds it if empty and mounts all routes.
 export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, today } = {}) {
   const db = openDb(dbFile);
   const uploads = path.join(dataDir, 'uploads');
@@ -34,20 +35,29 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
     fs.mkdirSync(path.join(uploads, kind), { recursive: true });
     fs.writeFileSync(path.join(uploads, kind, path.basename(name)), bytes);
   };
+  // First run: load demo data, or create a lone admin (random password unless ADMIN_PASSWORD).
   if (!hasData(db) && !db.value('SELECT COUNT(*) FROM users')) {
     if (seed === 'demo') seedDemo(db, { today, saveFile });
     else {
       const adminEmail = (process.env.ADMIN_EMAIL || 'admin@brainadz.com').toLowerCase();
-      const adminPassword = process.env.ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');
+      const adminPassword =
+        process.env.ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');
       seedEmpty(db, { adminEmail, adminPassword });
-      if (!process.env.ADMIN_PASSWORD) console.log(`\n  First admin login: ${adminEmail} / ${adminPassword}\n  (you will be asked to change it)\n`);
+      if (!process.env.ADMIN_PASSWORD)
+        console.log(
+          `\n  First admin login: ${adminEmail} / ${adminPassword}\n  (you will be asked to change it)\n`,
+        );
     }
   }
 
   // Closes work clocks left running overnight and raises short-hours alerts
   // for earlier days. Runs at start and every 30 minutes.
   const shortHoursCheck = () => {
-    try { generateShortfalls(db, { today: companyToday(db) }); } catch (e) { console.error('Short-hours check failed', e); }
+    try {
+      generateShortfalls(db, { today: companyToday(db) });
+    } catch (e) {
+      console.error('Short-hours check failed', e);
+    }
   };
   shortHoursCheck();
   setInterval(shortHoursCheck, 30 * 60000).unref();
@@ -60,12 +70,17 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
     return multer({
       storage: multer.diskStorage({
         destination: dir,
-        filename: (_req, file, cb) => cb(null, `${crypto.randomBytes(12).toString('hex')}${path.extname(file.originalname).toLowerCase().slice(0, 8)}`),
+        filename: (_req, file, cb) =>
+          cb(
+            null,
+            `${crypto.randomBytes(12).toString('hex')}${path.extname(file.originalname).toLowerCase().slice(0, 8)}`,
+          ),
       }),
       limits: { fileSize: maxMb * 1024 * 1024, files: 25 },
       fileFilter: (_req, file, cb) => {
         const ext = path.extname(file.originalname).toLowerCase();
-        if (exts && !exts.includes(ext)) cb(new HttpError(400, `Unsupported file type ${ext || ''}. Allowed: ${exts.join(', ')}`));
+        if (exts && !exts.includes(ext))
+          cb(new HttpError(400, `Unsupported file type ${ext || ''}. Allowed: ${exts.join(', ')}`));
         else cb(null, true);
       },
     });
@@ -75,11 +90,15 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
   const app = express();
   app.disable('x-powered-by');
   if (process.env.TRUST_PROXY) app.set('trust proxy', 1);
+  // Security headers on every response.
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'same-origin');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'",
+    );
     next();
   });
   app.use(express.json({ limit: '2mb' }));
@@ -87,47 +106,73 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
   // CSRF guard: state-changing API calls must carry a custom header, which a
   // cross-site form or image request cannot add.
   app.use('/api', (req, res, next) => {
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.get('X-Requested-With') !== 'hrms') {
+    if (
+      !['GET', 'HEAD', 'OPTIONS'].includes(req.method) &&
+      req.get('X-Requested-With') !== 'hrms'
+    ) {
       return res.status(403).json({ error: 'Request blocked (missing X-Requested-With header)' });
     }
     if (req.method === 'GET') res.setHeader('Cache-Control', 'no-store');
     next();
   });
 
+  // Auth routes, mounted before the sign-in check so they work without a session.
   const pub = express.Router();
   authRoutes(pub, ctx);
   app.use('/api', pub);
 
+  // Everything else under /api requires a signed-in user.
   const api = express.Router();
   api.use((req, _res, next) => (req.user ? next() : next(new HttpError(401, 'Please sign in'))));
-  for (const register of [metaRoutes, dashboardRoutes, employeeRoutes, leaveRoutes, attendanceRoutes, policyRoutes, payrollRoutes, hiringRoutes, screenerRoutes, resignationRoutes, performanceRoutes, reportRoutes, settingsRoutes]) {
+  for (const register of [
+    metaRoutes,
+    dashboardRoutes,
+    employeeRoutes,
+    leaveRoutes,
+    attendanceRoutes,
+    policyRoutes,
+    payrollRoutes,
+    hiringRoutes,
+    screenerRoutes,
+    resignationRoutes,
+    performanceRoutes,
+    reportRoutes,
+    settingsRoutes,
+  ]) {
     register(api, ctx);
   }
   api.use((_req, _res, next) => next(new HttpError(404, 'API route not found')));
   app.use('/api', api);
 
+  // Serves the built React client, falling back to index.html for client-side routes.
   if (serveClient) {
     const dist = path.join(here, '..', 'client', 'dist');
-    app.use(express.static(dist, {
-      index: false,
-      maxAge: '1h',
-      setHeaders: (res, file) => {
-        const name = path.basename(file);
-        // The installed app checks these for updates, so they must never be stale.
-        if (name === 'sw.js' || name === 'manifest.webmanifest') res.setHeader('Cache-Control', 'no-cache');
-        // Hashed build files never change.
-        else if (file.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      },
-    }));
+    app.use(
+      express.static(dist, {
+        index: false,
+        maxAge: '1h',
+        setHeaders: (res, file) => {
+          const name = path.basename(file);
+          // The installed app checks these for updates, so they must never be stale.
+          if (name === 'sw.js' || name === 'manifest.webmanifest')
+            res.setHeader('Cache-Control', 'no-cache');
+          // Hashed build files never change.
+          else if (file.includes(`${path.sep}assets${path.sep}`))
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        },
+      }),
+    );
     app.use((req, res, next) => {
       if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
       const index = path.join(dist, 'index.html');
-      if (!fs.existsSync(index)) return res.status(503).send('Client not built. Run "npm run build" first.');
+      if (!fs.existsSync(index))
+        return res.status(503).send('Client not built. Run "npm run build" first.');
       res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(index);
     });
   }
 
+  // Turns thrown errors into JSON { error }; unexpected ones are logged and hidden.
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, _next) => {
     let status = err.status || err.statusCode || 500;

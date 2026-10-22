@@ -6,10 +6,12 @@ export function useApi(path) {
   const [state, setState] = useState({ data: null, loading: Boolean(path), error: null });
   const [tick, setTick] = useState(0);
   useEffect(() => {
+    // No path yet (e.g. waiting on a selection): nothing to load.
     if (!path) {
       setState({ data: null, loading: false, error: null });
       return undefined;
     }
+    // Ignore a response that lands after unmount or after the path changed.
     let alive = true;
     setState((s) => ({ ...s, loading: true }));
     api(path)
@@ -20,7 +22,11 @@ export function useApi(path) {
     };
   }, [path, tick]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  const setData = useCallback((fn) => setState((s) => ({ ...s, data: typeof fn === 'function' ? fn(s.data) : fn })), []);
+  // Patches the loaded data locally (value or updater fn) without refetching.
+  const setData = useCallback(
+    (fn) => setState((s) => ({ ...s, data: typeof fn === 'function' ? fn(s.data) : fn })),
+    [],
+  );
   return { ...state, reload, setData };
 }
 
@@ -37,19 +43,24 @@ export function useScrollEdges() {
     const down = n.scrollTop + n.clientHeight < n.scrollHeight - 1;
     setEdges([up && 'more-above', down && 'more-below'].filter(Boolean).join(' '));
   }, []);
-  const ref = useCallback((node) => {
-    watcher.current?.disconnect();
-    el.current = node;
-    if (!node) return;
-    onScroll();
-    if (typeof ResizeObserver === 'undefined') return;
-    watcher.current = new ResizeObserver(onScroll);
-    watcher.current.observe(node);
-    for (const child of node.children) watcher.current.observe(child);
-  }, [onScroll]);
+  // Callback ref: re-checks the edges whenever the list or one of its items changes size.
+  const ref = useCallback(
+    (node) => {
+      watcher.current?.disconnect();
+      el.current = node;
+      if (!node) return;
+      onScroll();
+      if (typeof ResizeObserver === 'undefined') return;
+      watcher.current = new ResizeObserver(onScroll);
+      watcher.current.observe(node);
+      for (const child of node.children) watcher.current.observe(child);
+    },
+    [onScroll],
+  );
   return { ref, edges, onScroll };
 }
 
+// Returns `value` only once it has stopped changing for `ms` (e.g. search boxes).
 export function useDebounced(value, ms = 300) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -59,13 +70,15 @@ export function useDebounced(value, ms = 300) {
   return v;
 }
 
+// Returns a ref; calls `onOutside` when the user presses the mouse outside that element.
 export function useClickOutside(onOutside) {
   const ref = useRef(null);
   useEffect(() => {
     const h = (e) => {
       // Dialogs are drawn at the top of the page, outside the panel that opened them, so a
       // click inside one must not close that panel (and the dialog with it).
-      if (ref.current && !ref.current.contains(e.target) && !e.target.closest?.('.overlay')) onOutside();
+      if (ref.current && !ref.current.contains(e.target) && !e.target.closest?.('.overlay'))
+        onOutside();
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
@@ -76,28 +89,37 @@ export function useClickOutside(onOutside) {
 // Small form-state helper: const [f, set, setF] = useForm({...}); <input value={f.x} onChange={set('x')} />
 export function useForm(initial) {
   const [values, setValues] = useState(initial);
-  const set = useCallback((k) => (e) => {
-    const v = e && e.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e;
-    setValues((s) => ({ ...s, [k]: v }));
-  }, []);
+  const set = useCallback(
+    (k) => (e) => {
+      const v =
+        e && e.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e;
+      setValues((s) => ({ ...s, [k]: v }));
+    },
+    [],
+  );
   return [values, set, setValues];
 }
 
 // Runs an async action with a busy flag and toast feedback.
 export function useAction(toast) {
   const [busy, setBusy] = useState(false);
-  const run = useCallback(async (fn, success) => {
-    setBusy(true);
-    try {
-      const out = await fn();
-      if (success && toast) toast(typeof success === 'function' ? success(out) : success, 'success');
-      return out;
-    } catch (e) {
-      if (toast) toast(e.message, 'error');
-      return undefined;
-    } finally {
-      setBusy(false);
-    }
-  }, [toast]);
+  const run = useCallback(
+    // `success` is a toast message, or a function that builds one from the result.
+    async (fn, success) => {
+      setBusy(true);
+      try {
+        const out = await fn();
+        if (success && toast)
+          toast(typeof success === 'function' ? success(out) : success, 'success');
+        return out;
+      } catch (e) {
+        if (toast) toast(e.message, 'error');
+        return undefined;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [toast],
+  );
   return [run, busy];
 }

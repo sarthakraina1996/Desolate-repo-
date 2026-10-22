@@ -3,14 +3,19 @@ import assert from 'node:assert/strict';
 import { boot, as } from './helpers.js';
 
 let ctx;
-before(async () => { ctx = await boot(); });
-after(async () => { await ctx.close(); });
+before(async () => {
+  ctx = await boot();
+});
+after(async () => {
+  await ctx.close();
+});
 
+// Seeded logins; Aarav's file is missing only his address proof.
 const EMP = 'aarav.mehta@brainadz.com';
 const HR = 'priya.sharma@brainadz.com';
 const MGR = 'vikram.patel@brainadz.com';
 
-test('HR sees every employee\'s documents and the checklist of what is missing', async () => {
+test("HR sees every employee's documents and the checklist of what is missing", async () => {
   const hr = await as(ctx.base, HR);
   const list = (await hr.get('/documents?limit=10')).body;
   assert.ok(list.total > 500);
@@ -39,8 +44,13 @@ test('employees and managers only see their own documents and can upload their o
   assert.equal(check.rows.length, 1);
   assert.deepEqual(check.rows[0].missing, ['Address Proof']);
 
+  // Uploading the missing address proof completes the checklist.
   const form = new FormData();
-  form.append('file', new Blob(['%PDF-1.4 rent agreement'], { type: 'application/pdf' }), 'rent-agreement.pdf');
+  form.append(
+    'file',
+    new Blob(['%PDF-1.4 rent agreement'], { type: 'application/pdf' }),
+    'rent-agreement.pdf',
+  );
   form.append('category', 'Address Proof');
   assert.equal((await emp.post(`/employees/${empId}/documents`, undefined, { form })).status, 200);
   assert.deepEqual((await emp.get('/documents/checklist')).body.rows[0].missing, []);
@@ -48,14 +58,21 @@ test('employees and managers only see their own documents and can upload their o
   const mgr = await as(ctx.base, MGR);
   const theirs = (await mgr.get('/documents?limit=200')).body.items;
   const mgrId = (await mgr.get('/auth/me')).body.user.employeeId;
-  assert.ok(theirs.every((d) => d.employee_id === mgrId), 'managers do not see their team\'s ID documents');
+  assert.ok(
+    theirs.every((d) => d.employee_id === mgrId),
+    "managers do not see their team's ID documents",
+  );
   assert.equal((await mgr.raw('GET', `/documents/${mine.items[0].id}/download`)).status, 403);
+  // Managers cannot upload to someone else's file either.
   const bad = new FormData();
   bad.append('file', new Blob(['x']), 'x.pdf');
-  assert.equal((await mgr.post(`/employees/${empId}/documents`, undefined, { form: bad })).status, 403);
+  assert.equal(
+    (await mgr.post(`/employees/${empId}/documents`, undefined, { form: bad })).status,
+    403,
+  );
 });
 
-test('the holiday calendar lists the year\'s holidays and your own leave', async () => {
+test("the holiday calendar lists the year's holidays and your own leave", async () => {
   const emp = await as(ctx.base, EMP);
   const year = Number((await emp.get('/meta')).body.today.slice(0, 4));
   const cal = (await emp.get(`/holidays/calendar?year=${year}`)).body;

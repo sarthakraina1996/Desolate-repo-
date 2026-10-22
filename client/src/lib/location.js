@@ -2,12 +2,14 @@
 // of the in-office check for the clock panel.
 import { useSyncExternalStore } from 'react';
 
+// Messages for the browser's geolocation error codes: denied, unavailable, timed out.
 const ERRORS = {
   1: 'Location access is blocked for this site. Allow location in your browser’s site settings, then try again.',
   2: 'Your location could not be found. Turn on location services (and Wi-Fi on a laptop), then try again.',
   3: 'Getting your location took too long. Try again, ideally near a window or on the office Wi-Fi.',
 };
 
+// Error with a code the UI can check.
 function geoError(message, code) {
   const e = new Error(message);
   e.code = code;
@@ -18,11 +20,24 @@ function geoError(message, code) {
 // switcher when running as the claude.ai demo.
 export function getPosition({ maxAgeMs = 60000 } = {}) {
   if (window.hrmsDemo?.getPosition) return Promise.resolve(window.hrmsDemo.getPosition());
-  if (!window.isSecureContext) return Promise.reject(geoError('Location only works over a secure (https) connection. Ask your administrator to add this office network in Settings → Office locations.', 'geo_insecure'));
-  if (!navigator.geolocation) return Promise.reject(geoError('This browser cannot share its location.', 'geo_unavailable'));
+  // Browsers only share location over https (or localhost).
+  if (!window.isSecureContext)
+    return Promise.reject(
+      geoError(
+        'Location only works over a secure (https) connection. Ask your administrator to add this office network in Settings → Office locations.',
+        'geo_insecure',
+      ),
+    );
+  if (!navigator.geolocation)
+    return Promise.reject(geoError('This browser cannot share its location.', 'geo_unavailable'));
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }),
+      (p) =>
+        resolve({
+          lat: p.coords.latitude,
+          lng: p.coords.longitude,
+          accuracy: Math.round(p.coords.accuracy),
+        }),
       (e) => reject(geoError(ERRORS[e.code] || 'Your location could not be found.', 'geo_failed')),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: maxAgeMs },
     );
@@ -48,12 +63,22 @@ export async function withLocation(request, { onLocating } = {}) {
 // Latest in-office check while working: { ok, office, distance, method, message, at }.
 let status = null;
 const subscribers = new Set();
+// Stores the latest check (or clears it) and notifies subscribers.
 export function setLocationStatus(s) {
   status = s ? { ...s, at: Date.now() } : null;
   subscribers.forEach((f) => f());
 }
+// The latest in-office check for a component; re-renders when it changes.
 export function useLocationStatus() {
-  return useSyncExternalStore((f) => { subscribers.add(f); return () => subscribers.delete(f); }, () => status);
+  return useSyncExternalStore(
+    (f) => {
+      subscribers.add(f);
+      return () => subscribers.delete(f);
+    },
+    () => status,
+  );
 }
 
-export const fmtDistance = (m) => (m == null ? '' : m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+// Distance in metres, shown in km from 1000 m.
+export const fmtDistance = (m) =>
+  m == null ? '' : m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;

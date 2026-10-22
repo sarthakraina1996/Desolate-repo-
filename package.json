@@ -13,7 +13,9 @@
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/index.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"tests/*.test.js\"",
     "reset-demo": "node --disable-warning=ExperimentalWarning server/reset.js",
-    "build:demo": "vite build --config demo/vite.config.js && node demo/inline.js"
+    "build:demo": "vite build --config demo/vite.config.js && node demo/inline.js",
+    "format": "prettier --write \"**/*.{js,jsx,mjs,css,html}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,mjs,css,html}\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
@@ -31,6 +33,7 @@
   },
   "devDependencies": {
     "buffer": "^6.0.3",
+    "prettier": "^3.9.10",
     "sql.js": "^1.13.0"
   }
 }

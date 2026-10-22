@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
 import { lanAddresses } from './lib/network.js';
 
+// Server entry point: builds the app from env settings and listens on all interfaces.
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(here, '..', 'data');
 const { app } = createApp({
@@ -13,6 +14,7 @@ const { app } = createApp({
 
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '0.0.0.0';
+// Prints the local and office Wi-Fi URLs so staff can open the app from other devices.
 app.listen(port, host, () => {
   console.log('\n  BrainADZ HRMS is running.\n');
   console.log(`  On this computer:   http://localhost:${port}`);

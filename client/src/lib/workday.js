@@ -5,6 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { api } from './api.js';
 import { withLocation } from './location.js';
 
+// Cached workday and the request in flight, shared by every caller.
 let state = null;
 let pending = null;
 const subscribers = new Set();
@@ -14,26 +15,35 @@ const subscribe = (f) => {
   return () => subscribers.delete(f);
 };
 
+// Fetches today's workday from the server; calls made while one is loading share it.
 export function refreshWorkday() {
   if (pending) return pending;
   const sentAt = Date.now();
-  pending = api.get('/attendance/workday').then((r) => {
-    // Offset between the server clock and this device, so the running time
-    // is right even when the device clock is not.
-    const offset = Date.parse(r.serverNow) - (sentAt + Date.now()) / 2;
-    state = { ...r, offset };
-    emit();
-    window.dispatchEvent(new Event('hrms:workday'));
-    return state;
-  }).finally(() => { pending = null; });
+  pending = api
+    .get('/attendance/workday')
+    .then((r) => {
+      // Offset between the server clock and this device, so the running time
+      // is right even when the device clock is not.
+      const offset = Date.parse(r.serverNow) - (sentAt + Date.now()) / 2;
+      state = { ...r, offset };
+      emit();
+      // Lets attendance pages reload too (see useOnWorkdayChange).
+      window.dispatchEvent(new Event('hrms:workday'));
+      return state;
+    })
+    .finally(() => {
+      pending = null;
+    });
   return pending;
 }
 
+// Forgets the cached workday, e.g. on sign-out.
 export function clearWorkday() {
   state = null;
   emit();
 }
 
+// Current workday state for a component; loads it the first time anyone asks.
 export function useWorkday() {
   const s = useSyncExternalStore(subscribe, () => state);
   useEffect(() => {
@@ -56,25 +66,33 @@ export function useNow(ms = 1000) {
 export function workedNow(s, now = Date.now()) {
   const w = s?.workday;
   if (!w) return 0;
-  const running = w.openSince ? Math.max(0, (now + (s.offset || 0) - Date.parse(w.openSince)) / 60000) : 0;
+  const running = w.openSince
+    ? Math.max(0, (now + (s.offset || 0) - Date.parse(w.openSince)) / 60000)
+    : 0;
   return w.workedMinutes + running;
 }
 
+// Minutes as a running clock ('1:05:09') or, without seconds, a duration ('1h 05m').
 export const clockText = (minutes, seconds = true) => {
   const total = Math.floor(minutes * 60);
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const sec = total % 60;
-  return seconds ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${h}h ${String(m).padStart(2, '0')}m`;
+  return seconds
+    ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+    : `${h}h ${String(m).padStart(2, '0')}m`;
 };
 
 // Office check-in needs the device's location when the office-only rule is on.
 export async function checkIn(body) {
-  const r = await withLocation((location) => api.post('/attendance/check-in', { ...body, ...(location ? { location } : {}) }));
+  const r = await withLocation((location) =>
+    api.post('/attendance/check-in', { ...body, ...(location ? { location } : {}) }),
+  );
   await refreshWorkday();
   return r;
 }
 
+// Stops the clock and refreshes the shared workday.
 export async function checkOut() {
   const r = await api.post('/attendance/check-out');
   await refreshWorkday();

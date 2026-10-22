@@ -6,5 +6,6 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(here, '..', 'data');
 const dbFile = process.env.DB_FILE || path.join(dataDir, 'hrms.db');
+// Removes the WAL side files too, otherwise SQLite could replay old changes.
 for (const f of [dbFile, `${dbFile}-wal`, `${dbFile}-shm`]) fs.rmSync(f, { force: true });
 console.log(`Removed ${dbFile}. Start the server to create fresh demo data.`);

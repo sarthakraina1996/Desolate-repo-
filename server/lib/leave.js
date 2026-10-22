@@ -1,6 +1,7 @@
 // Leave arithmetic: working-day counting and entitlement. Pure functions.
 import { dow, eachDay, yearOf } from './dates.js';
 
+// True unless the date is a weekly off or a holiday.
 // ctx: { weeklyOffs: number[] (0 = Sunday), holidays: Set<'YYYY-MM-DD'> }
 export function isWorkingDay(date, ctx) {
   return !ctx.weeklyOffs.includes(dow(date)) && !ctx.holidays.has(date);
@@ -20,12 +21,14 @@ export function leaveDaysByYear({ from, to, halfDay, calendarDays }, ctx) {
   return out;
 }
 
+// Total chargeable days for a request across all years.
 export function countLeaveDays(req, ctx) {
   let total = 0;
   for (const v of leaveDaysByYear(req, ctx).values()) total += v;
   return total;
 }
 
+// Rounds to the nearest half day.
 export const roundHalf = (x) => Math.round(x * 2) / 2;
 
 // Leave credited for `year` as of `asOf`. Annual types are credited up front,

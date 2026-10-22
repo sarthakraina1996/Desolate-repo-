@@ -6,20 +6,27 @@ import { computePayslip } from '../lib/payroll.js';
 import { daysInMonth, monthStart, monthEnd, diffDays, todayIn, monthLabel } from '../lib/dates.js';
 import { dayStatuses } from './calendar.js';
 
+// Indian bank IFSC code and account number formats.
 export const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 export const ACCOUNT_RE = /^\d{9,18}$/;
 
+// Employees on the rolls for any part of the month, excluding drafts.
 export function eligibleEmployees(db, month) {
-  return db.all(`
+  return db.all(
+    `
     SELECT e.*, d.name AS department, v.name AS vertical, v.short AS vertical_short, l.name AS location
     FROM employees e
     LEFT JOIN departments d ON d.id = e.department_id
     LEFT JOIN verticals v ON v.id = e.vertical_id
     LEFT JOIN locations l ON l.id = e.location_id
     WHERE e.join_date <= ? AND (e.exit_date IS NULL OR e.exit_date >= ?) AND e.status != 'Draft'
-    ORDER BY e.code`, monthEnd(month), monthStart(month));
+    ORDER BY e.code`,
+    monthEnd(month),
+    monthStart(month),
+  );
 }
 
+// Computes each eligible employee's payslip and exceptions for a month, without saving.
 export function buildPayroll(db, month, { today, settings = getSettings(db) } = {}) {
   const now = today || todayIn(settings.timezone);
   const from = monthStart(month);
@@ -29,6 +36,7 @@ export function buildPayroll(db, month, { today, settings = getSettings(db) } = 
   const adjustments = db.all('SELECT * FROM payroll_adjustments WHERE month = ?', month);
   const lines = [];
   for (const e of employees) {
+    // Loss-of-pay days and unmarked days from the derived day statuses.
     const days = statuses.get(e.id);
     let lop = 0;
     let unmarked = 0;
@@ -36,18 +44,29 @@ export function buildPayroll(db, month, { today, settings = getSettings(db) } = 
       lop += s.lop;
       if (s.code === 'U') unmarked++;
     }
+    // Days employed this month, for joiners and leavers mid-month.
     const start = e.join_date > from ? e.join_date : from;
     const end = e.exit_date && e.exit_date < to ? e.exit_date : to;
     const employedDays = diffDays(start, end) + 1;
+    // Only approved adjustments are paid; pending ones are flagged.
     const adj = adjustments.filter((a) => a.employee_id === e.id);
     const approved = adj.filter((a) => a.status === 'Approved');
+    // Issues HR should review before paying.
     const exceptions = [];
     if (!e.ctc) exceptions.push({ type: 'salary', text: 'Salary (CTC) not set' });
-    if (unmarked > 0) exceptions.push({ type: 'attendance', text: `${unmarked} day(s) with no attendance mark` });
-    if (!e.pan || !e.uan) exceptions.push({ type: 'kyc', text: `Missing ${[!e.pan && 'PAN', !e.uan && 'UAN'].filter(Boolean).join(' & ')}` });
-    if (!e.bank_account || !ACCOUNT_RE.test(e.bank_account) || !e.ifsc || !IFSC_RE.test(e.ifsc)) exceptions.push({ type: 'bank', text: 'Bank account or IFSC invalid' });
+    if (unmarked > 0)
+      exceptions.push({ type: 'attendance', text: `${unmarked} day(s) with no attendance mark` });
+    if (!e.pan || !e.uan)
+      exceptions.push({
+        type: 'kyc',
+        text: `Missing ${[!e.pan && 'PAN', !e.uan && 'UAN'].filter(Boolean).join(' & ')}`,
+      });
+    if (!e.bank_account || !ACCOUNT_RE.test(e.bank_account) || !e.ifsc || !IFSC_RE.test(e.ifsc))
+      exceptions.push({ type: 'bank', text: 'Bank account or IFSC invalid' });
     const pendingAdj = adj.filter((a) => a.status === 'Pending');
-    if (pendingAdj.some((a) => a.kind === 'Reimbursement')) exceptions.push({ type: 'reimbursement', text: 'Reimbursement awaiting approval' });
+    if (pendingAdj.some((a) => a.kind === 'Reimbursement'))
+      exceptions.push({ type: 'reimbursement', text: 'Reimbursement awaiting approval' });
+    // No CTC means nothing to pay; the line is listed only for its exceptions.
     if (!e.ctc) {
       lines.push({ employee: e, payslip: null, exceptions, unmarked });
       continue;
@@ -66,6 +85,7 @@ export function buildPayroll(db, month, { today, settings = getSettings(db) } = 
   return lines;
 }
 
+// Employee details frozen onto the payslip, with the bank account masked.
 function snapshot(e) {
   return {
     name: fullName(e),
@@ -90,16 +110,32 @@ export function processRun(db, user, month, { today } = {}) {
   const lines = buildPayroll(db, month, { today, settings });
   const now = new Date().toISOString();
   return db.tx(() => {
+    // Reset an existing run (dropping its payslips) or create a new one.
     let run = db.get('SELECT * FROM payroll_runs WHERE month = ?', month);
     const steps = { collation: now, sync: now, processing: now };
     const approvals = [{ stage: 'Prepared by HR', by: user?.name || 'System', at: now }];
     if (run) {
       db.run('DELETE FROM payslips WHERE run_id = ?', run.id);
-      db.update('payroll_runs', run.id, { status: 'In Review', steps, approvals, bank_batch: null, updated_at: now });
+      db.update('payroll_runs', run.id, {
+        status: 'In Review',
+        steps,
+        approvals,
+        bank_batch: null,
+        updated_at: now,
+      });
     } else {
-      const id = db.insert('payroll_runs', { month, status: 'In Review', steps, approvals, created_by: user?.id ?? null, created_at: now, updated_at: now });
+      const id = db.insert('payroll_runs', {
+        month,
+        status: 'In Review',
+        steps,
+        approvals,
+        created_by: user?.id ?? null,
+        created_at: now,
+        updated_at: now,
+      });
       run = { id };
     }
+    // Save payslips; bad bank details put the payslip on hold so it isn't sent to the bank.
     for (const l of lines) {
       if (!l.payslip) continue;
       const hold = l.exceptions.some((x) => x.type === 'bank');
@@ -118,13 +154,17 @@ export function processRun(db, user, month, { today } = {}) {
   });
 }
 
+// A run's status, workflow steps, approvals and payslip totals for display.
 export function runSummary(db, run) {
   if (!run) return null;
-  const totals = db.get(`
+  const totals = db.get(
+    `
     SELECT COUNT(*) AS count, COALESCE(SUM(gross),0) AS gross, COALESCE(SUM(net),0) AS net,
            COALESCE(SUM(deductions),0) AS deductions, COALESCE(SUM(employer_cost),0) AS cost,
            SUM(status = 'On Hold') AS on_hold, SUM(status = 'Paid') AS paid
-    FROM payslips WHERE run_id = ?`, run.id);
+    FROM payslips WHERE run_id = ?`,
+    run.id,
+  );
   return {
     id: run.id,
     month: run.month,
@@ -138,5 +178,7 @@ export function runSummary(db, run) {
   };
 }
 
-export const runRef = (month) => `PR-${new Date(`${month}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase()}-${month.slice(0, 4)}-001`;
+// Run reference like "PR-MAR-2025-001", and the pay date (last day of the month).
+export const runRef = (month) =>
+  `PR-${new Date(`${month}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase()}-${month.slice(0, 4)}-001`;
 export const payDate = (month) => `${month}-${String(daysInMonth(month)).padStart(2, '0')}`;

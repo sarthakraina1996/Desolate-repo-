@@ -1,7 +1,5 @@
-// The HRMS server running inside the browser for the claude.ai demo. It
-// reuses the real route modules, database code and seed; only the transport
-// differs: a small router replaces Express and requests arrive through a
-// patched fetch() instead of HTTP.
+// The HRMS server running in the browser for the claude.ai demo: real routes, db and seed,
+// but a small router replaces Express and requests arrive via a patched fetch(), not HTTP.
 import fs from './shims/fs.js';
 import path from './shims/path.js';
 import { randomBytes } from './shims/crypto.js';
@@ -24,28 +22,63 @@ import performanceRoutes from '../server/routes/performance.js';
 import reportRoutes from '../server/routes/reports.js';
 import settingsRoutes from '../server/routes/settings.js';
 
-const MIME = { '.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.txt': 'text/plain', '.csv': 'text/csv',
-  '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+// Content types for files served from the in-memory upload store.
+const MIME = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.txt': 'text/plain',
+  '.csv': 'text/csv',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
 const mimeOf = (name) => MIME[path.extname(name).toLowerCase()] || 'application/octet-stream';
 
 // Express-style router: r.get('/employees/:id', ...handlers).
 class Router {
-  constructor() { this.routes = []; }
+  constructor() {
+    this.routes = [];
+  }
+  // Compiles the path pattern to a case-insensitive regex that captures each :param.
   add(method, pattern, fns) {
     const keys = [];
-    const re = new RegExp(`^${pattern.replace(/[.]/g, '\\.').replace(/:([A-Za-z_]\w*)/g, (_, k) => { keys.push(k); return '([^/]+)'; })}/?$`, 'i');
+    const re = new RegExp(
+      `^${pattern.replace(/[.]/g, '\\.').replace(/:([A-Za-z_]\w*)/g, (_, k) => {
+        keys.push(k);
+        return '([^/]+)';
+      })}/?$`,
+      'i',
+    );
     this.routes.push({ method, re, keys, fns });
   }
-  get(p, ...fns) { this.add('GET', p, fns); }
-  post(p, ...fns) { this.add('POST', p, fns); }
-  put(p, ...fns) { this.add('PUT', p, fns); }
-  patch(p, ...fns) { this.add('PATCH', p, fns); }
-  delete(p, ...fns) { this.add('DELETE', p, fns); }
+  get(p, ...fns) {
+    this.add('GET', p, fns);
+  }
+  post(p, ...fns) {
+    this.add('POST', p, fns);
+  }
+  put(p, ...fns) {
+    this.add('PUT', p, fns);
+  }
+  patch(p, ...fns) {
+    this.add('PATCH', p, fns);
+  }
+  delete(p, ...fns) {
+    this.add('DELETE', p, fns);
+  }
+  // First route for this method and path, with its params decoded; null if none.
   match(method, p) {
     for (const r of this.routes) {
       if (r.method !== method) continue;
       const m = r.re.exec(p);
-      if (m) return { fns: r.fns, params: Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])) };
+      if (m)
+        return {
+          fns: r.fns,
+          params: Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])),
+        };
     }
     return null;
   }
@@ -56,38 +89,65 @@ async function runChain(fns, req, res) {
   for (const fn of fns) {
     let advanced = false;
     let error = null;
-    const out = fn(req, res, (err) => { advanced = true; error = err || null; });
+    const out = fn(req, res, (err) => {
+      advanced = true;
+      error = err || null;
+    });
     if (out && typeof out.then === 'function') await out;
     if (error) throw error;
     if (!advanced || res.finished) return;
   }
 }
 
+// Express-like response that records status, headers and body for the patched fetch().
 function makeRes() {
   return {
     statusCode: 200,
     headers: {},
     body: null,
     finished: false,
-    status(code) { this.statusCode = code; return this; },
-    setHeader(k, v) { this.headers[k.toLowerCase()] = String(v); },
-    getHeader(k) { return this.headers[k.toLowerCase()]; },
-    json(obj) { this.setHeader('Content-Type', 'application/json'); this.body = JSON.stringify(obj); this.finished = true; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    setHeader(k, v) {
+      this.headers[k.toLowerCase()] = String(v);
+    },
+    getHeader(k) {
+      return this.headers[k.toLowerCase()];
+    },
+    json(obj) {
+      this.setHeader('Content-Type', 'application/json');
+      this.body = JSON.stringify(obj);
+      this.finished = true;
+      return this;
+    },
+    // Like Express, plain objects are sent as JSON and anything else defaults to text.
     send(b) {
       if (b !== null && typeof b === 'object' && !(b instanceof Uint8Array)) return this.json(b);
-      if (!this.headers['content-type']) this.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      if (!this.headers['content-type'])
+        this.setHeader('Content-Type', 'text/plain; charset=utf-8');
       this.body = b;
       this.finished = true;
       return this;
     },
-    sendFile(file) { this.setHeader('Content-Type', mimeOf(file)); this.body = fs.readFileSync(file); this.finished = true; },
-    download(file, name) {
-      this.setHeader('Content-Type', mimeOf(name || file));
-      this.setHeader('Content-Disposition', `attachment; filename="${String(name || path.basename(file)).replace(/"/g, '')}"`);
+    sendFile(file) {
+      this.setHeader('Content-Type', mimeOf(file));
       this.body = fs.readFileSync(file);
       this.finished = true;
     },
-    end() { this.finished = true; },
+    download(file, name) {
+      this.setHeader('Content-Type', mimeOf(name || file));
+      this.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${String(name || path.basename(file)).replace(/"/g, '')}"`,
+      );
+      this.body = fs.readFileSync(file);
+      this.finished = true;
+    },
+    end() {
+      this.finished = true;
+    },
   };
 }
 
@@ -110,38 +170,69 @@ function makeUpload(uploads) {
       const saved = [];
       for (const f of files) {
         const ext = path.extname(f.name).toLowerCase();
-        if (exts && !exts.includes(ext)) fail(400, `Unsupported file type ${ext || ''}. Allowed: ${exts.join(', ')}`);
+        if (exts && !exts.includes(ext))
+          fail(400, `Unsupported file type ${ext || ''}. Allowed: ${exts.join(', ')}`);
         if (f.size > maxMb * 1024 * 1024) fail(400, 'File is too large');
+        // Stored under a random name that keeps the original extension.
         const filename = `${randomBytes(12).toString('hex')}${ext.slice(0, 8)}`;
         fs.writeFileSync(path.join(dir, filename), new Uint8Array(await f.arrayBuffer()));
-        saved.push({ fieldname: field, originalname: f.name, filename, size: f.size, mimetype: f.type, destination: dir, path: path.join(dir, filename) });
+        saved.push({
+          fieldname: field,
+          originalname: f.name,
+          filename,
+          size: f.size,
+          mimetype: f.type,
+          destination: dir,
+          path: path.join(dir, filename),
+        });
       }
       req.body = body;
       if (max > 1) req.files = saved;
       else req.file = saved[0];
       next();
     };
-    return { single: (field) => middleware(field, 1), array: (field, n = 25) => middleware(field, n) };
+    return {
+      single: (field) => middleware(field, 1),
+      array: (field, n = 25) => middleware(field, n),
+    };
   };
 }
 
+// Opens an in-memory database, seeds the demo company and registers every route module.
 export function createDemoServer() {
   const db = openDb(':memory:');
   const uploads = '/data/uploads';
-  const saveFile = (kind, name, bytes) => fs.writeFileSync(path.join(uploads, kind, path.basename(name)), bytes);
+  const saveFile = (kind, name, bytes) =>
+    fs.writeFileSync(path.join(uploads, kind, path.basename(name)), bytes);
   seedDemo(db, { saveFile });
   // The demo shows office-only sign-in; the corner switcher sets where you are.
   setSetting(db, 'geofence', { ...getSettings(db).geofence, mode: 'login' });
   const ctx = { db, uploads, upload: makeUpload(uploads), here: '/server', saveFile };
 
+  // Auth routes are public; everything else needs a signed-in user.
   const pub = new Router();
   authRoutes(pub, ctx);
   const api = new Router();
-  for (const register of [metaRoutes, dashboardRoutes, employeeRoutes, leaveRoutes, attendanceRoutes, policyRoutes, payrollRoutes, hiringRoutes, screenerRoutes, resignationRoutes, performanceRoutes, reportRoutes, settingsRoutes]) {
+  for (const register of [
+    metaRoutes,
+    dashboardRoutes,
+    employeeRoutes,
+    leaveRoutes,
+    attendanceRoutes,
+    policyRoutes,
+    payrollRoutes,
+    hiringRoutes,
+    screenerRoutes,
+    resignationRoutes,
+    performanceRoutes,
+    reportRoutes,
+    settingsRoutes,
+  ]) {
     register(api, ctx);
   }
   const session = sessionMiddleware(db);
 
+  // Handles one request the way server/app.js does and returns the filled-in response.
   // req: { method, path, query, headers, body, formData }
   async function handle(req) {
     const res = makeRes();
@@ -151,7 +242,9 @@ export function createDemoServer() {
     req.get = (h) => req.headers[h.toLowerCase()];
     try {
       session(req, res, () => {});
-      if (!['GET', 'HEAD'].includes(req.method) && req.get('x-requested-with') !== 'hrms') throw new HttpError(403, 'Request blocked (missing X-Requested-With header)');
+      // Same CSRF guard as the real server: writes must carry X-Requested-With: hrms.
+      if (!['GET', 'HEAD'].includes(req.method) && req.get('x-requested-with') !== 'hrms')
+        throw new HttpError(403, 'Request blocked (missing X-Requested-With header)');
       let hit = pub.match(req.method, req.path);
       if (!hit) {
         if (!req.user) throw new HttpError(401, 'Please sign in');
@@ -162,6 +255,7 @@ export function createDemoServer() {
       await runChain(hit.fns, req, res);
       if (!res.finished) res.status(204).end();
     } catch (err) {
+      // Duplicate rows become 409; unexpected errors are logged and hidden from the user.
       let status = err.status || err.statusCode || 500;
       let message = err.message || 'Something went wrong';
       if (/UNIQUE constraint failed/.test(message)) {
@@ -182,7 +276,9 @@ export function createDemoServer() {
   function photo(employeeId) {
     const row = db.get('SELECT photo FROM employees WHERE id = ?', Number(employeeId));
     const file = row?.photo ? path.join(uploads, 'photos', path.basename(row.photo)) : null;
-    return file && fs.existsSync(file) ? { key: row.photo, blob: new Blob([fs.readFileSync(file)], { type: mimeOf(file) }) } : null;
+    return file && fs.existsSync(file)
+      ? { key: row.photo, blob: new Blob([fs.readFileSync(file)], { type: mimeOf(file) }) }
+      : null;
   }
 
   return { db, handle, photo };

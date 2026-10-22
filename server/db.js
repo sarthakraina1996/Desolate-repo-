@@ -3,6 +3,8 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Full schema (org, employees, logins, leave, attendance, hiring, payroll, exits, reviews,
+// audit), applied on every start; IF NOT EXISTS makes it safe to rerun.
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
@@ -367,6 +369,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 `;
 
+// Converts a JS value into something node:sqlite can bind (booleans to 0/1, objects to JSON).
 function bindable(v) {
   if (v === undefined) return null;
   if (typeof v === 'boolean') return v ? 1 : 0;
@@ -374,9 +377,15 @@ function bindable(v) {
   return v;
 }
 
+// Accepts either one named-params object or positional args (spread or as an array).
 function normalize(params) {
-  if (params.length === 1 && params[0] !== null && typeof params[0] === 'object'
-    && !Array.isArray(params[0]) && !(params[0] instanceof Uint8Array)) {
+  if (
+    params.length === 1 &&
+    params[0] !== null &&
+    typeof params[0] === 'object' &&
+    !Array.isArray(params[0]) &&
+    !(params[0] instanceof Uint8Array)
+  ) {
     const out = {};
     for (const [k, v] of Object.entries(params[0])) out[k] = bindable(v);
     return [out];
@@ -385,11 +394,13 @@ function normalize(params) {
   return flat.map(bindable);
 }
 
+// Opens (or creates) the database, applies the schema and returns a small query helper API.
 export function openDb(file) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const raw = new DatabaseSync(file);
   raw.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
   raw.exec(SCHEMA);
+  // Prepared statements are cached by SQL text so repeated queries skip re-preparing.
   const cache = new Map();
   const stmt = (sql) => {
     let s = cache.get(sql);
@@ -406,6 +417,7 @@ export function openDb(file) {
     get: (sql, ...p) => stmt(sql).get(...normalize(p)),
     run: (sql, ...p) => stmt(sql).run(...normalize(p)),
     exec: (sql) => raw.exec(sql),
+    // Returns the first column of the first row, or undefined.
     value: (sql, ...p) => {
       const row = stmt(sql).get(...normalize(p));
       return row ? Object.values(row)[0] : undefined;
@@ -426,11 +438,13 @@ export function openDb(file) {
         depth--;
       }
     },
+    // Inserts a row from an object and returns the new id.
     insert(table, row) {
       const keys = Object.keys(row);
       const sql = `INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map((k) => `:${k}`).join(',')})`;
       return Number(stmt(sql).run(normalize([row])[0]).lastInsertRowid);
     },
+    // Updates the given columns on the row with this id; no-op when row is empty.
     update(table, id, row) {
       const keys = Object.keys(row);
       if (!keys.length) return;
@@ -442,6 +456,7 @@ export function openDb(file) {
   return db;
 }
 
+// Parses a JSON column, returning `fallback` when it is empty or malformed.
 export function json(v, fallback) {
   if (v == null || v === '') return fallback;
   try {

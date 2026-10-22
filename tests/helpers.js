@@ -7,25 +7,43 @@ import { createApp } from '../server/app.js';
 export async function boot({ serveClient = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hrms-test-'));
   const { app, db } = createApp({ dbFile: path.join(dir, 'test.db'), dataDir: dir, serveClient });
-  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  const server = await new Promise((resolve) => {
+    const s = app.listen(0, () => resolve(s));
+  });
   const base = `http://127.0.0.1:${server.address().port}/api`;
-  const close = () => new Promise((resolve) => server.close(() => { db.close(); fs.rmSync(dir, { recursive: true, force: true }); resolve(); }));
+  // Stops the server, closes the database and deletes the temp dir.
+  const close = () =>
+    new Promise((resolve) =>
+      server.close(() => {
+        db.close();
+        fs.rmSync(dir, { recursive: true, force: true });
+        resolve();
+      }),
+    );
   return { base, db, close };
 }
 
+// API client that keeps the session cookie and sends the X-Requested-With header.
 export function client(base) {
   let cookie = '';
+  // Sends JSON or FormData and returns the status with a parsed body.
   const call = async (method, p, body, { form, headers = {} } = {}) => {
     const h = { 'X-Requested-With': 'hrms', ...headers };
     if (cookie) h.Cookie = cookie;
     let payload;
     if (form) payload = form;
-    else if (body !== undefined) { h['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+    else if (body !== undefined) {
+      h['Content-Type'] = 'application/json';
+      payload = JSON.stringify(body);
+    }
     const res = await fetch(base + p, { method, headers: h, body: payload });
     const set = res.headers.get('set-cookie');
     if (set) cookie = set.split(';')[0];
     const type = res.headers.get('content-type') || '';
-    return { status: res.status, body: type.includes('json') ? await res.json() : await res.text() };
+    return {
+      status: res.status,
+      body: type.includes('json') ? await res.json() : await res.text(),
+    };
   };
   return {
     get: (p) => call('GET', p),
@@ -41,4 +59,5 @@ export function client(base) {
   };
 }
 
+// A client already signed in as `email`.
 export const as = (base, email, password) => client(base).login(email, password);

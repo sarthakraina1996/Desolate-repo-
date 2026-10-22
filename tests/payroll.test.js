@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { salaryStructure, computePayslip, estimateMonthlyTds, DEFAULT_PAYROLL_RULES as R } from '../server/lib/payroll.js';
+import {
+  salaryStructure,
+  computePayslip,
+  estimateMonthlyTds,
+  DEFAULT_PAYROLL_RULES as R,
+} from '../server/lib/payroll.js';
 
 test('salary structure splits monthly CTC into basic, HRA, special and employer PF', () => {
   const s = salaryStructure(1200000, R); // 1,00,000 per month
@@ -13,7 +18,14 @@ test('salary structure splits monthly CTC into basic, HRA, special and employer 
 });
 
 test('full month payslip: PF capped, no ESI above threshold, PT applies', () => {
-  const p = computePayslip({ ctc: 1200000, monthlyTds: 5000, month: '2026-10', employedDays: 31, lopDays: 0, rules: R });
+  const p = computePayslip({
+    ctc: 1200000,
+    monthlyTds: 5000,
+    month: '2026-10',
+    employedDays: 31,
+    lopDays: 0,
+    rules: R,
+  });
   assert.equal(p.paidDays, 31);
   assert.equal(p.deductions.pf, 1800);
   assert.equal(p.deductions.esi, 0);
@@ -23,9 +35,22 @@ test('full month payslip: PF capped, no ESI above threshold, PT applies', () => 
 });
 
 test('loss of pay reduces earnings pro rata on calendar days', () => {
-  const full = computePayslip({ ctc: 600000, month: '2026-09', employedDays: 30, lopDays: 0, rules: R });
-  const lop = computePayslip({ ctc: 600000, month: '2026-09', employedDays: 30, lopDays: 3, rules: R });
+  const full = computePayslip({
+    ctc: 600000,
+    month: '2026-09',
+    employedDays: 30,
+    lopDays: 0,
+    rules: R,
+  });
+  const lop = computePayslip({
+    ctc: 600000,
+    month: '2026-09',
+    employedDays: 30,
+    lopDays: 3,
+    rules: R,
+  });
   assert.equal(lop.paidDays, 27);
+  // 3 of 30 days unpaid is 10% less, allowing for rounding.
   assert.ok(Math.abs(lop.gross - full.gross * 0.9) <= 3);
   assert.ok(lop.lopAmount > 0);
 });
@@ -33,19 +58,30 @@ test('loss of pay reduces earnings pro rata on calendar days', () => {
 test('ESI applies when fixed gross is within the threshold', () => {
   const p = computePayslip({ ctc: 250000, month: '2026-10', rules: R });
   assert.ok(p.structure.gross <= R.esiThreshold);
+  // Employee 0.75% and employer 3.25%, rounded up.
   assert.equal(p.deductions.esi, Math.ceil(p.gross * 0.0075));
   assert.equal(p.employer.esi, Math.ceil(p.gross * 0.0325));
   assert.equal(p.deductions.pt, 0); // below the PT threshold
 });
 
 test('mid-month joiner is paid only for employed days', () => {
+  // 11 of October's 31 days.
   const p = computePayslip({ ctc: 600000, month: '2026-10', employedDays: 11, rules: R });
   assert.equal(p.paidDays, 11);
   assert.ok(p.gross < p.structure.gross / 2);
 });
 
 test('adjustments: bonus is earnings, reimbursement is outside gross, deduction is deducted', () => {
-  const p = computePayslip({ ctc: 600000, month: '2026-10', rules: R, adjustments: [{ kind: 'Bonus', amount: 5000 }, { kind: 'Reimbursement', amount: 1200 }, { kind: 'Deduction', amount: 700 }] });
+  const p = computePayslip({
+    ctc: 600000,
+    month: '2026-10',
+    rules: R,
+    adjustments: [
+      { kind: 'Bonus', amount: 5000 },
+      { kind: 'Reimbursement', amount: 1200 },
+      { kind: 'Deduction', amount: 700 },
+    ],
+  });
   assert.equal(p.earnings.bonus, 5000);
   assert.equal(p.earnings.reimbursement, 1200);
   assert.equal(p.totalEarnings, p.gross + 1200);

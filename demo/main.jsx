@@ -22,11 +22,15 @@ function notice(text) {
   el.textContent = text;
   el.hidden = false;
   clearTimeout(notice.t);
-  notice.t = setTimeout(() => { el.hidden = true; }, 5000);
+  notice.t = setTimeout(() => {
+    el.hidden = true;
+  }, 5000);
 }
 
+// Sends the app's /api fetches to the in-page server; other URLs use the real fetch.
 function installFetch(server) {
   const realFetch = window.fetch.bind(window);
+  // Cookie jar for the fake requests, since no real HTTP response sets them.
   const cookies = {};
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
@@ -34,14 +38,26 @@ function installFetch(server) {
     const u = new URL(url, 'https://demo.invalid');
     const headers = {};
     for (const [k, v] of Object.entries(init.headers || {})) headers[k.toLowerCase()] = v;
-    headers.cookie = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
+    headers.cookie = Object.entries(cookies)
+      .map(([k, v]) => `${k}=${v}`)
+      .join('; ');
     let body = {};
     let formData = null;
     if (init.body instanceof FormData) formData = init.body;
     else if (typeof init.body === 'string' && init.body) body = JSON.parse(init.body);
+    // Repeated query keys become arrays, as Express parses them.
     const query = {};
     for (const [k, v] of u.searchParams) query[k] = k in query ? [].concat(query[k], v) : v;
-    const res = await server.handle({ method: (init.method || 'GET').toUpperCase(), path: u.pathname.slice(4), query, headers, body, formData });
+    const res = await server.handle({
+      method: (init.method || 'GET').toUpperCase(),
+      // Routes are registered without the /api prefix.
+      path: u.pathname.slice(4),
+      query,
+      headers,
+      body,
+      formData,
+    });
+    // Keep or clear the session cookie, and drop the header before building the Response.
     const setCookie = res.headers['set-cookie'];
     if (setCookie) {
       const [name, value] = setCookie.split(';')[0].split('=');
@@ -49,7 +65,10 @@ function installFetch(server) {
       else cookies[name.trim()] = value;
       delete res.headers['set-cookie'];
     }
-    return new Response(res.statusCode === 204 ? null : res.body, { status: res.statusCode, headers: res.headers });
+    return new Response(res.statusCode === 204 ? null : res.body, {
+      status: res.statusCode,
+      headers: res.headers,
+    });
   };
 }
 
@@ -79,6 +98,7 @@ const PLACES = {
 };
 let place = 'office';
 
+// Starts sql.js and the in-page server, installs the demo hooks, then renders the app.
 async function boot() {
   setSqlJs(await initSqlJs());
   const server = createDemoServer();
@@ -86,6 +106,7 @@ async function boot() {
 
   let downloads = null;
   const photos = new Map();
+  // Saves through claude.ai's downloads capability, or a plain browser download outside it.
   const saveFile = async (blob, filename) => {
     if (!downloads) {
       // Opened as a file on someone's own computer: a normal browser download works.
@@ -104,20 +125,28 @@ async function boot() {
       await downloads.save({ filename, data: blob });
     } catch (e) {
       if (e?.code === 'declined') return;
-      notice(e?.code === 'rejected_extension' ? `${filename} is a file type this demo cannot download.` : 'The file could not be saved.');
+      notice(
+        e?.code === 'rejected_extension'
+          ? `${filename} is a file type this demo cannot download.`
+          : 'The file could not be saved.',
+      );
     }
   };
+  // Hooks the client calls in demo mode for photos, downloads and location.
   window.hrmsDemo = {
+    // Object URL for an employee photo, reused until the photo changes.
     photoUrl(id) {
       const p = server.photo(id);
       if (!p) return null;
       if (!photos.has(p.key)) photos.set(p.key, URL.createObjectURL(p.blob));
       return photos.get(p.key);
     },
+    // Fetches a file from the in-page server and saves it under its Content-Disposition name.
     async download(path) {
       const res = await fetch(`/api${path}`);
       if (!res.ok) return notice((await res.json().catch(() => ({}))).error || 'Download failed');
-      const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'download';
+      const name =
+        /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'download';
       await saveFile(await res.blob(), name);
     },
     saveFile,
@@ -125,6 +154,7 @@ async function boot() {
     // switcher stands in for the device's GPS.
     getPosition: () => ({ ...PLACES[place] }),
   };
+  // The corner switcher tells the app its location changed.
   const placeSelect = document.getElementById('demo-place');
   placeSelect?.addEventListener('change', () => {
     place = placeSelect.value;
@@ -134,12 +164,20 @@ async function boot() {
   // Claude features light up once the viewer's claude.ai session answers.
   const claude = window.claude;
   if (claude?.use) {
-    claude.use('sample').then((sample) => {
-      if (!sample) return;
-      setSample(sample);
-      process.env.HRMS_AI = 'on';
-    }).catch(() => {});
-    claude.use('downloads').then((d) => { downloads = d; }).catch(() => {});
+    claude
+      .use('sample')
+      .then((sample) => {
+        if (!sample) return;
+        setSample(sample);
+        process.env.HRMS_AI = 'on';
+      })
+      .catch(() => {});
+    claude
+      .use('downloads')
+      .then((d) => {
+        downloads = d;
+      })
+      .catch(() => {});
   }
 
   createRoot(document.getElementById('root')).render(
@@ -154,7 +192,9 @@ async function boot() {
   );
 }
 
+// If startup fails, replace the page with a short error message.
 boot().catch((e) => {
   console.error(e);
-  document.getElementById('root').innerHTML = '<div class="demo-boot"><b>The demo could not start.</b><span>Reload the page to try again.</span></div>';
+  document.getElementById('root').innerHTML =
+    '<div class="demo-boot"><b>The demo could not start.</b><span>Reload the page to try again.</span></div>';
 });

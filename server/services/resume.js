@@ -5,12 +5,15 @@ import mammoth from 'mammoth';
 
 export const RESUME_EXTS = ['.pdf', '.docx', '.txt'];
 
+// Reads a resume file and returns its plain text; throws for other formats.
 export async function extractResumeText(filePath, ext) {
   const buf = await fs.readFile(filePath);
   if (ext === '.pdf') {
     const pdf = await getDocumentProxy(new Uint8Array(buf));
     const { text } = await extractText(pdf, { mergePages: true });
-    return String(text || '').replace(/[ \t]+\n/g, '\n').trim();
+    return String(text || '')
+      .replace(/[ \t]+\n/g, '\n')
+      .trim();
   }
   if (ext === '.docx') {
     const { value } = await mammoth.extractRawText({ buffer: buf });
