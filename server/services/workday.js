@@ -196,6 +196,7 @@ export function startSession(
   return { ok: true, at: now, returning };
 }
 
+// Stops the running work clock (check-out or sign-out); returns null if none was running.
 export function endSession(
   db,
   { employeeId, date, by = 'checkout', userId, now = new Date().toISOString() },
@@ -207,6 +208,7 @@ export function endSession(
     date,
   );
   if (!open) return null;
+  // Never end before the start, e.g. if the client clock is behind.
   db.tx(() => {
     db.run(
       'UPDATE work_sessions SET end_at = ?, ended_by = ? WHERE id = ?',
@@ -263,6 +265,7 @@ export function approverUserIds(db, employeeId) {
   return db.all("SELECT id FROM users WHERE role = 'admin' AND active = 1").map((r) => r.id);
 }
 
+// Admins or the direct manager may decide; nobody decides their own shortfall.
 export function canDecideShortfall(db, user, employeeId) {
   if (!user || user.employeeId === employeeId) return false;
   if (user.role === 'admin') return true;
@@ -278,11 +281,13 @@ export function generateShortfalls(
   db,
   { today, days = 7, employeeIds = null, notify = true, settings = getSettings(db) } = {},
 ) {
+  // Close forgotten clocks first so those days have a final worked time.
   closeStaleSessions(db, today, settings);
   const from = D.addDays(today, -days);
   const to = D.addDays(today, -1);
   const required = requiredMinutes(settings);
   const grace = Number(settings.shortHoursGraceMinutes || 0);
+  // Worked days in the window that don't have a shortfall row yet.
   const where = [
     'a.date BETWEEN ? AND ?',
     'a.check_in IS NOT NULL',
@@ -300,6 +305,7 @@ export function generateShortfalls(
     ...params,
   );
   if (!candidates.length) return [];
+  // Keep only real working days short by more than the grace period, and alert each employee.
   const ids = [...new Set(candidates.map((c) => c.employee_id))];
   const emps = db.all(
     `SELECT * FROM employees WHERE id IN (${ids.map(() => '?').join(',')})`,
@@ -331,6 +337,7 @@ export function generateShortfalls(
   return created;
 }
 
+// A shortfall shaped for the client: employee, sessions, gaps, decider and allowed actions.
 export function shortfallRow(db, s, user) {
   const e = db.get(
     'SELECT id, first_name, last_name, code, designation, manager_id, photo FROM employees WHERE id = ?',

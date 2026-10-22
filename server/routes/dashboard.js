@@ -9,7 +9,7 @@ const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
 // Whole-number % change from prev to now; growth from zero counts as 100%.
 const change = (now, prev) => (prev ? Math.round(((now - prev) / prev) * 100) : now ? 100 : 0);
 
-// WHERE fragment for "employed on date" plus scope and vertical filters.
+// WHERE fragment limiting employees to the viewer's scope and, optionally, one vertical.
 export function employeeFilter(scope, vertical, alias = 'e') {
   const parts = [];
   const params = [];

@@ -67,10 +67,13 @@ const keepOnScreen = (p, w, h) => {
     y: clamp(p.y, MARGIN, vp.h - h - MARGIN),
   };
 };
+// Whether nav item `n` is the current page or one of its sub-pages.
 const isActivePath = (n, path) =>
   n.end ? path === n.to : path === n.to || path.startsWith(`${n.to}/`);
+// Whether the key press is going into a text field, so shortcuts stay out of the way.
 const typing = (t) => t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
 
+// State that is saved to localStorage and restored on the next visit.
 function usePref(key, fallback) {
   const [value, setValue] = useState(() => load(key, fallback));
   const set = useCallback(
@@ -83,6 +86,7 @@ function usePref(key, fallback) {
   return [value, set];
 }
 
+// Whether a CSS media query matches, kept up to date.
 function useMedia(query) {
   const [on, setOn] = useState(() => window.matchMedia?.(query).matches ?? false);
   useEffect(() => {
@@ -95,19 +99,19 @@ function useMedia(query) {
   return on;
 }
 
-// Drag with mouse, touch or pen. While dragging, the element follows the pointer once per
-// frame by moving it directly (no re-rendering), so it stays smooth; React only hears about
-// the final position. Under 5px of movement counts as a tap, so a click never moves
-// anything and a drag never clicks.
+// Mouse, touch or pen drag that moves the element directly each frame and reports only the end.
+// Under 5px of movement is a tap, so a click never moves anything and a drag never clicks.
 function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
   const s = useRef(null);
   const frame = useRef(0);
+  // Applies the latest position; scheduled at most once per animation frame.
   const paint = () => {
     frame.current = 0;
     const d = s.current;
     if (d?.next && elRef.current)
       elRef.current.style.transform = `translate3d(${d.next.x}px, ${d.next.y}px, 0)`;
   };
+  // Remember where the pointer and the element started (left mouse button only).
   const onPointerDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (ignore?.(e)) return;
@@ -123,6 +127,7 @@ function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
     };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
+  // Starts the drag once past 5px, then follows the pointer within the screen.
   const onPointerMove = (e) => {
     const d = s.current;
     if (!d || d.id !== e.pointerId || d.done) return;
@@ -139,6 +144,7 @@ function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
     d.next = keepOnScreen({ x: d.x + dx, y: d.y + dy }, w, h);
     if (!frame.current) frame.current = requestAnimationFrame(paint);
   };
+  // Pointer released or lost: a tap just resets; a drag paints its last spot and reports it.
   const finish = (e) => {
     const d = s.current;
     if (!d || d.id !== e.pointerId || d.done) return;
@@ -158,6 +164,7 @@ function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
       if (s.current?.done) s.current = null;
     }, 400);
   };
+  // Clean up if unmounted mid-drag.
   useEffect(
     () => () => {
       cancelAnimationFrame(frame.current);
@@ -165,6 +172,7 @@ function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
     },
     [],
   );
+  // True once right after a drag, so the click handler can ignore that click.
   const justDragged = () => {
     const was = Boolean(s.current?.done);
     if (was) s.current = null;
@@ -205,6 +213,7 @@ function usePanel() {
   return { panel, closing, open, close };
 }
 
+// The draggable Br button plus the floating menu or Quick Access panel it opens.
 export default function FloatingNav({ items, onDock, focusOnMount }) {
   const { pathname: path } = useLocation();
   const navigate = useNavigate();
@@ -223,12 +232,14 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
     [size],
   );
   const [pos, setPosState] = useState(() => fromSaved(saved));
+  // Refs give the drag and resize handlers the latest position without re-binding.
   const posRef = useRef(pos);
   const spotRef = useRef(saved);
   const setPos = useCallback((p) => {
     posRef.current = p;
     setPosState(p);
   }, []);
+  // Moves the button and saves its new spot.
   const moveTo = (p) => {
     setPos(p);
     const spot = {
@@ -260,6 +271,7 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
   const [mode, setMode] = usePref(KEY.mode, 'menu');
   const [wide, setWide] = usePref(KEY.wide, true);
   const { panel, closing, open, close } = usePanel();
+  // Shared through refs with the drag handler above, which is set up before this state exists.
   panelRef.current = closing ? null : panel;
   closeRef.current = close;
   const btnRef = useRef(null);
@@ -268,6 +280,7 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
     () => (panel && !closing ? close() : open(mode)),
     [panel, closing, close, open, mode],
   );
+  // Switching panels also makes that panel the button's default.
   const show = (which) => {
     setMode(which);
     open(which);
@@ -299,6 +312,7 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
     };
   }, [panel, closing, close, toggle]);
 
+  // Take focus once when asked, e.g. right after the side menu was hidden.
   useEffect(() => {
     if (!focusOnMount?.current) return;
     focusOnMount.current = false;
@@ -320,10 +334,12 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
     moveTo(keepOnScreen({ x: posRef.current.x + d[0], y: posRef.current.y + d[1] }, size, size));
   };
 
+  // Panels open toward the middle of the screen, away from the nearer edge.
   const onRight = pos.x + size / 2 > window.innerWidth / 2;
   const anchor = { ...pos, size, onRight };
   return (
     <div ref={rootRef} className="fnav-root no-print">
+      {/* The draggable Br button */}
       <div
         ref={floatRef}
         className="fnav-float"
@@ -345,6 +361,7 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
           <Monogram height={Math.round(size * 0.46)} color="#fff" label={null} />
         </button>
       </div>
+      {/* Floating side menu */}
       {panel === 'menu' && (
         <FloatMenu
           anchor={anchor}
@@ -358,6 +375,7 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
           onDock={onDock}
         />
       )}
+      {/* Quick Access card */}
       {panel === 'quick' && (
         <QuickAccess
           anchor={anchor}
@@ -385,16 +403,19 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
     ? { right: clamp(vw - anchor.x + GAP, MARGIN, vw - MARGIN - width) }
     : { left: clamp(anchor.x + anchor.size + GAP, MARGIN, vw - MARGIN - width) };
 
+  // Line the top up with the button, keeping the whole menu on screen.
   useLayoutEffect(() => {
     const h = ref.current?.offsetHeight || 0;
     setTop(clamp(anchor.y - 8, MARGIN, window.innerHeight - h - MARGIN));
   }, [anchor.y, wide, items.length]);
+  // Focus the current page's item (or the first one) when it opens.
   useEffect(() => {
     ref.current?.querySelector('.fnav-item.active, .fnav-item')?.focus({ preventScroll: true });
   }, []);
   useEffect(() => setTip(null), [wide]);
   const scroll = useScrollEdges();
 
+  // Name tooltips only in icon-only mode, on the side away from the button.
   const showTip = (e, label) => {
     if (wide) return;
     const r = e.currentTarget.getBoundingClientRect();
@@ -404,6 +425,7 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
         : { label, x: r.right + 10, y: r.top + r.height / 2, side: 'right' },
     );
   };
+  // Hover and keyboard-focus handlers that show an item's name; it also becomes the aria-label.
   const tipProps = (label) => ({
     onMouseEnter: (e) => showTip(e, label),
     onMouseLeave: () => setTip(null),
@@ -421,6 +443,7 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
         style={{ ...side, top }}
         className={`fnav-panel fnav-menu ${wide ? 'wide' : ''} ${closing ? 'closing' : ''} ${anchor.onRight ? 'from-right' : 'from-left'}`}
       >
+        {/* Logo and the icons-only / names switch */}
         <div className="fnav-head">
           <Monogram height={28} />
           <span className="fnav-word">
@@ -437,6 +460,7 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
             <ChevronsRight size={14} strokeWidth={2.4} />
           </button>
         </div>
+        {/* Module links; scrolling hides the tooltip */}
         <nav
           className={`fnav-items ${scroll.edges}`}
           aria-label="Main"
@@ -464,6 +488,7 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
             );
           })}
         </nav>
+        {/* Switch to Quick Access or back to the docked side menu */}
         <div className="fnav-foot">
           <button
             type="button"
@@ -489,6 +514,7 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
           </button>
         </div>
       </div>
+      {/* Name tooltip, drawn outside the menu so its scrolling can't clip it */}
       {tip && !closing && (
         <div className={`fnav-tip ${tip.side}`} style={{ left: tip.x, top: tip.y }} role="tooltip">
           {tip.label}
@@ -498,6 +524,7 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
   );
 }
 
+// Page search: a word of the label or its keywords starts with the query, or the label has it.
 const matches = (n, q) => {
   const t = q.trim().toLowerCase();
   return (
@@ -516,6 +543,7 @@ function QuickAccess({ anchor, items, path, closing, onGo, onMenu, onDock, onClo
   const touch = useMedia('(hover: none)');
   const [q, setQ] = useState('');
   const width = Math.min(344, window.innerWidth - MARGIN * 2);
+  // Opens beside the button, on the side toward the middle of the screen.
   const start = () => {
     const x = anchor.onRight ? anchor.x - GAP - width : anchor.x + anchor.size + GAP;
     return keepOnScreen({ x, y: anchor.y - 24 }, width, 420);
@@ -526,11 +554,13 @@ function QuickAccess({ anchor, items, path, closing, onGo, onMenu, onDock, onClo
     posRef.current = p;
     setPosState(p);
   }, []);
+  // The card's rendered size, estimated until it has been drawn.
   const size = () => ({
     w: cardRef.current?.offsetWidth || width,
     h: cardRef.current?.offsetHeight || 420,
   });
   const moverRef = useRef(null);
+  // Dragged by its header; the buttons and search box in it still work normally.
   const drag = useDrag({
     elRef: moverRef,
     getPos: () => posRef.current,
@@ -543,6 +573,7 @@ function QuickAccess({ anchor, items, path, closing, onGo, onMenu, onDock, onClo
     const { w, h } = size();
     setPos(keepOnScreen(posRef.current, w, h));
   }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Stay on screen when the window changes size.
   useEffect(() => {
     const onResize = () => {
       const { w, h } = size();
@@ -566,6 +597,7 @@ function QuickAccess({ anchor, items, path, closing, onGo, onMenu, onDock, onClo
         style={{ width }}
         className={`fnav-panel fnav-quick ${closing ? 'closing' : ''} ${anchor.onRight ? 'from-right' : 'from-left'}`}
       >
+        {/* Header: drag handle, logo and close */}
         <div className="fq-head" {...drag.handlers} title="Drag to move">
           <GripHorizontal size={16} className="fq-grip" aria-hidden="true" />
           <Monogram height={21} />
@@ -574,6 +606,7 @@ function QuickAccess({ anchor, items, path, closing, onGo, onMenu, onDock, onClo
             <X size={17} />
           </button>
         </div>
+        {/* Page search; Enter opens the first match (no autofocus on touch screens) */}
         <div className="fq-search">
           <Search size={16} aria-hidden="true" />
           <input
@@ -585,6 +618,7 @@ function QuickAccess({ anchor, items, path, closing, onGo, onMenu, onDock, onClo
             onKeyDown={(e) => e.key === 'Enter' && shown[0] && onGo(shown[0].to)}
           />
         </div>
+        {/* Shortcut tiles */}
         {shown.length ? (
           <div className="fq-grid">
             {shown.map((n) => (
@@ -606,6 +640,7 @@ function QuickAccess({ anchor, items, path, closing, onGo, onMenu, onDock, onClo
             No page matches “{q}”. To find a person, job or policy, use the search at the top.
           </div>
         )}
+        {/* Switch to the full menu or back to the docked side menu */}
         <div className="fq-foot">
           <button type="button" className="fq-link" onClick={onMenu}>
             <MenuIcon size={15} />

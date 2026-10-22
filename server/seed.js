@@ -1414,6 +1414,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       Operations: byName['Rohan Das'],
     };
 
+    // Insert each job and generate its applicants.
     const cands = [];
     for (const j of JOBS) {
       const jobId = db.insert('jobs', {
@@ -1439,6 +1440,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         hiring_manager_id: (interviewers[j.d] || byName['Priya Sharma']).id,
         created_at: isoAt(D.addDays(T, -j.ago)),
       });
+      // The job as the resume screener expects it.
       const jobInfo = {
         title: j.title,
         must_have: j.must,
@@ -1456,6 +1458,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         const g = chance(0.5) ? 'F' : 'M';
         const [first, last] = genName(g);
         usedNames.add(`${first} ${last}`);
+        // Candidate quality `q`: higher means more matching skills; extremes skew experience and pay.
         const q = rand();
         const exp = Math.max(
           0.5,
@@ -1489,6 +1492,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
           Chennai: 'Chennai, TN',
           Hyderabad: 'Hyderabad, TS',
         }[city];
+        // Plain-text resume, scored by the rules-based screener just below.
         const text = `${first} ${last}\n${j.title} | ${cityLabel}\nEmail: ${email} | Phone: ${phone} | linkedin.com/in/${slug}\n\nPROFILE SUMMARY\n${j.title} with ${exp} years of experience. Currently working at ${company}.\nCurrent Company: ${company}\nCurrent Role: ${j.title}\nTotal Experience: ${exp} years\nLocation: ${city}\nExpected CTC: ${expected} LPA | Current CTC: ${currentCtc} LPA | Notice Period: ${notice} days\n\nKEY SKILLS\n${skills.join(', ') || 'Communication, MS Office, Teamwork'}\n\nEXPERIENCE\n${company} — ${j.title} (${gradYear + 1} - Present)\n${
           skills
             .slice(0, 3)
@@ -1522,6 +1526,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     }
     // Better-scoring candidates are further along the pipeline.
     cands.sort((a, b) => b.ai.score - a.ai.score);
+    // Stage choices for each fifth of the ranked candidates, best first.
     const pools = [
       ['Hired', 'Offer', 'Interview 2', 'Offer', 'Interview 2', 'Interview 1'],
       ['Interview 1', 'Shortlisted', 'Interview 2', 'Shortlisted', 'Interview 1'],
@@ -1529,14 +1534,17 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       ['Applied', 'AI Screened', 'Rejected', 'Applied', 'On Hold'],
       ['Rejected', 'Applied', 'Rejected'],
     ];
+    // Interview times; the first four upcoming interviews fill today's slots.
     const todaySlots = ['10:00', '11:30', '14:00', '16:00'];
     let slot = 0;
     const hires = [];
     cands.forEach((c, i) => {
       const bucket = Math.min(pools.length - 1, Math.floor((i / cands.length) * pools.length));
+      // Candidates for a closed job were either hired or rejected.
       let stage =
         c.j.status === 'Closed' ? (i % 3 === 0 ? 'Hired' : 'Rejected') : pick(pools[bucket]);
       const screened = stage !== 'Applied';
+      // Furthest stage reached; rejected or on-hold people stopped partway.
       let maxStage = Math.max(0, STAGES.indexOf(stage));
       if (stage === 'Rejected' || stage === 'On Hold') maxStage = int(1, 3);
       const decision = ['Shortlisted', 'Interview 1', 'Interview 2', 'Offer', 'Hired'].includes(
@@ -1586,6 +1594,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
             : null,
         updated_at: isoAt(updated, '12:00'),
       });
+      // Adds a line to the candidate's activity timeline.
       const act = (text, d, by = 'Priya Sharma') =>
         db.insert('candidate_activity', {
           candidate_id: cid,
@@ -1597,6 +1606,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       if (screened) act(`Resume screened · ${c.ai.score}% match`, c.applied, 'Resume Screener AI');
       const iv = interviewers[c.j.d] || byName['Neha Kapoor'];
       const stageIdx = STAGES.indexOf(stage);
+      // First interview: done in the past, or scheduled for today or the next few days.
       if (stageIdx >= 3 || (stage === 'Rejected' && maxStage >= 3)) {
         const done = stageIdx >= 4 || stage === 'Rejected';
         const when = done
@@ -1628,6 +1638,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         });
         act(`Interview 1 ${done ? 'completed' : 'scheduled'}`, when.slice(0, 10));
       }
+      // Second interview, taken by the vertical head.
       if (stageIdx >= 4) {
         const done = stageIdx >= 5;
         const when = done
@@ -1648,6 +1659,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
           feedback: done ? 'Good culture fit and ownership. Recommend offer.' : null,
         });
       }
+      // Offer at the expected CTC; accepted offers get a joining date.
       if (stage === 'Offer' || stage === 'Hired') {
         const offerDate = D.addDays(T, -int(1, 6));
         const status =
@@ -1665,11 +1677,13 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     });
 
     // Convert three hires into employees with onboarding tasks.
+    // Used when the pipeline produced fewer than three hires.
     const fallbackHires = [
       ['Rahul', 'Bhat', 'M', 'Exhibits', 'Design', 'Graphic Designer'],
       ['Divya', 'Nair', 'F', 'Live', 'Events', 'Event Executive'],
       ['Mohit', 'Arora', 'M', 'Marketing', 'Marketing', 'Marketing Executive'],
     ];
+    // Onboarding checklist for new joiners.
     const TASKS = [
       'Offer letter signed',
       'Documents & KYC collected',
@@ -1677,6 +1691,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       'Welcome kit & ID card',
       'Orientation and buddy assigned',
     ];
+    // They join 3 days ago, in 2 days and in 6 days, with 4, 3 and 2 tasks done.
     [4, 3, 2].forEach((done, i) => {
       const h = hires[i];
       const [first, last, g, v, d, title] = h
@@ -1695,6 +1710,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         join,
         loc: v === 'Exhibits' ? 'Delhi NCR' : v === 'Live' ? 'Mumbai' : 'Bengaluru',
       });
+      // Paid the offered CTC (LPA to rupees); no UAN yet as a new joiner.
       const ctc = h ? Math.round(h.c.expected * 100000) : e.ctc;
       db.update('employees', e.id, { uan: null, ctc, monthly_tds: estimateMonthlyTds(ctc) });
       TASKS.forEach((t, n) =>
@@ -1710,6 +1726,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     });
 
     // ---------- resignations ----------
+    // Exit checklist steps.
     const CHECK = [
       'manager_approval',
       'hr_review',
@@ -1720,6 +1737,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       'access_revocation',
       'fnf',
     ];
+    // Checklist and clearances fully signed off, for past exits.
     const allDone = (at) =>
       Object.fromEntries(CHECK.map((key) => [key, { status: 'Completed', at }]));
     const clearAll = (at) => ({
@@ -1728,8 +1746,9 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       admin: { status: 'Approved', by: 'Admin Team', at },
       finance: { status: 'Approved', by: 'Finance Team', at },
     });
+    // Resignations for the exited employees, submitted about 30 days before they left.
     for (const { e, reason } of exited) {
-      const submitted = workday(D.addDays(e.exit_date, -30), -1);
+      const submitted =workday(D.addDays(e.exit_date, -30), -1);
       const at = isoAt(e.exit_date);
       db.insert('resignations', {
         employee_id: e.id,
@@ -1768,6 +1787,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         created_at: isoAt(submitted),
       });
     }
+    // A current resignation for a named person, filled in up to the given status.
     const resign = (name, { daysAgo, status, notice = 30, reason, text }) => {
       const e = byName[name];
       const submitted = workday(D.addDays(T, -daysAgo), -1);
@@ -1784,6 +1804,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         steps.manager = isoAt(D.addDays(submitted, 1), '14:15');
         checklist.manager_approval = { status: 'Completed', at: steps.manager };
       }
+      // Accepted by HR: handover under way and the employee moves to notice.
       if (status === 'In Progress') {
         steps.hr = isoAt(D.addDays(submitted, 2), '11:20');
         checklist.hr_review = { status: 'Completed', at: steps.hr };
@@ -1809,6 +1830,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         created_at: isoAt(submitted, '10:30'),
       });
     };
+    // One resignation at each stage of the flow.
     resign('Rohit Verma', {
       daysAgo: 22,
       status: 'In Progress',
@@ -1836,8 +1858,10 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     });
 
     // ---------- performance ----------
+    // The financial year runs April to March; FY labels look like 2026-27.
     const fyStart = Number(T.slice(5, 7)) >= 4 ? year : year - 1;
     const fy = (y) => `${y}-${String((y + 1) % 100).padStart(2, '0')}`;
+    // Last year's closed annual review and this year's active mid-year review.
     const closed = db.insert('review_cycles', {
       name: `Annual Review FY ${fy(fyStart - 1)}`,
       start_date: `${fyStart - 1}-04-01`,
@@ -1850,6 +1874,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       end_date: `${fyStart}-09-30`,
       status: 'Active',
     });
+    // Goal titles by department.
     const GOALS = {
       Sales: [
         'Achieve quarterly revenue target',
@@ -1901,6 +1926,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       ],
     };
     for (const e of all.filter((x) => x.status !== 'Exited' && x.grade !== 'CXO')) {
+      // Annual review for anyone who joined before last year closed; ratings centre near 3.4.
       if (e.join_date <= `${fyStart}-03-31` && e.join_date <= T) {
         const r = Math.min(
           5,
@@ -1922,6 +1948,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
           status: 'Completed',
         });
       }
+      // Mid-year goals and review for anyone who joined by the end of August.
       if (e.join_date > `${fyStart}-08-31`) continue;
       const titles = [...(GOALS[e.d] || GOALS.default)]
         .sort(() => rand() - 0.5)
@@ -1965,6 +1992,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
 
     // ---------- policies, POSH, notices ----------
     const policies = policyLibrary(T);
+    // Share of staff who acknowledged each policy, in library order.
     const ackRates = [0.95, 0.93, 0.96, 0.92, 0.86, 0];
     const currentEmps = all.filter((e) => e.status !== 'Exited' && e.join_date <= T);
     policies.forEach((p, i) => {
@@ -1979,17 +2007,20 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
             acked_at: isoAt(D.addDays(T, -int(0, 60))),
           });
     });
+    // Most staff have done POSH training.
     for (const e of currentEmps)
       if (chance(0.78))
         db.insert('posh_training', {
           employee_id: e.id,
           completed_at: isoAt(D.addDays(T, -int(5, 300))),
         });
+    // Internal Committee that handles POSH complaints.
     setSetting(db, 'icc', {
       presidingOfficerId: heads.Marketing.id,
       memberIds: [byName['Priya Sharma'].id, byName['Neha Bansal'].id, byName['Rohan Das'].id],
       externalMember: 'Adv. Leela Thomas (NGO member)',
     });
+    // One resolved and one open anonymous complaint.
     db.insert('posh_complaints', {
       ref_no: `POSH-${year}-001`,
       complainant_id: null,
@@ -2030,6 +2061,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       created_at: isoAt(D.addDays(T, -12)),
     });
 
+    // Notice board posts.
     db.insert('notices', {
       title: 'Annual Health Check-up Camp',
       body: 'Free health check-ups at all three offices next week. Book your slot with the Admin desk.',
@@ -2053,6 +2085,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     });
 
     // ---------- assets, requests, notifications ----------
+    // Laptop and ID card for all, plus a phone for sales and leadership; leavers returned them.
     for (const e of all) {
       const tech = ['Technology', 'Creative', 'Design'].includes(e.d);
       db.insert('assets', {
@@ -2084,6 +2117,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
           returned_on: e.status === 'Exited' ? e.exit_date : null,
         });
     }
+    // A few helpdesk requests in different states.
     db.insert('requests', {
       employee_id: aarav.id,
       category: 'HR',
@@ -2118,6 +2152,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       created_at: isoAt(D.addDays(T, -2)),
     });
 
+    // Adds a notification for a user, sent `daysAgo` days back.
     const n = (uid, text, link, daysAgo, read = 0) =>
       db.insert('notifications', {
         user_id: uid,
@@ -2126,6 +2161,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         read,
         created_at: isoAt(D.addDays(T, -daysAgo), '09:30'),
       });
+    // Inbox items for the demo logins that match the data above.
     n(hrUser, 'Sneha Kapoor submitted a resignation', '/resignation', 1);
     n(hrUser, 'Ananya Singh applied for 2 days of Earned Leave', '/leave', 0);
     n(hrUser, `Payroll for ${D.monthLabel(thisMonth)} was reviewed by Finance`, '/payroll', 0);
@@ -2157,8 +2193,10 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         Marketing: 'MBA Degree Certificate',
         HR: 'MBA (HR) Degree Certificate',
       };
+      // Footer on every sample PDF so none can pass for a real record.
       const specimen = 'SPECIMEN - sample document for the BrainADZ HRMS demo. Not a real record.';
       let fileSeq = 0;
+      // Renders a PDF, stores it and records it against the employee near their join date.
       const addDoc = (e, category, name, heading, lines, by) => {
         const file = `demo-${String(++fileSeq).padStart(4, '0')}.pdf`;
         const bytes = textPdf(heading, lines, { footer: specimen });
@@ -2177,6 +2215,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       };
       for (const e of all.filter((x) => x.status !== 'Exited')) {
         const name = `${e.first_name} ${e.last_name}`;
+        // Categories this person has not handed in yet.
         const recent = D.diffDays(e.join_date, T) < 60;
         const skip = new Set();
         if (e === aarav) skip.add('Address Proof');
@@ -2189,6 +2228,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
             pick(['Address Proof', 'Education', 'Bank Proof', 'PAN Card', 'Appointment Letter']),
           );
         const by = hrUser;
+        // [category, document name, PDF heading, PDF lines] for each joining document.
         const plan = [
           [
             'Aadhaar Card',
@@ -2223,6 +2263,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
               `Year: ${Number(e.join_date.slice(0, 4)) - int(1, 8)}`,
             ],
           ],
+          // Only some executives had a previous employer.
           ...(e.grade !== 'Executive' || chance(0.6)
             ? [
                 [
@@ -2296,6 +2337,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       });
       officeOf[lId[loc]] = db.get('SELECT * FROM office_sites WHERE id = ?', oid);
     }
+    // A random point within `metres` of a site (degrees per metre at that latitude).
     const near = (s, metres) => {
       const angle = rand() * 2 * Math.PI;
       const d = metres * (0.2 + 0.8 * rand());
@@ -2304,6 +2346,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         lng: s.lng + (d * Math.sin(angle)) / (111320 * Math.cos((s.lat * Math.PI) / 180)),
       };
     };
+    // Adds a location log entry for an employee at position `p` near site `s`.
     const logAt = (emp, at, event, result, s, p) =>
       db.insert('location_log', {
         user_id: users[emp.id] || null,

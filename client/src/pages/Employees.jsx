@@ -1171,7 +1171,6 @@ function AttendanceTab({ data, month, setMonth }) {
 function LeaveTab({ data, onApply, canApply }) {
   return (
     <div>
-      {/* Balances; ∞ for types without an entitlement */}
       <div className="row between mb-12">
         <b>Leave balance {new Date().getFullYear()}</b>
         {canApply && (
@@ -1180,6 +1179,7 @@ function LeaveTab({ data, onApply, canApply }) {
           </Button>
         )}
       </div>
+      {/* Balance per type; ∞ where there's no limit, total includes carried-over days */}
       <div
         className="grid"
         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}
@@ -1254,10 +1254,12 @@ function LeaveTab({ data, onApply, canApply }) {
   );
 }
 
+// Performance tab: goals for the current cycle and past review ratings.
 function PerformanceTab({ data }) {
   const p = data.performance;
   return (
     <div>
+      {/* Current cycle goals */}
       {p.cycle && (
         <>
           <div className="row between mb-8">
@@ -1289,6 +1291,7 @@ function PerformanceTab({ data }) {
           )}
         </>
       )}
+      {/* Past reviews */}
       <h3 className="mt-16 mb-8" style={{ fontSize: 15 }}>
         Review history
       </h3>
@@ -1324,9 +1327,11 @@ function PerformanceTab({ data }) {
   );
 }
 
+// Compensation tab: salary breakdown, statutory and bank details, and payslips.
 function Compensation({ data }) {
   const c = data.compensation;
   const s = c.structure;
+  // Monthly salary components as [label, amount]; annual is shown as 12x
   const rows = [
     ['Basic Salary', s.basic],
     ['House Rent Allowance', s.hra],
@@ -1337,6 +1342,7 @@ function Compensation({ data }) {
   ];
   return (
     <div className="grid" style={{ marginBottom: 0 }}>
+      {/* Salary structure */}
       <div className="span-7">
         <div className="row between mb-8">
           <b>Salary structure</b>
@@ -1366,6 +1372,7 @@ function Compensation({ data }) {
         </div>
       </div>
       <div className="span-5 col" style={{ gap: 16 }}>
+        {/* Statutory IDs and bank details, account number masked */}
         <div className="card tight">
           <b>Statutory & bank</b>
           <dl className="kv mt-12" style={{ gridTemplateColumns: '110px 1fr' }}>
@@ -1387,6 +1394,7 @@ function Compensation({ data }) {
             <dd>{c.ifsc || '—'}</dd>
           </dl>
         </div>
+        {/* Recent payslips, opened in the print view */}
         <div className="card tight">
           <b>Payslips</b>
           {c.payslips.length ? (
@@ -1414,6 +1422,7 @@ function Compensation({ data }) {
   );
 }
 
+// Assets tab: company assets issued to the employee; HR can issue, return and re-issue.
 function Assets({ data, reload }) {
   const { isHR, toast } = useApp();
   const [adding, setAdding] = useState(false);
@@ -1421,6 +1430,7 @@ function Assets({ data, reload }) {
   const [run, busy] = useAction(toast);
   return (
     <div>
+      {/* Issue button, HR only */}
       {isHR && (
         <div className="row between mb-12">
           <b>Assets issued</b>
@@ -1429,6 +1439,7 @@ function Assets({ data, reload }) {
           </Button>
         </div>
       )}
+      {/* Asset list with return / re-issue for HR */}
       {data.assets.length ? (
         <table className="table">
           <thead>
@@ -1489,6 +1500,7 @@ function Assets({ data, reload }) {
       ) : (
         <Empty text="No assets issued" />
       )}
+      {/* Issue asset modal */}
       {adding && (
         <Modal
           title="Issue asset"
@@ -1542,10 +1554,12 @@ function Assets({ data, reload }) {
 }
 
 // ---------------------------------------------------------------- forms
+// Add or edit an employee; selfOnly limits it to the contact and profile fields.
 export function EmployeeForm({ employee, onClose, onSaved, selfOnly }) {
   const { meta, toast, isAdmin } = useApp();
   const e = employee?.employee;
   const c = employee?.compensation || {};
+  // Prefill from the existing record, or defaults for a new employee
   const [f, setF] = useState(() => ({
     first_name: e?.first_name || '',
     last_name: e?.last_name || '',
@@ -1577,12 +1591,15 @@ export function EmployeeForm({ employee, onClose, onSaved, selfOnly }) {
   }));
   const [run, busy] = useAction(toast);
   const [temp, setTemp] = useState(null);
+  // Change handler for a field; checkboxes store their checked state.
   const set = (k) => (ev) =>
     setF((s) => ({
       ...s,
       [k]: ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value,
     }));
+  // Creates or updates the employee; self-service sends only the fields a person may edit.
   const save = async () => {
+    // Blank CTC saves as 0; blank TDS stays blank so the server can estimate it
     const body = selfOnly
       ? {
           phone: f.phone,
@@ -1596,6 +1613,7 @@ export function EmployeeForm({ employee, onClose, onSaved, selfOnly }) {
           ctc: f.ctc === '' ? 0 : Number(f.ctc),
           monthly_tds: f.monthly_tds === '' ? '' : Number(f.monthly_tds),
         };
+    // New employee: show the temporary password if a login was created
     if (!e) {
       const out = await run(() => api.post('/employees', body), 'Employee added');
       if (out) {
@@ -1608,6 +1626,7 @@ export function EmployeeForm({ employee, onClose, onSaved, selfOnly }) {
       onClose();
     }
   };
+  // After adding someone with a login, show their temporary password
   if (temp)
     return <TempPasswordModal email={temp.email} password={temp.password} onClose={onClose} />;
   const opts = (list) => list.map((x) => ({ value: x.id, label: x.name }));
@@ -1626,6 +1645,7 @@ export function EmployeeForm({ employee, onClose, onSaved, selfOnly }) {
       }
     >
       <div className="form-grid three">
+        {/* Personal details (HR only) */}
         {!selfOnly && (
           <>
             <div className="form-section">Personal</div>
@@ -1655,9 +1675,11 @@ export function EmployeeForm({ employee, onClose, onSaved, selfOnly }) {
             </Field>
           </>
         )}
+        {/* Phone is editable in self-service too */}
         <Field label="Phone">
           <Input value={f.phone} onChange={set('phone')} placeholder="+91 98765 43210" />
         </Field>
+        {/* Job, pay and statutory details (HR only) */}
         {!selfOnly && (
           <>
             <div className="form-section">Job</div>
@@ -1752,6 +1774,7 @@ export function EmployeeForm({ employee, onClose, onSaved, selfOnly }) {
             </Field>
           </>
         )}
+        {/* Profile details anyone can edit on their own record */}
         <div className="form-section">Profile</div>
         <Field label="Address" className="full">
           <Input value={f.address} onChange={set('address')} />
@@ -1769,6 +1792,7 @@ export function EmployeeForm({ employee, onClose, onSaved, selfOnly }) {
         <Field label="About" className="full">
           <Textarea value={f.about} onChange={set('about')} maxLength={1000} />
         </Field>
+        {/* Login and role, only when adding; only admins can grant Administrator */}
         {!e && (
           <>
             <div className="form-section">Login</div>
@@ -1797,11 +1821,13 @@ export function EmployeeForm({ employee, onClose, onSaved, selfOnly }) {
   );
 }
 
+// Creates a login or resets its password, issuing a temporary password to change at sign-in.
 function LoginModal({ employee, login, onClose, onDone }) {
   const { toast, isAdmin } = useApp();
   const [role, setRole] = useState(login?.role || 'employee');
   const [run, busy] = useAction(toast);
   const [temp, setTemp] = useState(null);
+  // Once issued, show the temporary password to pass on
   if (temp)
     return (
       <TempPasswordModal
@@ -1856,6 +1882,7 @@ function LoginModal({ employee, login, onClose, onDone }) {
   );
 }
 
+// Marks an employee as serving notice or exited; for terminations and corrections.
 function ExitModal({ employee, onClose, onDone }) {
   const { toast, meta } = useApp();
   const [f, setF] = useState({ status: 'Exited', exit_date: meta.today });
@@ -1912,12 +1939,14 @@ function ExitModal({ employee, onClose, onDone }) {
 }
 
 // ---------------------------------------------------------------- helpdesk
+// HR view of employee helpdesk requests: list, filter and respond.
 function Requests() {
   const { toast } = useApp();
   const { data, reload } = useApi('/requests');
   const [edit, setEdit] = useState(null);
   const [run, busy] = useAction(toast);
   const [filter, setFilter] = useState('open');
+  // "Open" covers everything not yet resolved, including in-progress requests
   const items = useMemo(
     () => (data?.items || []).filter((r) => (filter === 'open' ? r.status !== 'Resolved' : true)),
     [data, filter],
@@ -1939,6 +1968,7 @@ function Requests() {
           style={{ width: 180 }}
         />
       </div>
+      {/* Requests table */}
       <Card flush>
         {!data ? (
           <Loading />
@@ -1992,6 +2022,7 @@ function Requests() {
           <Empty icon={Clock3} text="No open requests" />
         )}
       </Card>
+      {/* Update status and reply to the employee */}
       {edit && (
         <Modal
           title={edit.subject}

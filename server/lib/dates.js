@@ -135,7 +135,7 @@ export function shortMonth(month) {
   });
 }
 
-// Whole years and months between two dates, used for tenure.
+// Years between two dates as a fraction (e.g. 2.5), used for tenure.
 export function yearsBetween(from, to) {
   return diffDays(from, to) / 365.25;
 }

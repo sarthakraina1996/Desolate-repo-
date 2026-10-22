@@ -33,6 +33,7 @@ export const REASONS = [
   'Health',
   'Other',
 ];
+// Offboarding checklist as [key, label]; every item must be done before completing.
 export const CHECKLIST = [
   ['manager_approval', 'Manager Approval'],
   ['hr_review', 'HR Review'],
@@ -43,6 +44,7 @@ export const CHECKLIST = [
   ['access_revocation', 'Access Revocation'],
   ['fnf', 'Full & Final Settlement'],
 ];
+// Departments that sign off the exit clearance, as [key, label].
 const CLEARANCE = [
   ['manager', 'Reporting Manager'],
   ['it', 'IT (Access & Assets)'],
@@ -50,12 +52,14 @@ const CLEARANCE = [
   ['finance', 'Finance (F&F)'],
 ];
 
+// Resignation row with employee, department and vertical details.
 const SELECT = `
   SELECT r.*, e.first_name, e.last_name, e.code, e.designation, e.grade, e.join_date, e.manager_id, e.photo IS NOT NULL AS has_photo, e.status AS emp_status,
          d.name AS department, v.short AS vertical, v.color AS vertical_color
   FROM resignations r JOIN employees e ON e.id = r.employee_id
   LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN verticals v ON v.id = e.vertical_id`;
 
+// Parses a resignation's JSON columns and adds checklist progress.
 function shape(r) {
   const checklist = json(r.checklist, {});
   const clearance = json(r.clearance, {});
@@ -73,16 +77,21 @@ function shape(r) {
   };
 }
 
+// Resignation, offboarding, exit interview and settlement routes.
 export default function resignationRoutes(r, { db }) {
+  // Loads a resignation with employee details or 404s.
   const load = (rid) => db.get(`${SELECT} WHERE r.id = ?`, id(rid)) || notFound('Resignation');
+  // HR, or a manager over the employee (but not on their own resignation).
   const canManagerAct = (user, row) =>
     isHR(user) ||
     (user.role === 'manager' &&
       scopeIds(db, user).includes(row.employee_id) &&
       row.employee_id !== user.employeeId);
+  // HR, the employee, or a manager over them.
   const canView = (user, row) =>
     isHR(user) || row.employee_id === user.employeeId || canManagerAct(user, row);
 
+  // Resignations in scope with KPIs, this year's reasons and a six-month attrition trend.
   r.get('/resignations', (req, res) => {
     const T = today(db);
     const scope = scopeIds(db, req.user);
@@ -102,17 +111,20 @@ export default function resignationRoutes(r, { db }) {
         ...params,
       )
       .map(shape);
+    // This year's resignations and the month-over-month change
     const year = T.slice(0, 4);
     const thisYear = rows.filter((x) => x.submitted_on.slice(0, 4) === year);
     const month = D.monthOf(T);
     const prev = rows.filter((x) => x.submitted_on.slice(0, 7) === D.addMonths(month, -1)).length;
     const cur = rows.filter((x) => x.submitted_on.slice(0, 7) === month).length;
+    // Reason breakdown for this year, most common first
     const reasons = REASONS.map((label) => ({
       label,
       value: thisYear.filter((x) => x.reason_category === label).length,
     }))
       .filter((x) => x.value > 0)
       .sort((a, b) => b.value - a.value);
+    // Monthly exits and attrition rate (exits / average headcount) for the scope
     const f = {
       sql:
         scope === null
@@ -169,6 +181,7 @@ export default function resignationRoutes(r, { db }) {
     });
   });
 
+  // One resignation with the employee's assets (HR, the employee or their manager).
   r.get('/resignations/:id', (req, res) => {
     const row = load(req.params.id);
     if (!canView(req.user, row)) fail(403, 'You cannot view this resignation');
@@ -183,12 +196,14 @@ export default function resignationRoutes(r, { db }) {
     });
   });
 
+  // Submits a resignation; HR can file one for another employee.
   r.post('/resignations', (req, res) => {
     const employeeId = req.body.employee_id ? id(req.body.employee_id) : req.user.employeeId;
     if (!employeeId) fail(400, 'Your login is not linked to an employee record');
     if (employeeId !== req.user.employeeId) requireHR(req);
     const e = db.get('SELECT * FROM employees WHERE id = ?', employeeId) || notFound('Employee');
     if (e.status === 'Exited') fail(400, 'This employee has already exited');
+    // Only one active resignation per employee
     if (
       db.value(
         "SELECT 1 FROM resignations WHERE employee_id = ? AND status IN ('Pending','Approved','In Progress')",
@@ -198,6 +213,7 @@ export default function resignationRoutes(r, { db }) {
       fail(409, 'There is already an active resignation');
     const T = today(db);
     const s = getSettings(db);
+    // Senior grades get the longer notice; the last day defaults to today + notice
     const notice = ['Manager', 'Head', 'CXO'].includes(e.grade)
       ? s.noticePeriodSeniorDays
       : s.noticePeriodDays;
@@ -216,6 +232,7 @@ export default function resignationRoutes(r, { db }) {
       checklist: Object.fromEntries(CHECKLIST.map(([k]) => [k, { status: 'Pending' }])),
       clearance: Object.fromEntries(CLEARANCE.map(([k]) => [k, { status: 'Pending' }])),
     });
+    // Notify the manager and HR
     const mgr = managerUserId(db, employeeId);
     notifyUsers(
       db,

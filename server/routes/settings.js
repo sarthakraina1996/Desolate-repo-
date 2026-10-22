@@ -21,19 +21,24 @@ import { seedDemo, LEAVE_TYPES, holidaysFor, policyLibrary } from '../seed.js';
 import * as D from '../lib/dates.js';
 import { GEOFENCE_MODES, geofencePolicy } from '../services/geofence.js';
 
+// Master tables managed from settings, with their editable fields.
 const MASTERS = {
   verticals: ['name', 'short', 'tagline', 'color'],
   departments: ['name'],
   locations: ['name'],
 };
+// Columns that point at each master; a row still referenced can't be deleted.
 const MASTER_REFS = {
   verticals: ['employees.vertical_id', 'jobs.vertical_id'],
   departments: ['employees.department_id', 'jobs.department_id'],
   locations: ['employees.location_id', 'jobs.location_id'],
 };
+// 24-hour HH:MM.
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+// Company settings, masters, users, audit log, office locations and data reset routes.
 export default function settingsRoutes(r, { db, saveFile }) {
+  // All settings plus verticals, departments and locations with headcounts (HR only).
   r.get('/settings', (req, res) => {
     requireHR(req);
     res.json({
@@ -51,10 +56,12 @@ export default function settingsRoutes(r, { db, saveFile }) {
     });
   });
 
+  // Validates and saves only the settings present in the body (HR only).
   r.put('/settings', (req, res) => {
     requireHR(req);
     const b = req.body;
     const cur = getSettings(db);
+    // Company name, and weekly offs as weekday numbers 0-6 (at most three)
     if (b.companyName !== undefined)
       setSetting(
         db,
@@ -68,6 +75,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
       if (offs.length > 3) fail(400, 'At most three weekly offs');
       setSetting(db, 'weeklyOffs', [...new Set(offs)]);
     }
+    // Working hours, short-hours grace and day times
     if (b.workHours !== undefined)
       setSetting(
         db,
@@ -86,6 +94,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
         setSetting(db, k, b[k]);
       }
     }
+    // Employee code prefix, notice periods and salary bank
     if (b.employeeCodePrefix !== undefined) {
       const p = str(b.employeeCodePrefix, {
         required: true,
@@ -114,6 +123,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
       );
     if (b.bankName !== undefined)
       setSetting(db, 'bankName', str(b.bankName, { max: 60 }) || 'HDFC Bank');
+    // Sign-in location rule; omitted fields keep their value, and it needs an active office
     if (b.geofence !== undefined) {
       const g = b.geofence || {};
       const prev = geofencePolicy(cur);
@@ -144,6 +154,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
       setSetting(db, 'geofence', next);
       audit(db, req.user, 'settings.geofence', null, null, next);
     }
+    // Timezone must be one Intl recognises
     if (b.timezone !== undefined) {
       try {
         new Intl.DateTimeFormat('en', { timeZone: b.timezone });
@@ -152,6 +163,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
       }
       setSetting(db, 'timezone', b.timezone);
     }
+    // Payroll rules; omitted fields keep their current value
     if (b.payroll) {
       const p = b.payroll;
       const n = (k, max, opts = {}) =>
@@ -186,7 +198,9 @@ export default function settingsRoutes(r, { db, saveFile }) {
   });
 
   // ---------- masters ----------
+  // Add, edit and delete routes for each master table.
   for (const [table, fields] of Object.entries(MASTERS)) {
+    // Validates a master form; a vertical's short name defaults to its name.
     const read = (b) => {
       const out = {};
       for (const f of fields) {
@@ -196,10 +210,12 @@ export default function settingsRoutes(r, { db, saveFile }) {
       if (table === 'verticals' && !out.short) out.short = out.name;
       return out;
     };
+    // Adds a master row (HR only).
     r.post(`/settings/${table}`, (req, res) => {
       requireHR(req);
       res.json({ id: db.insert(table, read(req.body)) });
     });
+    // Edits a master row (HR only).
     r.put(`/settings/${table}/:id`, (req, res) => {
       requireHR(req);
       const rid = id(req.params.id);
@@ -207,6 +223,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
       db.update(table, rid, read(req.body));
       res.json({ ok: true });
     });
+    // Deletes a master row that no employee or job uses (HR only).
     r.delete(`/settings/${table}/:id`, (req, res) => {
       requireHR(req);
       const rid = id(req.params.id);
@@ -221,6 +238,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
   }
 
   // ---------- users & roles ----------
+  // Lists logins and counts current employees without one (HR only).
   r.get('/users', (req, res) => {
     requireHR(req);
     const users = db
@@ -235,6 +253,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
     res.json({ users, withoutLogin: without });
   });
 
+  // Changes a login's role or active flag (HR; anything involving admin needs an admin).
   r.put('/users/:id', (req, res) => {
     requireHR(req);
     const u = db.get('SELECT * FROM users WHERE id = ?', id(req.params.id)) || notFound('User');
@@ -243,6 +262,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
       : u.role;
     if ((role === 'admin' || u.role === 'admin') && !isAdmin(req.user))
       fail(403, 'Only an administrator can change admin access');
+    // No changing your own access, and keep at least one active admin
     if (u.id === req.user.id && (role !== u.role || req.body.active === false))
       fail(400, 'You cannot change your own role or deactivate yourself');
     const active = req.body.active === undefined ? u.active : req.body.active ? 1 : 0;
@@ -253,11 +273,13 @@ export default function settingsRoutes(r, { db, saveFile }) {
     )
       fail(400, 'There must be at least one active administrator');
     db.update('users', u.id, { role, active });
+    // Deactivated users are signed out everywhere
     if (!active) db.run('DELETE FROM sessions WHERE user_id = ?', u.id);
     audit(db, req.user, 'user.update', 'user', u.id, { role, active });
     res.json({ ok: true });
   });
 
+  // Resets a login to a temporary password and signs it out (HR; admins need an admin).
   r.post('/users/:id/reset', (req, res) => {
     requireHR(req);
     const u = db.get('SELECT * FROM users WHERE id = ?', id(req.params.id)) || notFound('User');
@@ -281,6 +303,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
     db.tx(() => {
       for (const e of emps) {
         if (db.value('SELECT 1 FROM users WHERE email = ?', e.email)) continue;
+        // Anyone with active reports gets the manager role
         const temp = tempPassword();
         const role = db.value(
           "SELECT COUNT(*) FROM employees WHERE manager_id = ? AND status != 'Exited'",
@@ -308,6 +331,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
     ]);
   });
 
+  // Latest 200 audit log entries (admin only).
   r.get('/audit', (req, res) => {
     requireAdmin(req);
     res.json({
@@ -318,6 +342,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
   });
 
   // ---------- office locations (sign-in location check) ----------
+  // Validates an office: coordinates, radius and optional IPv4 addresses or CIDR ranges.
   const readSite = (b) => {
     const lat = num(b.lat, { required: true, min: -90, max: 90, name: 'Latitude' });
     const lng = num(b.lng, { required: true, min: -180, max: 180, name: 'Longitude' });
@@ -338,6 +363,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
       active: b.active === undefined ? 1 : b.active ? 1 : 0,
     };
   };
+  // Offices, the location policy and exempt employees (HR only).
   r.get('/settings/offices', (req, res) => {
     requireHR(req);
     const s = getSettings(db);
@@ -355,16 +381,19 @@ export default function settingsRoutes(r, { db, saveFile }) {
             )
             .map((e) => ({ ...e, name: fullName(e) }))
         : [],
+      // Caller's IP address, to help fill in the office network ranges
       yourIp: String(req.ip || '').replace(/^::ffff:/, ''),
       demo: Boolean(s.demo),
     });
   });
+  // Adds an office (HR only).
   r.post('/settings/offices', (req, res) => {
     requireHR(req);
     const oid = db.insert('office_sites', readSite(req.body));
     audit(db, req.user, 'office.add', 'office', oid);
     res.json({ id: oid });
   });
+  // Edits an office; omitted fields keep their value (HR only).
   r.put('/settings/offices/:id', (req, res) => {
     requireHR(req);
     const o =
@@ -373,6 +402,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
     audit(db, req.user, 'office.edit', 'office', o.id);
     res.json({ ok: true });
   });
+  // Removes an office (HR only); the last active one stays while the location rule is on.
   r.delete('/settings/offices/:id', (req, res) => {
     requireHR(req);
     const o =
@@ -389,6 +419,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
   });
 
   // ---------- data management (admin) ----------
+  // Every table, in the order they are emptied (dependent tables first).
   const TABLES = [
     'notifications',
     'sessions',
@@ -428,6 +459,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
     'settings',
   ];
 
+  // Empties every table, optionally keeping one login and its sessions.
   function wipe(keepUserId = null) {
     db.exec('PRAGMA foreign_keys = OFF');
     try {
@@ -444,6 +476,7 @@ export default function settingsRoutes(r, { db, saveFile }) {
     }
   }
 
+  // Wipes all data and reloads the demo company (admin only).
   r.post('/settings/reset-demo', (req, res) => {
     requireAdmin(req);
     if (req.body.confirm !== 'RESET') fail(400, 'Type RESET to confirm');
@@ -463,12 +496,14 @@ export default function settingsRoutes(r, { db, saveFile }) {
     const keep = req.user.id;
     wipe(keep);
     db.tx(() => {
+      // Give the kept login its new email and password, unlinked from any employee
       db.run(
         'UPDATE users SET employee_id = NULL, email = ?, password_hash = ?, must_change_password = 0 WHERE id = ?',
         adminEmail,
         hashPassword(req.body.password),
         keep,
       );
+      // Seed the default verticals, departments, locations, leave types, holidays and policies
       setSetting(db, 'demo', false);
       setSetting(db, 'companyName', getSettings(db).companyName || DEFAULT_SETTINGS.companyName);
       for (const v of [

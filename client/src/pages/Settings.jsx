@@ -1011,7 +1011,7 @@ function DataTab() {
   const [login, setLogin] = useState({ email: '', password: '', repeat: '' });
   const fresh = modal === 'fresh';
   const mismatch = fresh && login.repeat && login.password !== login.repeat;
-  // Confirm needs the typed phrase, plus a complete login with matching passwords for a fresh start
+  // Confirm needs the typed phrase; a fresh start also needs a full login with matching passwords
   const ready =
     text === (fresh ? 'START FRESH' : 'RESET') &&
     (!fresh || (login.email && login.password && login.password === login.repeat));
@@ -1089,6 +1089,7 @@ function DataTab() {
               <TriangleAlert size={16} />
               This cannot be undone.
             </div>
+            {/* New admin login for a fresh start */}
             {fresh && (
               <>
                 <div className="small muted">
@@ -1138,14 +1139,17 @@ function DataTab() {
 }
 
 // ---------- office locations (sign-in only from the office) ----------
+// Options for the sign-in location rule.
 const GEO_MODES = [
   { value: 'off', label: 'Off: sign in from anywhere' },
   { value: 'login', label: 'Sign in and check in only at an office' },
   { value: 'strict', label: 'Also sign people out when they leave the office' },
 ];
 
+// Add or edit an office: its position, radius and optional office network addresses.
 function OfficeModal({ office, yourIp, onClose, onDone }) {
   const { meta, toast } = useApp();
+  // Existing office, or a blank one with a 300 m radius
   const [f, setF] = useState(
     office
       ? { ...office, ip_ranges: office.ip_ranges || '' }
@@ -1154,6 +1158,7 @@ function OfficeModal({ office, yourIp, onClose, onDone }) {
   const [run, busy] = useAction(toast);
   const [locating, setLocating] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Fills in the coordinates from a fresh reading of this device's position.
   const here = async () => {
     setLocating(true);
     try {
@@ -1166,6 +1171,7 @@ function OfficeModal({ office, yourIp, onClose, onDone }) {
       setLocating(false);
     }
   };
+  // Saves the office; no location picked is sent as null.
   const save = async () => {
     const body = { ...f, location_id: f.location_id || null, active: f.active ? 1 : 0 };
     if (
@@ -1206,6 +1212,7 @@ function OfficeModal({ office, yourIp, onClose, onDone }) {
             options={(meta.locations || []).map((l) => ({ value: l.id, label: l.name }))}
           />
         </Field>
+        {/* Coordinates: typed in, or taken from this device */}
         <Field label="Latitude">
           <Input value={f.lat} onChange={set('lat')} placeholder="12.978400" inputMode="decimal" />
         </Field>
@@ -1253,6 +1260,7 @@ function OfficeModal({ office, yourIp, onClose, onDone }) {
   );
 }
 
+// Office Locations tab: the sign-in location rule and the offices it checks against.
 function Offices() {
   const { toast, refreshMeta } = useApp();
   const { data, error, reload } = useApi('/settings/offices');
@@ -1261,11 +1269,13 @@ function Offices() {
   const [add, setAdd] = useState('');
   const [run, busy] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
+  // Copy the loaded rule into the form, with exempt people as { id, name }
   useEffect(() => {
     if (data) setPolicy({ ...data.policy, exempt: data.exempt });
   }, [data]);
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   if (!data || !policy) return <Loading />;
+  // Saves the rule; exempt people are sent as employee ids.
   const savePolicy = async () => {
     const body = {
       geofence: {
@@ -1282,6 +1292,7 @@ function Offices() {
   };
   return (
     <div className="grid">
+      {/* Location rule form */}
       <Card className="span-5" title="Sign-in location rule">
         <div className="col" style={{ gap: 14 }}>
           <Field label="Rule">
@@ -1322,6 +1333,7 @@ function Offices() {
                 </span>
               ))}
             </div>
+            {/* Picking someone adds a chip (name taken from the option label) and resets */}
             <EmployeeSelect
               value={add}
               placeholder="Add an employee"
@@ -1365,6 +1377,7 @@ function Offices() {
           </div>
         </div>
       </Card>
+      {/* Offices table */}
       <Card
         className="span-7"
         title="Offices"
@@ -1375,6 +1388,7 @@ function Offices() {
           </Button>
         }
       >
+        {/* Demo offices have made-up coordinates */}
         {data.demo && (
           <div className="alert warn" style={{ margin: '0 18px 12px' }}>
             These are sample coordinates. Set each office's real position before turning the rule
@@ -1451,6 +1465,7 @@ function Offices() {
           </div>
         )}
       </Card>
+      {/* Add / edit office modal */}
       {modal && (
         <OfficeModal
           office={modal.office}
