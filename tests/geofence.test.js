@@ -89,7 +89,8 @@ test('administrators, people allowed anywhere, and office networks skip the GPS 
     'admins can always sign in',
   );
   const hr = await as(ctx.base, CEO);
-  // The demo data dates leave from today, so on some days these people are on leave and skip the check anyway.
+  // The demo data dates leave from today, so on some days these people are on leave
+  // and skip the check anyway.
   assert.equal((await hr.put('/settings', { geofence: { allowWfhAndLeave: false } })).status, 200);
   // The manager is refused from home until exempted as field staff.
   const mgrId = ctx.db.value('SELECT employee_id FROM users WHERE email = ?', MGR);

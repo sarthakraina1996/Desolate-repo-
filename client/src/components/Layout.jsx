@@ -308,6 +308,7 @@ function GlobalSearch() {
           if (e.key === 'Escape') setOpen(false);
         }}
       />
+      {/* Results; mousedown picks one before the input's blur can close the list */}
       {open && q.trim().length >= 2 && (
         <div className="dropdown" style={{ left: 0, right: 'auto', width: '100%', minWidth: 300 }}>
           {results.length === 0 ? (
@@ -339,6 +340,7 @@ function GlobalSearch() {
   );
 }
 
+// Notification bell and list; reloads every minute and whenever the page changes.
 function Notifications() {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState({ items: [], unread: 0 });
@@ -358,6 +360,7 @@ function Notifications() {
     const t = setInterval(load, 60000);
     return () => clearInterval(t);
   }, [load, loc.pathname]);
+  // Marks it read, then follows its link.
   const click = async (n) => {
     if (!n.read) await api.post(`/notifications/${n.id}/read`).catch(() => {});
     setOpen(false);
@@ -366,6 +369,7 @@ function Notifications() {
   };
   return (
     <div ref={ref} style={{ position: 'relative' }}>
+      {/* Bell with the unread count */}
       <button
         type="button"
         className="icon-btn"
@@ -377,6 +381,7 @@ function Notifications() {
           <span className="badge-dot">{data.unread > 9 ? '9+' : data.unread}</span>
         )}
       </button>
+      {/* Dropdown: "Mark all read", then the list */}
       {open && (
         <div className="dropdown" style={{ width: 360 }}>
           <div className="head">
@@ -425,11 +430,13 @@ function Notifications() {
   );
 }
 
+// Change-password dialog; when `forced` (temporary password) it can't be dismissed.
 export function ChangePassword({ onClose, forced }) {
   const { toast, loadMe } = useApp();
   const [f, setF] = useState({ current: '', next: '', confirm: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // Checks the confirmation, saves, then reloads the user so a forced prompt goes away.
   const save = async () => {
     if (f.next !== f.confirm) return setErr('New passwords do not match');
     setBusy(true);
@@ -495,12 +502,14 @@ export function ChangePassword({ onClose, forced }) {
   );
 }
 
+// Account chip and menu: My Space, profile, password, the app and sign-out.
 function UserMenu({ onGetApp }) {
   const { user, logout } = useApp();
   const workday = useWorkday();
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // With the clock still running, ask about checking out before signing out.
   const signOut = () => {
     setOpen(false);
     if (workday?.workday?.openSince) setLeaving(true);
@@ -510,6 +519,7 @@ function UserMenu({ onGetApp }) {
   const ref = useClickOutside(useCallback(() => setOpen(false), []));
   return (
     <div ref={ref} style={{ position: 'relative' }}>
+      {/* Photo (or profile icon), name and designation */}
       <button
         type="button"
         className="user-chip"
@@ -527,6 +537,7 @@ function UserMenu({ onGetApp }) {
         </div>
         <IconChevronDown size={18} />
       </button>
+      {/* Account menu */}
       {open && (
         <div className="dropdown" style={{ width: 240 }}>
           <div className="head" style={{ display: 'block' }}>
@@ -585,6 +596,7 @@ function UserMenu({ onGetApp }) {
           </div>
         </div>
       )}
+      {/* Change password and the check-out-before-sign-out dialog */}
       {pw && <ChangePassword onClose={() => setPw(false)} />}
       {leaving && <SignOutModal onClose={() => setLeaving(false)} />}
     </div>
