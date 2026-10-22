@@ -603,10 +603,12 @@ function UserMenu({ onGetApp }) {
   );
 }
 
+// The shell around every signed-in page.
 export default function Layout({ children }) {
   const { user, meta, vertical, setVertical } = useApp();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
+  // Collapses or expands the sidebar and remembers the choice.
   const toggleCollapsed = () =>
     setCollapsed((c) => {
       try {
@@ -637,6 +639,7 @@ export default function Layout({ children }) {
     focusFloat.current = true;
     setFloating(true);
   };
+  // Back to the side menu; focus its floating-menu button once it has rendered.
   const dock = () => {
     setFloating(false);
     setTimeout(() => document.querySelector('.nav .nav-act')?.focus({ preventScroll: true }), 60);
@@ -653,15 +656,18 @@ export default function Layout({ children }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [floating]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Modules this role can open, and the verticals offered as top-bar filters (not Corporate).
   const items = NAV.filter((n) => !n.roles || n.roles.includes(user.role));
   const verticals = (meta?.verticals || []).filter((v) => v.short !== 'Corporate');
   // Phones: bottom tabs with "More" for everything else, and the app install offer.
   const [more, setMore] = useState(false);
   const [getApp, setGetApp] = useState(false);
   const app = useInstall();
+  // Offered only where the app can be installed and isn't already.
   const offerApp = canOfferApp() && !app.installed ? () => setGetApp(true) : null;
   return (
     <div className={`app ${floating ? 'nav-floating' : ''}`}>
+      {/* Side menu (hidden in floating mode) and the floating Br button */}
       <Sidebar
         items={items}
         open={open}
@@ -672,6 +678,7 @@ export default function Layout({ children }) {
       />
       {floating && <FloatingNav items={items} onDock={dock} focusOnMount={focusFloat} />}
       <div className="main">
+        {/* Top bar */}
         <header className="topbar no-print">
           <button
             type="button"
@@ -681,6 +688,7 @@ export default function Layout({ children }) {
           >
             <MenuIcon size={22} />
           </button>
+          {/* Vertical filters (not for employees) */}
           {user.role !== 'employee' && (
             <div className="verticals">
               {verticals.map((v) => (
@@ -694,18 +702,22 @@ export default function Layout({ children }) {
             </div>
           )}
           <div className="spacer" />
+          {/* Search, work clock, notifications and account */}
           <GlobalSearch />
           <WorkClock />
           <Notifications />
           <UserMenu onGetApp={offerApp} />
         </header>
+        {/* Page content, under the one-time install banner on phones */}
         <main className="content">
           <InstallBanner onHow={() => setGetApp(true)} />
           {children}
         </main>
       </div>
+      {/* Phone tab bar and its More sheet */}
       <BottomBar items={items} moreOpen={more} onMore={() => setMore(true)} />
       {more && <MoreSheet items={items} onClose={() => setMore(false)} onGetApp={offerApp} />}
+      {/* App-wide dialogs: get the app, forced password change, sign-in and location prompts */}
       {getApp && <GetAppModal onClose={() => setGetApp(false)} />}
       {user.mustChangePassword && <ChangePassword forced onClose={() => {}} />}
       <SignInPrompts />
