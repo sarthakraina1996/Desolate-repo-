@@ -1,41 +1,41 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Plane, ClipboardList, UsersRound, CalendarDays, ShieldCheck, Plus, ArrowRight, Download, Pencil, FileText, Bell, Trash2, CalendarRange,
-  Palmtree, Cross, Baby, User, House, Ban, Calendar, Eye, HandHeart, ExternalLink, Clock,
+  Plane, ClipboardList, UsersRound, ShieldCheck, Plus, ArrowRight, Download, Pencil, FileText, Bell,
+  Palmtree, Cross, Baby, User, House, Ban, Calendar, Eye, Clock,
 } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { useApi, useAction } from '../lib/hooks.js';
 import { api, download } from '../lib/api.js';
 import { fmtDate, fmtShort, addDays, dowOf, greeting } from '../lib/format.js';
 import {
-  Card, Kpi, Badge, Button, Tabs, Seg, Empty, Loading, ErrorBox, Person, Avatar, Modal, Field, Input, Select, Textarea, Progress, Menu, useConfirm,
+  Card, Kpi, Badge, Button, Tabs, Seg, Empty, Loading, ErrorBox, Person, Avatar, Modal, Field, Input, Select, Textarea, Progress, Menu,
 } from '../components/ui.jsx';
-import { Ring, HBars, MiniCalendar, Bars, STATUS } from '../components/charts.jsx';
+import { Ring, HBars } from '../components/charts.jsx';
 import { ApplyLeaveModal } from '../components/forms.jsx';
 import { BrandBanner } from '../components/Layout.jsx';
 import { PolicyModal } from './MySpace.jsx';
-import Posh from './Posh.jsx';
 
 export const LEAVE_ICONS = { calendar: Calendar, palm: Palmtree, cross: Cross, baby: Baby, user: User, home: House, ban: Ban };
+// Holidays, POSH, reports and the leave type builder each have their own page, so they are not repeated here.
+const TABS = [{ value: 'overview', label: 'Overview' }, { value: 'manage', label: 'Leave Management' }, { value: 'policies', label: 'Policy Management' }];
 
 export default function Leave() {
   const [sp, setSp] = useSearchParams();
-  const { meta, user, isHR } = useApp();
-  const tab = sp.get('tab') || 'overview';
+  const { meta, user } = useApp();
+  const tab = TABS.some((t) => t.value === sp.get('tab')) ? sp.get('tab') : 'overview';
   const [year, setYear] = useState(Number(meta.today.slice(0, 4)));
-  const tabs = [{ value: 'overview', label: 'Overview' }, { value: 'manage', label: 'Leave Management' }, { value: 'policies', label: 'Policy Management' }, { value: 'posh', label: 'POSH' }, ...(isHR ? [{ value: 'reports', label: 'Reports' }] : [])];
   return (
     <div>
       <div className="page-head">
         <div>
           <h1>{greeting()}, {user.firstName}! <span aria-hidden="true">👋</span></h1>
-          <div className="sub">Manage leave, policies and a safe, compliant workplace at BrainADZ.</div>
+          <div className="sub">Leave, approvals and company policies at BrainADZ.</div>
         </div>
         <BrandBanner />
       </div>
       <div className="row between wrap" style={{ alignItems: 'flex-end' }}>
-        <div className="grow"><Tabs value={tab} onChange={(t) => setSp(t === 'overview' ? {} : { tab: t })} tabs={tabs} /></div>
+        <div className="grow"><Tabs value={tab} onChange={(t) => setSp(t === 'overview' ? {} : { tab: t })} tabs={TABS} /></div>
         <div className="row small mb-16" style={{ marginBottom: 16 }}>Policy Year
           <select className="select sm" style={{ width: 100 }} value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {[year - 1, year, year + 1].filter((y, i, a) => a.indexOf(y) === i).map((y) => <option key={y}>{y}</option>)}
@@ -45,15 +45,13 @@ export default function Leave() {
       {tab === 'overview' && <Overview year={year} />}
       {tab === 'manage' && <Manage year={year} />}
       {tab === 'policies' && <Policies focus={Number(sp.get('policy')) || null} />}
-      {tab === 'posh' && <Posh embedded />}
-      {tab === 'reports' && isHR && <LeaveReports year={year} />}
     </div>
   );
 }
 
 // ---------------------------------------------------------------- overview
 function Overview({ year }) {
-  const { meta, isHR, user } = useApp();
+  const { isHR, user } = useApp();
   const { data, error, reload } = useApi(`/leave/overview?year=${year}`);
   const [apply, setApply] = useState(false);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
@@ -64,13 +62,12 @@ function Overview({ year }) {
         <Kpi icon={Plane} tone="blue" label="Total Leave Balance" value={data.totalBalance} unit="Days" />
         <Kpi icon={ClipboardList} tone="red" label={isHR ? 'Pending Leave Requests' : 'My Pending Requests'} value={data.pendingRequests} />
         <Kpi icon={UsersRound} tone="amber" label="Pending Approvals" value={data.pendingApprovals} extra={data.pendingApprovals > 0 && <span className="delta"><span className="d" style={{ color: 'var(--text-2)' }}><Clock size={13} /> Avg. {data.avgApprovalAgeDays} days</span></span>} />
-        <Kpi icon={CalendarDays} tone="blue" label="Company Holidays" value={data.holidays} unit="This Year" />
         <Kpi icon={ShieldCheck} tone="green" label="Policy Acknowledgement" value={`${data.policyAckPct}%`} />
       </div>
       <div className="grid">
-        <Card className="span-5" title="Leave Balance Overview" action={user.employeeId && <Button size="sm" variant="primary" icon={Plus} onClick={() => setApply(true)}>Apply leave</Button>}>
+        <Card className="span-7" title="Leave Balance Overview" action={user.employeeId && <Button size="sm" variant="primary" icon={Plus} onClick={() => setApply(true)}>Apply leave</Button>}>
           {data.balances.length ? (
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 10, marginBottom: 0 }}>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))', gap: 10, marginBottom: 0 }}>
               {data.balances.filter((b) => b.quota != null).map((b) => {
                 const Icon = LEAVE_ICONS[b.icon] || Calendar;
                 const total = b.entitled + b.carried;
@@ -87,31 +84,16 @@ function Overview({ year }) {
             </div>
           ) : <Empty text="Leave balances appear for employees" />}
         </Card>
-        <Card className="span-4" title="Leave Request Workflow" action={<Link className="link" to="/leave?tab=manage">View all <ArrowRight size={14} /></Link>}>
+        <Card className="span-5" title="Leave Request Workflow" action={<Link className="link" to="/leave?tab=manage">View all <ArrowRight size={14} /></Link>}>
           <Workflow onChanged={reload} />
         </Card>
-        <Card className="span-3" title="Holiday Calendar" action={<Link className="link" to="/leave?tab=manage#holidays">View all <ArrowRight size={14} /></Link>}>
-          <HolidayCalendar year={year} today={meta.today} />
-        </Card>
       </div>
       <div className="grid">
-        <Card className="span-5" title="Team Leave Calendar"><TeamCalendar /></Card>
-        <Card className="span-4" title="Leave Policy Builder" action={isHR && <Link className="link" to="/settings?tab=leave">Edit Policy <ArrowRight size={14} /></Link>}><PolicyBuilder /></Card>
-        <Card className="span-3" title="Policy Library" action={<Link className="link" to="/leave?tab=policies">View all <ArrowRight size={14} /></Link>}><PolicyLibraryMini /></Card>
+        <Card className="span-12" title="Who's on Leave"><TeamCalendar /></Card>
       </div>
       <div className="grid">
-        <Card className="span-5" title="Policy Acknowledgement"><AckByDepartment /></Card>
-        <Card className="span-4" title="POSH Compliance" action={<Link className="link" to="/posh">View details <ArrowRight size={14} /></Link>}><PoshMini /></Card>
-        <div className="span-3 card" style={{ background: 'linear-gradient(160deg, #fff 0%, #fde9ef 100%)' }}>
-          <div className="row" style={{ alignItems: 'flex-start', gap: 12 }}>
-            <HandHeart size={42} className="red" style={{ flexShrink: 0 }} />
-            <div>
-              <h3 className="red" style={{ fontSize: 16 }}>Confidential POSH Support</h3>
-              <p className="small mt-8" style={{ color: 'var(--text-2)', lineHeight: 1.5 }}>A safe and confidential channel to report harassment at the workplace. You can stay anonymous.</p>
-            </div>
-          </div>
-          <Link to="/posh?raise=1" className="btn solid-red block mt-16">Report / Seek Support <ExternalLink size={15} /></Link>
-        </div>
+        <Card className="span-5" title="Policy Library" action={<Link className="link" to="/leave?tab=policies">View all <ArrowRight size={14} /></Link>}><PolicyLibraryMini /></Card>
+        <Card className="span-7" title="Policy Acknowledgement"><AckByDepartment /></Card>
       </div>
       {apply && <ApplyLeaveModal onClose={() => setApply(false)} onDone={reload} />}
     </div>
@@ -143,29 +125,6 @@ function Workflow({ onChanged }) {
           <Badge>{r.status}</Badge>
         </div>
       )) : <Empty text="Nothing here" />}
-    </div>
-  );
-}
-
-function HolidayCalendar({ year, today }) {
-  const start = today.slice(0, 4) === String(year) ? today.slice(0, 7) : `${year}-01`;
-  const [month, setMonth] = useState(start);
-  const { data } = useApi(`/holidays?year=${month.slice(0, 4)}`);
-  const marks = Object.fromEntries((data?.items || []).map((h) => [h.date, { kind: h.type === 'Company' ? 'company' : 'restricted', title: h.name }]));
-  const step = (n) => {
-    const [y, m] = month.split('-').map(Number);
-    const d = new Date(Date.UTC(y, m - 1 + n, 1));
-    setMonth(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
-  };
-  const inMonth = (data?.items || []).filter((h) => h.date.startsWith(month));
-  return (
-    <div>
-      <MiniCalendar month={month} marks={marks} today={today} onPrev={() => step(-1)} onNext={() => step(1)} />
-      <div className="row small mt-12" style={{ gap: 14, justifyContent: 'center' }}>
-        <span className="row gap-6"><span className="dot" style={{ background: '#1A6DF0' }} />Company Holiday</span>
-        <span className="row gap-6"><span className="dot" style={{ background: '#E5243B' }} />Restricted Holiday</span>
-      </div>
-      {inMonth.length > 0 && <div className="mt-12">{inMonth.map((h) => <div key={h.id} className="small row between"><span>{h.name}</span><span className="muted">{fmtShort(h.date)}</span></div>)}</div>}
     </div>
   );
 }
@@ -230,29 +189,6 @@ function Row({ e, days }) {
   );
 }
 
-function PolicyBuilder() {
-  const { meta } = useApp();
-  const [tab, setTab] = useState('types');
-  const types = meta.leaveTypes;
-  return (
-    <div>
-      <Tabs variant="pills" value={tab} onChange={setTab} tabs={[{ value: 'types', label: 'Leave Types' }, { value: 'accrual', label: 'Accrual Rules' }, { value: 'cf', label: 'Carry Forward' }, { value: 'sandwich', label: 'Sandwich Rules' }]} />
-      {tab === 'types' && types.map((t) => {
-        const Icon = LEAVE_ICONS[t.icon] || Calendar;
-        return (
-          <div key={t.id} className="list-item" style={{ padding: '8px 0' }}>
-            <Icon size={20} style={{ color: t.color, flexShrink: 0 }} />
-            <div className="grow" style={{ minWidth: 0 }}><div className="b6 small">{t.name} ({t.code})</div><div className="xs muted ellipsis">{t.annual_quota != null ? `${t.annual_quota} days/year` : 'Unlimited'} · {t.rule}</div></div>
-          </div>
-        );
-      })}
-      {tab === 'accrual' && types.filter((t) => t.annual_quota != null).map((t) => <div key={t.id} className="list-item small"><span className="grow">{t.name}</span><span className="muted">{t.accrual === 'monthly' ? `${Math.round((t.annual_quota / 12) * 100) / 100} days/month` : 'Credited in January, pro-rated for joiners'}</span></div>)}
-      {tab === 'cf' && types.filter((t) => t.annual_quota != null).map((t) => <div key={t.id} className="list-item small"><span className="grow">{t.name}</span><span className="muted">{t.carry_forward_max ? `Up to ${t.carry_forward_max} days` : 'No carry forward'}</span></div>)}
-      {tab === 'sandwich' && <div className="small" style={{ lineHeight: 1.6, color: 'var(--text-2)' }}>Weekly offs and company holidays falling inside a leave are <b>not</b> counted as leave (no sandwich rule), except for leave types counted in calendar days such as Maternity Leave. Change weekly offs in Settings.</div>}
-    </div>
-  );
-}
-
 function PolicyLibraryMini() {
   const { data, reload } = useApi('/policies');
   const [open, setOpen] = useState(null);
@@ -283,17 +219,6 @@ function AckByDepartment() {
         <div className="small muted mb-8">All required policies, by department</div>
         <HBars items={data.byDepartment.slice(0, 7).map((d) => ({ label: d.label, value: d.total ? Math.round((d.acked / d.total) * 100) : 0 }))} max={100} format={(v) => `${v}%`} labelWidth={100} />
       </div>
-    </div>
-  );
-}
-
-function PoshMini() {
-  const { data } = useApi('/posh');
-  if (!data) return <Loading />;
-  return (
-    <div className="row" style={{ justifyContent: 'space-around' }}>
-      <Ring value={data.stats.ackPct} color={STATUS.good} label="POSH Policy Acknowledged" sub={`${data.stats.acked} / ${data.stats.headcount}`} />
-      <Ring value={data.stats.trainedPct} color={data.stats.trainedPct >= 90 ? STATUS.good : STATUS.warn} label="POSH Training Completed" sub={`${data.stats.trained} / ${data.stats.headcount}`} />
     </div>
   );
 }
@@ -346,8 +271,7 @@ function Manage({ year }) {
           </div>
         ) : <Empty text="No leave requests match" />}
       </Card>
-      {isHR && <div className="grid mt-16" id="holidays"><Card className="span-6" title={`Holidays ${year}`}><HolidayManager year={year} /></Card><Card className="span-6" title={`Leave register ${year}`} action={<Button size="sm" icon={Download} onClick={() => download(`/reports/leave-register.csv?year=${year}`)}>CSV</Button>}><LeaveRegister year={year} /></Card></div>}
-      {!isHR && <div className="grid mt-16"><Card className="span-6" title={`Holidays ${year}`}><HolidayManager year={year} /></Card></div>}
+      {isHR && <Card className="mt-16" title={`Leave register ${year}`} action={<Button size="sm" icon={Download} onClick={() => download(`/reports/leave-register.csv?year=${year}`)}>CSV</Button>}><LeaveRegister year={year} /></Card>}
       {modal === 'apply' && <ApplyLeaveModal onClose={() => setModal(null)} onDone={reload} />}
       {modal === 'behalf' && <ApplyLeaveModal onBehalf onClose={() => setModal(null)} onDone={reload} />}
       {note && (
@@ -355,37 +279,6 @@ function Manage({ year }) {
           <Field label="Reason (shared with the employee)"><Textarea value={note.text} onChange={(e) => setNote({ ...note, text: e.target.value })} placeholder="e.g. Peak project week, please pick other dates" /></Field>
         </Modal>
       )}
-    </div>
-  );
-}
-
-function HolidayManager({ year }) {
-  const { isHR, toast } = useApp();
-  const { data, reload } = useApi(`/holidays?year=${year}`);
-  const [f, setF] = useState({ date: `${year}-01-01`, name: '', type: 'Company' });
-  const [run, busy] = useAction(toast);
-  const [confirm, confirmEl] = useConfirm();
-  if (!data) return <Loading />;
-  return (
-    <div>
-      {isHR && (
-        <div className="row wrap mb-12" style={{ gap: 8 }}>
-          <Input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} style={{ width: 150 }} />
-          <Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Holiday name" style={{ flex: 1, minWidth: 140 }} />
-          <Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} options={['Company', 'Restricted']} style={{ width: 130 }} />
-          <Button variant="primary" loading={busy} icon={Plus} onClick={async () => { if (await run(() => api.post('/holidays', f), 'Holiday added')) { setF({ ...f, name: '' }); reload(); } }}>Add</Button>
-        </div>
-      )}
-      {data.items.length ? data.items.map((h) => (
-        <div key={h.id} className="list-item" style={{ padding: '8px 0' }}>
-          <span className="small muted nowrap" style={{ width: 110 }}>{fmtDate(h.date, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-          <span className="grow">{h.name}</span>
-          <Badge tone={h.type === 'Company' ? 'blue' : 'pink'}>{h.type}</Badge>
-          {isHR && <Button size="xs" variant="ghost" icon={Trash2} aria-label="Delete holiday" onClick={async () => { if (await confirm({ title: 'Delete holiday?', text: `${h.name} on ${fmtDate(h.date)}`, danger: true, confirmLabel: 'Delete' })) { await run(() => api.del(`/holidays/${h.id}`), 'Holiday removed'); reload(); } }} />}
-        </div>
-      )) : <Empty text="No holidays for this year yet" />}
-      <div className="xs muted mt-8">Restricted holidays are optional and are taken as Casual Leave. Festival dates change every year, so check them each January.</div>
-      {confirmEl}
     </div>
   );
 }
@@ -500,24 +393,3 @@ function PolicyEditor({ policy, onClose, onDone }) {
   );
 }
 const bump = (ver) => { const [a, b = '0'] = String(ver).split('.'); return `${a}.${Number(b) + 1}`; };
-
-// ---------------------------------------------------------------- reports
-function LeaveReports({ year }) {
-  const { data } = useApi('/reports/summary');
-  if (!data) return <Loading />;
-  const used = data.leaveUse.filter((l) => l.days > 0);
-  return (
-    <div className="grid">
-      <Card className="span-7" title={`Leave taken by type · ${year}`}>
-        <Bars categories={used.map((l) => l.code)} series={[{ name: 'Days', color: '#1A6DF0', values: used.map((l) => l.days) }]} height={220} />
-      </Card>
-      <Card className="span-5" title="Downloads">
-        {[['Leave register (balances)', `/reports/leave-register.csv?year=${year}`], ['All leave requests', '/reports/leave-requests.csv'], ['Attendance register (this month)', '/attendance/export.csv']].map(([l, p]) => (
-          <div key={p} className="list-item"><CalendarRange size={18} className="blue" /><span className="grow">{l}</span><Button size="sm" icon={Download} onClick={() => download(p)}>CSV</Button></div>
-        ))}
-        <div className="mt-12"><HBars items={data.leaveUse.map((l) => ({ label: l.name, value: l.requests, color: l.color }))} format={(v) => `${v} req`} labelWidth={120} /></div>
-      </Card>
-    </div>
-  );
-}
-

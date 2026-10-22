@@ -53,7 +53,6 @@ export default function leaveRoutes(r, { db }) {
       pendingRequests: orgPending,
       pendingApprovals: pendingApprovals.length,
       avgApprovalAgeDays: Math.round(avgAge * 10) / 10,
-      holidays: db.value("SELECT COUNT(*) FROM holidays WHERE type = 'Company' AND date BETWEEN ? AND ?", `${year}-01-01`, `${year}-12-31`),
       policyAckPct: current.length ? Math.round((acked / current.length) * 100) : 0,
     });
   });
@@ -255,12 +254,13 @@ export default function leaveRoutes(r, { db }) {
 
   r.post('/holidays', (req, res) => {
     requireHR(req);
-    const hid = db.insert('holidays', {
+    const h = {
       date: date(req.body.date, { required: true }),
       name: str(req.body.name, { required: true, max: 80, name: 'Holiday name' }),
       type: oneOf(req.body.type || 'Company', ['Company', 'Restricted'], { name: 'Type' }),
-    });
-    res.json({ id: hid });
+    };
+    if (db.value('SELECT 1 FROM holidays WHERE date = ? AND name = ?', h.date, h.name)) fail(409, `${h.name} is already on the calendar for ${h.date}`);
+    res.json({ id: db.insert('holidays', h) });
   });
   r.delete('/holidays/:id', (req, res) => {
     requireHR(req);

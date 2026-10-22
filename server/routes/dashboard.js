@@ -177,8 +177,7 @@ export default function dashboardRoutes(r, { db }) {
     const T = today(db);
     const empId = req.user.employeeId;
     const notices = db.all('SELECT * FROM notices ORDER BY created_at DESC LIMIT 4');
-    const holidays = db.all('SELECT * FROM holidays WHERE date >= ? ORDER BY date LIMIT 5', T);
-    if (!empId) return res.json({ today: T, employee: null, notices, holidays });
+    if (!empId) return res.json({ today: T, employee: null, notices });
     const e = db.get(`SELECT e.*, d.name AS department, v.name AS vertical, v.short AS vertical_short, v.color AS vertical_color, l.name AS location
       FROM employees e LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN verticals v ON v.id = e.vertical_id LEFT JOIN locations l ON l.id = e.location_id WHERE e.id = ?`, empId);
     const att = db.get('SELECT * FROM attendance WHERE employee_id = ? AND date = ?', empId, T);
@@ -224,7 +223,6 @@ export default function dashboardRoutes(r, { db }) {
       team: team.map((t) => ({ ...t, name: fullName(t) })),
       teamOnLeave: teamOnLeave.map((l) => ({ ...l, name: fullName(team.find((t) => t.id === l.employee_id)) })),
       celebrations,
-      holidays,
       notices,
       onboarding: db.all('SELECT * FROM onboarding_tasks WHERE employee_id = ? ORDER BY sort', empId),
       resignation: db.get("SELECT id, status, last_working_day FROM resignations WHERE employee_id = ? AND status NOT IN ('Rejected','Withdrawn') ORDER BY id DESC LIMIT 1", empId),

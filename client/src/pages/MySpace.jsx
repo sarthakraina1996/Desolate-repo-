@@ -124,8 +124,15 @@ function Overview() {
                 <a className="btn sm" href={`/print/payslip/${data.payslip.id}`} target="_blank" rel="noreferrer"><Download size={15} />PDF</a></div>
             ) : <Empty icon={Wallet} text="No payslips yet" />}
           </Card>
-          <Card title="Upcoming holidays">
-            {data.holidays.length ? data.holidays.map((h) => <div key={h.id} className="list-item" style={{ padding: '7px 0' }}><span className="grow">{h.name}</span><Badge tone={h.type === 'Company' ? 'blue' : 'pink'}>{h.type}</Badge><span className="small muted nowrap">{fmtDay(h.date)}</span></div>) : <Empty text="No upcoming holidays" />}
+          <Card title="Celebrations">
+            {data.celebrations.length ? data.celebrations.map((c) => (
+              <div key={`${c.id}${c.kind}`} className="list-item" style={{ padding: '7px 0' }}>
+                <Avatar name={c.name} size={30} />
+                <span className="grow small"><b>{c.name}</b><div className="muted">{c.kind === 'Birthday' ? 'Birthday' : `${c.years} year${c.years === 1 ? '' : 's'} at BrainADZ`}</div></span>
+                {c.kind === 'Birthday' ? <Cake size={18} className="red" /> : <PartyPopper size={18} className="amber" />}
+                <span className="small muted">{c.date === data.today ? 'Today' : fmtShort(c.date)}</span>
+              </div>
+            )) : <Empty text="No celebrations in the next 2 weeks" />}
           </Card>
         </div>
       </div>
@@ -139,19 +146,7 @@ function Overview() {
           {data.teamOnLeave.length > 0 && <div className="mb-12">{data.teamOnLeave.map((l) => <div key={`${l.employee_id}${l.from_date}`} className="small mb-8"><b>{l.name}</b> <span className="muted">· {l.type} · {fmtShort(l.from_date)}{l.to_date !== l.from_date ? ` – ${fmtShort(l.to_date)}` : ''}</span></div>)}</div>}
           {data.team.length ? data.team.slice(0, 6).map((t) => <div key={t.id} className="list-item" style={{ padding: '6px 0' }}><Person name={t.name} sub={t.designation} id={t.id} hasPhoto={t.has_photo} size={30} /></div>) : <Empty text="No teammates" />}
         </Card>
-        <div className="span-4 col" style={{ gap: 16 }}>
-          <Card title="Celebrations">
-            {data.celebrations.length ? data.celebrations.map((c) => (
-              <div key={`${c.id}${c.kind}`} className="list-item" style={{ padding: '7px 0' }}>
-                <Avatar name={c.name} size={30} />
-                <span className="grow small"><b>{c.name}</b><div className="muted">{c.kind === 'Birthday' ? 'Birthday' : `${c.years} year${c.years === 1 ? '' : 's'} at BrainADZ`}</div></span>
-                {c.kind === 'Birthday' ? <Cake size={18} className="red" /> : <PartyPopper size={18} className="amber" />}
-                <span className="small muted">{c.date === data.today ? 'Today' : fmtShort(c.date)}</span>
-              </div>
-            )) : <Empty text="No celebrations in the next 2 weeks" />}
-          </Card>
-          <div className="card tight"><NoticeBoard notices={data.notices} onChange={reload} compact /></div>
-        </div>
+        <div className="span-4 card tight"><NoticeBoard notices={data.notices} onChange={reload} compact /></div>
       </div>
       {modal === 'leave' && <ApplyLeaveModal onClose={() => setModal(null)} onDone={reload} />}
       {modal === 'request' && <RaiseRequestModal onClose={() => setModal(null)} onDone={reload} />}
