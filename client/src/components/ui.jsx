@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Inbox, LoaderCircle, Ellipsis, X } from 'lucide-react';
 import { colorFor, initials } from '../lib/format.js';
@@ -74,7 +75,7 @@ export function Avatar({ name = '', id, hasPhoto, size = 36, online, square }) {
   return (
     <span className="avatar" style={style}>
       {src && !broken ? <img src={src} alt="" onError={() => setBroken(true)} /> : initials(name)}
-      {online && <span className="online" />}
+      {online && <span className="online" style={{ borderWidth: Math.max(2, Math.round(size / 28)) }} />}
     </span>
   );
 }
@@ -122,7 +123,9 @@ export function Modal({ title, onClose, children, footer, size = '' }) {
       document.body.style.overflow = prev;
     };
   }, [onClose]);
-  return (
+  // Drawn at the top of the page: inside the top bar (whose blur makes it the frame for fixed
+  // elements) a dialog would be squeezed into the bar.
+  return createPortal(
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div className={`modal ${size}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined}>
         <div className="modal-head">
@@ -132,7 +135,8 @@ export function Modal({ title, onClose, children, footer, size = '' }) {
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -195,6 +199,12 @@ export function Empty({ icon: Icon = Inbox, text = 'Nothing here yet', children 
 }
 export const Loading = ({ text = 'Loading…' }) => <div className="loading"><LoaderCircle className="spin" size={20} />{text}</div>;
 export function ErrorBox({ error, onRetry }) {
+  // Retries by itself once the connection comes back.
+  useEffect(() => {
+    if (!onRetry) return undefined;
+    window.addEventListener('online', onRetry);
+    return () => window.removeEventListener('online', onRetry);
+  }, [onRetry]);
   return <div className="alert error">{error}{onRetry && <button type="button" className="link" onClick={onRetry}>Retry</button>}</div>;
 }
 

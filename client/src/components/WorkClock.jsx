@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import { Timer, LogIn, LogOut, House, PictureInPicture2, Pause, Coffee, TriangleAlert, CircleAlert, MapPin } from 'lucide-react';
+import { LogIn, LogOut, House, PictureInPicture2, Pause, Coffee, TriangleAlert, CircleAlert, MapPin } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
 import { useAction, useClickOutside } from '../lib/hooks.js';
@@ -12,6 +12,13 @@ import { fmtTime, fmtDay } from '../lib/format.js';
 import { useWorkday, useNow, workedNow, clockText, checkIn, checkOut, refreshWorkday } from '../lib/workday.js';
 import { getPosition, setLocationStatus, useLocationStatus, fmtDistance } from '../lib/location.js';
 import { Button, Modal, Field, Textarea, Progress, Badge } from './ui.jsx';
+import { IconTimer, IconWorking } from './icons.jsx';
+
+// Clock, gap and location messages belong to Attendance whichever page is open.
+function useClockToast() {
+  const { toast } = useApp();
+  return useCallback((text, kind) => toast(text, kind, { module: '/attendance' }), [toast]);
+}
 
 const OFF_DAYS = ['H', 'WO', 'L'];
 const BASE_TITLE = 'BrainADZ HRMS';
@@ -61,7 +68,7 @@ function usePipWindow() {
 
 function FloatingClock({ s }) {
   const now = useNow(1000);
-  const { toast } = useApp();
+  const toast = useClockToast();
   const w = s.workday;
   const worked = workedNow(s, now);
   const running = Boolean(w.openSince);
@@ -80,7 +87,7 @@ function FloatingClock({ s }) {
 
 // ---------- reason for the gap ----------
 export function GapReasonModal({ welcome, onClose }) {
-  const { toast } = useApp();
+  const toast = useClockToast();
   const s = useWorkday();
   const now = useNow(30000);
   const [reason, setReason] = useState('');
@@ -122,7 +129,7 @@ export function GapReasonModal({ welcome, onClose }) {
 
 // Buttons used by the check-in cards on My Space and Attendance.
 export function ClockActions({ light }) {
-  const { toast } = useApp();
+  const toast = useClockToast();
   const s = useWorkday();
   const [run, busy] = useAction(toast);
   const [ask, setAsk] = useState(false);
@@ -163,7 +170,8 @@ export function SessionList({ w, compact }) {
 
 // ---------- top-bar clock ----------
 export default function WorkClock() {
-  const { user, toast } = useApp();
+  const { user } = useApp();
+  const toast = useClockToast();
   const s = useWorkday();
   const now = useNow(1000);
   const pip = usePipWindow();
@@ -197,7 +205,7 @@ export default function WorkClock() {
   return (
     <div ref={ref} className="clock-wrap">
       <button type="button" className={`work-clock ${running ? 'on' : w.sessions.length ? 'paused' : 'idle'}`} onClick={() => setOpen((o) => !o)} aria-label="Work clock">
-        {running ? <span className="pulse" /> : w.sessions.length ? <Pause size={14} /> : <Timer size={15} />}
+        {running ? <IconWorking size={18} pulse /> : <IconTimer size={19} color={w.sessions.length ? undefined : '#fff'} />}
         <span className="t">{w.sessions.length ? clockText(worked) : 'Check in'}</span>
         {w.sessions.length > 0 && <span className="lbl">{running ? 'Working' : 'Paused'}</span>}
       </button>
@@ -248,7 +256,8 @@ export function AttentionBanner() {
 // minutes during work (all the time in strict mode) and records it. In
 // strict mode the server signs the user out after leaving the office.
 export function LocationGuard() {
-  const { meta, logout, toast } = useApp();
+  const { meta, logout } = useApp();
+  const toast = useClockToast();
   const s = useWorkday();
   const geo = meta?.geofence;
   const running = Boolean(s?.workday?.openSince);
@@ -313,7 +322,7 @@ function LocationLine() {
 
 // ---------- explain a short day ----------
 export function ExplainModal({ item, onClose, onDone }) {
-  const { toast } = useApp();
+  const toast = useClockToast();
   const prefill = item.gaps.filter((g) => g.reason).map((g) => `${g.reason}${g.note ? ` (${g.note})` : ''}, ${fmtTime(g.from)}–${fmtTime(g.to)}`).join('; ');
   const [reason, setReason] = useState(item.reason || prefill);
   const [run, busy] = useAction(toast);

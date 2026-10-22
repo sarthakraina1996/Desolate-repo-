@@ -68,6 +68,8 @@ test('sign-in needs a location inside an office; the password is checked first',
 test('administrators, people allowed anywhere, and office networks skip the GPS check', async () => {
   assert.equal((await signIn({ email: CEO, password: PW })).status, 200, 'admins can always sign in');
   const hr = await as(ctx.base, CEO);
+  // The demo data dates leave from today, so on some days these people are on leave and skip the check anyway.
+  assert.equal((await hr.put('/settings', { geofence: { allowWfhAndLeave: false } })).status, 200);
   const mgrId = ctx.db.value('SELECT employee_id FROM users WHERE email = ?', MGR);
   assert.equal((await signIn({ email: MGR, password: PW, location: HOME })).status, 403);
   assert.equal((await hr.put('/settings', { geofence: { exemptEmployeeIds: [mgrId] } })).status, 200);
@@ -78,6 +80,7 @@ test('administrators, people allowed anywhere, and office networks skip the GPS 
   assert.equal((await signIn({ email: HR, password: PW })).status, 200, 'office network counts as in the office');
   assert.equal((await hr.put(`/settings/offices/${office.id}`, { ip_ranges: '' })).status, 200);
   assert.equal((await signIn({ email: HR, password: PW })).body.code, 'location_required');
+  assert.equal((await hr.put('/settings', { geofence: { allowWfhAndLeave: true } })).status, 200);
 });
 
 test('office check-in needs the office; work from home needs an approved WFH day', async () => {

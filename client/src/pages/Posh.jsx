@@ -17,7 +17,7 @@ const TRAINING = [
   ['What about retaliation?', 'Retaliating against anyone who raises a concern or helps an inquiry is misconduct and is acted on.'],
 ];
 
-export default function Posh({ embedded }) {
+export default function Posh() {
   const { isHR, toast, user } = useApp();
   const [sp, setSp] = useSearchParams();
   const { data, error, reload } = useApi('/posh');
@@ -29,8 +29,8 @@ export default function Posh({ embedded }) {
   const close = () => { setModal(null); if (sp.get('raise')) setSp({}); };
   return (
     <div>
-      {!embedded && <div className="page-head"><div><h1>POSH</h1><div className="sub">Prevention of Sexual Harassment: a safe, respectful workplace for everyone.</div></div>
-        <Button variant="solid-red" icon={HandHeart} onClick={() => setModal('raise')}>Raise a concern</Button></div>}
+      <div className="page-head"><div><h1>POSH</h1><div className="sub">Prevention of Sexual Harassment: a safe, respectful workplace for everyone.</div></div>
+        <Button variant="solid-red" icon={HandHeart} onClick={() => setModal('raise')}>Raise a concern</Button></div>
       <div className="kpis">
         <Kpi icon={ShieldCheck} tone="green" label="POSH Policy Acknowledged" value={`${s.ackPct}%`} extra={<span className="delta"><small>{s.acked} / {s.headcount}</small></span>} />
         <Kpi icon={GraduationCap} tone="amber" label="Training Completed" value={`${s.trainedPct}%`} extra={<span className="delta"><small>{s.trained} / {s.headcount}</small></span>} />

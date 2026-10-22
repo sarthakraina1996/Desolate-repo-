@@ -108,7 +108,17 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
 
   if (serveClient) {
     const dist = path.join(here, '..', 'client', 'dist');
-    app.use(express.static(dist, { index: false, maxAge: '1h' }));
+    app.use(express.static(dist, {
+      index: false,
+      maxAge: '1h',
+      setHeaders: (res, file) => {
+        const name = path.basename(file);
+        // The installed app checks these for updates, so they must never be stale.
+        if (name === 'sw.js' || name === 'manifest.webmanifest') res.setHeader('Cache-Control', 'no-cache');
+        // Hashed build files never change.
+        else if (file.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      },
+    }));
     app.use((req, res, next) => {
       if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
       const index = path.join(dist, 'index.html');

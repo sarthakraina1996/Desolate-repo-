@@ -1,11 +1,13 @@
 // Year view of public holidays: company and restricted holidays on twelve
 // month grids, with weekly offs, today and the viewer's own leave marked.
+// This is the only place holidays are shown, and where HR adds and removes them.
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CalendarHeart } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarHeart, Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../context.jsx';
-import { useApi } from '../lib/hooks.js';
+import { useApi, useAction } from '../lib/hooks.js';
+import { api } from '../lib/api.js';
 import { fmtDate } from '../lib/format.js';
-import { Card, Badge, Button, Empty, Loading, ErrorBox } from '../components/ui.jsx';
+import { Card, Badge, Button, Empty, Loading, ErrorBox, Modal, Field, Input, Select, useConfirm } from '../components/ui.jsx';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -42,11 +44,37 @@ function Month({ year, month, byDate, leaveByDate, weeklyOffs, today }) {
   );
 }
 
+function AddHoliday({ year, today, onClose, onAdded }) {
+  const { toast } = useApp();
+  const [f, setF] = useState({ date: today.startsWith(String(year)) ? today : `${year}-01-01`, name: '', type: 'Company' });
+  const [run, busy] = useAction(toast);
+  const save = async () => {
+    if (busy) return;
+    if (await run(() => api.post('/holidays', f), `${f.name.trim() || 'Holiday'} added`)) onAdded(Number(f.date.slice(0, 4)));
+  };
+  return (
+    <Modal title="Add a holiday" size="narrow" onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} icon={Plus} onClick={save}>Add holiday</Button></>}>
+      <Field label="Date"><Input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+      <Field label="Name"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="e.g. Diwali" maxLength={80} autoFocus onKeyDown={(e) => e.key === 'Enter' && save()} /></Field>
+      <Field label="Type"><Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} options={[{ value: 'Company', label: 'Company holiday (office closed)' }, { value: 'Restricted', label: 'Restricted holiday (optional)' }]} /></Field>
+      <div className="xs muted">Restricted holidays are optional and are taken as Casual Leave. Festival dates change every year, so check them each January.</div>
+    </Modal>
+  );
+}
+
 export default function HolidayCalendar() {
-  const { meta } = useApp();
+  const { meta, isHR, toast } = useApp();
   const thisYear = Number(meta.today.slice(0, 4));
   const [year, setYear] = useState(thisYear);
   const { data, error, reload } = useApi(`/holidays/calendar?year=${year}`);
+  const [adding, setAdding] = useState(false);
+  const [run] = useAction(toast);
+  const [confirm, confirmEl] = useConfirm();
+  const remove = async (h) => {
+    if (!(await confirm({ title: 'Delete holiday?', text: `${h.name} on ${fmtDate(h.date)}`, danger: true, confirmLabel: 'Delete' }))) return;
+    if (await run(() => api.del(`/holidays/${h.id}`), `${h.name} removed`)) reload();
+  };
   const derived = useMemo(() => {
     if (!data) return null;
     const byDate = new Map();
@@ -91,8 +119,8 @@ export default function HolidayCalendar() {
               {months.map((m) => <Month key={m} year={year} month={m} byDate={derived.byDate} leaveByDate={derived.leaveByDate} weeklyOffs={data.weeklyOffs} today={data.today} />)}
             </div>
           </Card>
-          <Card title={`Holidays ${year}`}>
-            {!grouped.length ? <Empty icon={CalendarHeart} text={`No holidays published for ${year} yet. HR adds them in Leave & Policies.`} /> : grouped.map((g) => (
+          <Card title={`Holidays ${year}`} action={isHR && <Button size="sm" variant="primary" icon={Plus} onClick={() => setAdding(true)}>Add holiday</Button>}>
+            {!grouped.length ? <Empty icon={CalendarHeart} text={isHR ? `No holidays for ${year} yet. Use Add holiday to publish them.` : `No holidays published for ${year} yet.`} /> : grouped.map((g) => (
               <div key={g.m} className="hol-group">
                 <div className="xs muted b6 hol-month">{MONTHS[g.m].toUpperCase()}</div>
                 {g.items.map((h) => (
@@ -100,6 +128,7 @@ export default function HolidayCalendar() {
                     <div className="hol-date"><b>{Number(h.date.slice(8))}</b><span>{weekday(h.date)}</span></div>
                     <div className="grow">{h.name}</div>
                     <Badge tone={h.type === 'Company' ? 'blue' : 'pink'}>{h.type === 'Company' ? 'Company' : 'Restricted'}</Badge>
+                    {isHR && <Button size="xs" variant="ghost" icon={Trash2} aria-label={`Delete ${h.name}`} title="Delete holiday" onClick={() => remove(h)} />}
                   </div>
                 ))}
               </div>
@@ -108,6 +137,8 @@ export default function HolidayCalendar() {
           </Card>
         </div>
       )}
+      {adding && data && <AddHoliday year={year} today={data.today} onClose={() => setAdding(false)} onAdded={(y) => { setAdding(false); if (y === year) reload(); else setYear(y); }} />}
+      {confirmEl}
     </div>
   );
 }

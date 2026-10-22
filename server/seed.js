@@ -57,7 +57,7 @@ export function holidaysFor(year) {
     [`${year}-10-02`, 'Gandhi Jayanti', 'Company'],
     [`${year}-12-25`, 'Christmas', 'Company'],
   ];
-  // Festival dates move every year; only 2026 is pre-filled. Add the rest in Leave & Policies.
+  // Festival dates move every year; only 2026 is pre-filled. Add the rest in the Holiday Calendar.
   if (year === 2026) {
     list.push(['2026-03-04', 'Holi', 'Company'], ['2026-03-20', 'Eid ul-Fitr', 'Restricted'], ['2026-04-03', 'Good Friday', 'Restricted'],
       ['2026-09-14', 'Ganesh Chaturthi', 'Company'], ['2026-10-20', 'Dussehra', 'Company'], ['2026-11-08', 'Diwali', 'Company'],

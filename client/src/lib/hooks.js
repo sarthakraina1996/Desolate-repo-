@@ -24,6 +24,32 @@ export function useApi(path) {
   return { ...state, reload, setData };
 }
 
+// For lists that scroll without a visible scrollbar: which ends have more items past them
+// ('more-above', 'more-below'), so the list can fade at that edge. Spread the result on the list.
+export function useScrollEdges() {
+  const [edges, setEdges] = useState('');
+  const el = useRef(null);
+  const watcher = useRef(null);
+  const onScroll = useCallback(() => {
+    const n = el.current;
+    if (!n) return;
+    const up = n.scrollTop > 1;
+    const down = n.scrollTop + n.clientHeight < n.scrollHeight - 1;
+    setEdges([up && 'more-above', down && 'more-below'].filter(Boolean).join(' '));
+  }, []);
+  const ref = useCallback((node) => {
+    watcher.current?.disconnect();
+    el.current = node;
+    if (!node) return;
+    onScroll();
+    if (typeof ResizeObserver === 'undefined') return;
+    watcher.current = new ResizeObserver(onScroll);
+    watcher.current.observe(node);
+    for (const child of node.children) watcher.current.observe(child);
+  }, [onScroll]);
+  return { ref, edges, onScroll };
+}
+
 export function useDebounced(value, ms = 300) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -37,7 +63,9 @@ export function useClickOutside(onOutside) {
   const ref = useRef(null);
   useEffect(() => {
     const h = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onOutside();
+      // Dialogs are drawn at the top of the page, outside the panel that opened them, so a
+      // click inside one must not close that panel (and the dialog with it).
+      if (ref.current && !ref.current.contains(e.target) && !e.target.closest?.('.overlay')) onOutside();
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);

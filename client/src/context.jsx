@@ -1,7 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from './lib/api.js';
 import { setTimeZone } from './lib/format.js';
 import { clearWorkday } from './lib/workday.js';
+import Toasts from './components/Toasts.jsx';
+import { moduleFor } from './components/icons.jsx';
 
 const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -21,12 +24,19 @@ export function AppProvider({ children }) {
   const [meta, setMeta] = useState(null);
   const [vertical, setVerticalState] = useState(readVertical);
   const [toasts, setToasts] = useState([]);
+  const userRef = useRef(user);
+  userRef.current = user;
 
-  const toast = useCallback((text, kind = 'info') => {
+  // A message takes the look of the section it was raised in (or opts.module, a section path such
+  // as '/attendance', for messages that belong elsewhere); it closes itself when its countdown ends.
+  const { pathname } = useLocation();
+  const here = useRef(pathname);
+  here.current = pathname;
+  const toast = useCallback((text, kind = 'info', opts = {}) => {
     const tid = Math.random().toString(36).slice(2);
-    setToasts((t) => [...t, { id: tid, text, kind }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== tid)), kind === 'error' ? 5500 : 3500);
+    setToasts((t) => [...t.slice(-3), { id: tid, text, kind, module: moduleFor(opts.module || here.current) }]);
   }, []);
+  const dropToast = useCallback((tid) => setToasts((t) => t.filter((x) => x.id !== tid)), []);
 
   const loadMe = useCallback(async () => {
     try {
@@ -48,7 +58,13 @@ export function AppProvider({ children }) {
     loadMe();
     const h = () => setUser(null);
     window.addEventListener('hrms:unauthorized', h);
-    return () => window.removeEventListener('hrms:unauthorized', h);
+    // Opened without a connection, the app could not check the sign-in; check again once back.
+    const back = () => userRef.current === null && loadMe();
+    window.addEventListener('online', back);
+    return () => {
+      window.removeEventListener('hrms:unauthorized', h);
+      window.removeEventListener('online', back);
+    };
   }, [loadMe]);
 
   const setVertical = useCallback((v) => {
@@ -83,9 +99,7 @@ export function AppProvider({ children }) {
   return (
     <AppCtx.Provider value={value}>
       {children}
-      <div className="toasts">
-        {toasts.map((t) => <div key={t.id} className={`toast ${t.kind}`}>{t.text}</div>)}
-      </div>
+      <Toasts toasts={toasts} onDone={dropToast} />
     </AppCtx.Provider>
   );
 }

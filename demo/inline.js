@@ -20,3 +20,23 @@ if (/(src|href)="\.?\/?assets\//.test(html)) throw new Error('An asset was not i
 const out = path.join(dist, 'brainadz-hrms.html');
 fs.writeFileSync(out, html);
 console.log(`${out} (${(Buffer.byteLength(html) / 1048576).toFixed(2)} MB)`);
+
+// The same app as a complete document anyone can double-click to run in
+// their browser, with nothing to install.
+const at = html.indexOf('<div id="root"');
+const standalone = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>:root { color-scheme: light; } body { margin: 0; }</style>
+${html.slice(0, at)}
+</head>
+<body>
+${html.slice(at)}
+</body>
+</html>
+`;
+const file = path.join(dist, 'BrainADZ-HRMS.html');
+fs.writeFileSync(file, standalone);
+console.log(`${file} (${(Buffer.byteLength(standalone) / 1048576).toFixed(2)} MB)`);

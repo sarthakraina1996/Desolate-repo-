@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
-import {
-  House, UserPlus, Sparkles, Users, CalendarDays, CreditCard, ChartColumnIncreasing, Clock, ShieldCheck, FileText, ChartNoAxesColumn,
-  Settings, Bell, Search, ChevronDown, Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, FolderOpen, CalendarRange,
-} from 'lucide-react';
+import { Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, ChevronsLeft, Smartphone } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
 import { ago } from '../lib/format.js';
-import { useClickOutside, useDebounced } from '../lib/hooks.js';
+import { useClickOutside, useDebounced, useScrollEdges } from '../lib/hooks.js';
 import { Avatar, Button, Field, Input, Modal } from './ui.jsx';
+import {
+  IconDashboard, IconMySpace, IconHiring, IconScreener, IconEmployees, IconDocuments, IconLeave, IconHolidays, IconPayroll,
+  IconPerformance, IconAttendance, IconPosh, IconResignation, IconReports, IconSettings, IconSearch, IconBell, IconProfile,
+  IconChevronDown, VERTICAL_ICONS, Monogram,
+} from './icons.jsx';
 import WorkClock, { SignInPrompts, SignOutModal, LocationGuard } from './WorkClock.jsx';
+import FloatingNav from './FloatingNav.jsx';
+import { BottomBar, MoreSheet } from './MobileNav.jsx';
+import { GetAppModal, InstallBanner } from './InstallApp.jsx';
+import { canOfferApp, useInstall } from '../lib/pwa.js';
 import { useWorkday } from '../lib/workday.js';
 
 export function Logo({ size = '' }) {
@@ -24,11 +30,15 @@ export function Logo({ size = '' }) {
 
 const VSTYLE = { Live: '#E5243B', Marketing: '#E5243B', Exhibits: '#3C9A3A' };
 export function VerticalLogo({ v, active, onClick }) {
+  const Icon = VERTICAL_ICONS[v.short];
   return (
     <button type="button" className={`vlogo ${active ? 'active' : ''}`} onClick={onClick} title={active ? `Showing ${v.name} only. Click to show all verticals.` : `Show ${v.name} only`}>
-      <span className="b">BrainADZ</span>
-      <span className="n" style={{ color: VSTYLE[v.short] || v.color }}>{v.short}</span>
-      <span className="t">{v.tagline}</span>
+      {Icon && <Icon size={28} className="vi" />}
+      <span className="vt">
+        <span className="b">BrainADZ</span>
+        <span className="n" style={{ color: VSTYLE[v.short] || v.color }}>{v.short}</span>
+        <span className="t">{v.tagline}</span>
+      </span>
     </button>
   );
 }
@@ -59,38 +69,75 @@ function Leaves() {
 }
 
 const NAV = [
-  { to: '/', label: 'Dashboard', icon: House, roles: ['admin', 'hr', 'manager'], end: true },
-  { to: '/my', label: 'My Space', icon: LayoutGrid, roles: ['employee', 'manager'] },
-  { to: '/hiring', label: 'Hiring', icon: UserPlus, roles: ['admin', 'hr', 'manager'] },
-  { to: '/screener', label: 'Resume Screener AI', icon: Sparkles, roles: ['admin', 'hr'] },
-  { to: '/employees', label: 'Employees', icon: Users },
-  { to: '/documents', label: 'Documents', icon: FolderOpen },
-  { to: '/leave', label: 'Leave & Policies', icon: CalendarDays },
-  { to: '/calendar', label: 'Holiday Calendar', icon: CalendarRange },
-  { to: '/payroll', label: 'Payroll', icon: CreditCard, roles: ['admin', 'hr'] },
-  { to: '/performance', label: 'Performance', icon: ChartColumnIncreasing },
-  { to: '/attendance', label: 'Attendance', icon: Clock },
-  { to: '/posh', label: 'POSH', icon: ShieldCheck },
-  { to: '/resignation', label: 'Resignation', icon: FileText },
-  { to: '/reports', label: 'Reports', icon: ChartNoAxesColumn, roles: ['admin', 'hr'] },
-  { to: '/settings', label: 'Settings', icon: Settings, roles: ['admin', 'hr'] },
+  { to: '/', label: 'Dashboard', icon: IconDashboard, roles: ['admin', 'hr', 'manager'], end: true },
+  { to: '/my', label: 'My Space', icon: IconMySpace, roles: ['employee', 'manager'] },
+  { to: '/hiring', label: 'Hiring', icon: IconHiring, roles: ['admin', 'hr', 'manager'] },
+  { to: '/screener', label: 'Resume Screener AI', icon: IconScreener, roles: ['admin', 'hr'] },
+  { to: '/employees', label: 'Employees', icon: IconEmployees },
+  { to: '/documents', label: 'Documents', icon: IconDocuments },
+  { to: '/leave', label: 'Leave & Policies', icon: IconLeave },
+  { to: '/calendar', label: 'Holiday Calendar', icon: IconHolidays },
+  { to: '/payroll', label: 'Payroll', icon: IconPayroll, roles: ['admin', 'hr'] },
+  { to: '/performance', label: 'Performance', icon: IconPerformance },
+  { to: '/attendance', label: 'Attendance', icon: IconAttendance },
+  { to: '/posh', label: 'POSH', icon: IconPosh },
+  { to: '/resignation', label: 'Resignation', icon: IconResignation },
+  { to: '/reports', label: 'Reports', icon: IconReports, roles: ['admin', 'hr'] },
+  { to: '/settings', label: 'Settings', icon: IconSettings, roles: ['admin', 'hr'] },
 ];
 
-function Sidebar({ open, onClose }) {
+const COLLAPSE_KEY = 'hrms.sidebar';
+const NAV_LAYOUT_KEY = 'hrms.navLayout';
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === 'collapsed';
+  } catch {
+    return false;
+  }
+}
+
+function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
   const { user } = useApp();
-  const items = NAV.filter((n) => !n.roles || n.roles.includes(user.role));
+  // Labels for the icon-only rail; drawn outside the scrolling menu so they are not clipped.
+  const [tip, setTip] = useState(null);
+  const showTip = (label) => (e) => {
+    if (!collapsed) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ label, top: r.top + r.height / 2 });
+  };
+  const hideTip = () => setTip(null);
+  useEffect(hideTip, [collapsed]);
+  const scroll = useScrollEdges();
   return (
     <>
       {open && <div className="scrim" onClick={onClose} />}
-      <aside className={`sidebar ${open ? 'open' : ''}`}>
-        <div className="brand"><Link to={user.role === 'employee' ? '/my' : '/'} onClick={onClose} style={{ textDecoration: 'none' }}><Logo /></Link></div>
-        <nav className="nav" aria-label="Main">
+      <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
+        <div className="brand">
+          <Link to={user.role === 'employee' ? '/my' : '/'} onClick={onClose} className="brand-link" aria-label="BrainADZ HRMS home">
+            <Logo />
+            <Monogram className="mono" />
+          </Link>
+        </div>
+        <button type="button" className="collapse-btn" onClick={onToggle} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!collapsed} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          <ChevronsLeft size={16} />
+        </button>
+        <nav className={`nav ${scroll.edges}`} aria-label="Main" ref={scroll.ref} onScroll={() => { hideTip(); scroll.onScroll(); }}>
           {items.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} onClick={onClose}>
-              <n.icon size={21} strokeWidth={1.9} />{n.label}
+            <NavLink key={n.to} to={n.to} end={n.end} onClick={onClose} onMouseEnter={showTip(n.label)} onMouseLeave={hideTip} onFocus={showTip(n.label)} onBlur={hideTip}>
+              <n.icon size={22} /><span className="lbl">{n.label}</span>
             </NavLink>
           ))}
+          {/* Hide this menu and use the draggable Br button instead. */}
+          <button
+            type="button" className="nav-act" onClick={() => { onClose(); onFloat(); }} aria-label={collapsed ? 'Floating menu' : undefined}
+            title="Hide the menu and use a floating Br button you can drag anywhere"
+            onMouseEnter={showTip('Floating menu')} onMouseLeave={hideTip} onFocus={showTip('Floating menu')} onBlur={hideTip}
+          >
+            <span className="nav-act-ic"><Monogram height={13} color="#fff" label={null} /></span>
+            <span className="lbl">Floating menu</span>
+          </button>
         </nav>
+        {collapsed && tip && <div className="nav-tip" style={{ top: tip.top }} aria-hidden="true">{tip.label}</div>}
         <div className="leaf-card">
           <b>Great People Build Brighter Tomorrows</b>
           <i />
@@ -122,7 +169,7 @@ function GlobalSearch() {
   };
   return (
     <div className="search" ref={ref}>
-      <Search size={18} />
+      <IconSearch size={19} />
       <input
         value={q} placeholder="Search employees, jobs, policies…" aria-label="Search"
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
@@ -169,7 +216,7 @@ function Notifications() {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" className="icon-btn" aria-label={`Notifications (${data.unread} unread)`} onClick={() => setOpen((o) => !o)}>
-        <Bell size={22} />
+        <IconBell size={24} />
         {data.unread > 0 && <span className="badge-dot">{data.unread > 9 ? '9+' : data.unread}</span>}
       </button>
       {open && (
@@ -201,7 +248,7 @@ export function ChangePassword({ onClose, forced }) {
     setErr('');
     try {
       await api.post('/auth/change-password', { current: f.current, next: f.next });
-      toast('Password changed', 'success');
+      toast('Password changed', 'success', { module: '/account' });
       await loadMe();
       onClose();
     } catch (e) {
@@ -224,7 +271,7 @@ export function ChangePassword({ onClose, forced }) {
   );
 }
 
-function UserMenu() {
+function UserMenu({ onGetApp }) {
   const { user, logout } = useApp();
   const workday = useWorkday();
   const [open, setOpen] = useState(false);
@@ -240,9 +287,9 @@ function UserMenu() {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" className="user-chip" onClick={() => setOpen((o) => !o)} aria-label="Account menu">
-        <Avatar name={user.name} id={user.employeeId} hasPhoto={user.hasPhoto} size={46} />
+        {user.hasPhoto ? <Avatar name={user.name} id={user.employeeId} hasPhoto size={46} /> : <IconProfile size={46} />}
         <div className="who"><div className="nm">{user.name}</div><div className="rl">{user.designation}</div></div>
-        <ChevronDown size={18} className="muted" />
+        <IconChevronDown size={18} />
       </button>
       {open && (
         <div className="dropdown" style={{ width: 240 }}>
@@ -250,6 +297,7 @@ function UserMenu() {
           <div className="item" onClick={() => { setOpen(false); nav('/my'); }}><LayoutGrid size={16} />My Space</div>
           {user.employeeId && <div className="item" onClick={() => { setOpen(false); nav(`/employees/${user.employeeId}`); }}><User size={16} />My profile</div>}
           <div className="item" onClick={() => { setOpen(false); setPw(true); }}><KeyRound size={16} />Change password</div>
+          {onGetApp && <div className="item" onClick={() => { setOpen(false); onGetApp(); }}><Smartphone size={16} />Get the mobile app</div>}
           <div className="item" style={{ color: 'var(--red)' }} onClick={signOut}><LogOut size={16} />Sign out</div>
         </div>
       )}
@@ -262,10 +310,63 @@ function UserMenu() {
 export default function Layout({ children }) {
   const { user, meta, vertical, setVertical } = useApp();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggleCollapsed = () => setCollapsed((c) => {
+    try {
+      localStorage.setItem(COLLAPSE_KEY, c ? 'expanded' : 'collapsed');
+    } catch {
+      // Storage can be blocked (private windows); the toggle still works for this visit.
+    }
+    return !c;
+  });
+  // Floating: the side menu hides and a draggable Br button opens the menu instead.
+  const [floating, setFloatingState] = useState(() => {
+    try {
+      return localStorage.getItem(NAV_LAYOUT_KEY) === 'floating';
+    } catch {
+      return false;
+    }
+  });
+  const setFloating = (on) => {
+    setFloatingState(on);
+    try {
+      localStorage.setItem(NAV_LAYOUT_KEY, on ? 'floating' : 'docked');
+    } catch {
+      // Storage blocked: the choice lasts for this visit.
+    }
+  };
+  const focusFloat = useRef(false); // move keyboard focus along when someone switches menu style
+  const goFloating = () => {
+    focusFloat.current = true;
+    setFloating(true);
+  };
+  const dock = () => {
+    setFloating(false);
+    setTimeout(() => document.querySelector('.nav .nav-act')?.focus({ preventScroll: true }), 60);
+  };
+  // "[" collapses or expands the side menu, unless you are typing (the floating menu has its own).
+  useEffect(() => {
+    if (floating) return undefined;
+    const onKey = (e) => {
+      if (e.key !== '[' || e.ctrlKey || e.metaKey || e.altKey || window.innerWidth <= 1100) return;
+      const t = e.target;
+      if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      toggleCollapsed();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [floating]); // eslint-disable-line react-hooks/exhaustive-deps
+  const items = NAV.filter((n) => !n.roles || n.roles.includes(user.role));
   const verticals = (meta?.verticals || []).filter((v) => v.short !== 'Corporate');
+  // Phones: bottom tabs with "More" for everything else, and the app install offer.
+  const [more, setMore] = useState(false);
+  const [getApp, setGetApp] = useState(false);
+  const app = useInstall();
+  const offerApp = canOfferApp() && !app.installed ? () => setGetApp(true) : null;
   return (
-    <div className="app">
-      <Sidebar open={open} onClose={() => setOpen(false)} />
+    <div className={`app ${floating ? 'nav-floating' : ''}`}>
+      <Sidebar items={items} open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggle={toggleCollapsed} onFloat={goFloating} />
+      {floating && <FloatingNav items={items} onDock={dock} focusOnMount={focusFloat} />}
       <div className="main">
         <header className="topbar no-print">
           <button type="button" className="icon-btn burger" aria-label="Open menu" onClick={() => setOpen(true)}><MenuIcon size={22} /></button>
@@ -278,10 +379,16 @@ export default function Layout({ children }) {
           <GlobalSearch />
           <WorkClock />
           <Notifications />
-          <UserMenu />
+          <UserMenu onGetApp={offerApp} />
         </header>
-        <main className="content">{children}</main>
+        <main className="content">
+          <InstallBanner onHow={() => setGetApp(true)} />
+          {children}
+        </main>
       </div>
+      <BottomBar items={items} moreOpen={more} onMore={() => setMore(true)} />
+      {more && <MoreSheet items={items} onClose={() => setMore(false)} onGetApp={offerApp} />}
+      {getApp && <GetAppModal onClose={() => setGetApp(false)} />}
       {user.mustChangePassword && <ChangePassword forced onClose={() => {}} />}
       <SignInPrompts />
       <LocationGuard />

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getSettings, isHR, today, str, oneOf, id, fail, notFound, requireHR, fullName, notifyUsers, scopeIds, DOC_CATEGORIES } from '../core.js';
 import { aiEnabled } from '../services/ai.js';
+import { lanAddresses, isLoopback } from '../lib/network.js';
 import { geofencePolicy, exemption } from '../services/geofence.js';
 
 export default function metaRoutes(r, { db, uploads }) {
@@ -24,6 +25,13 @@ export default function metaRoutes(r, { db, uploads }) {
       icc: isIcc(db, req.user),
       geofence: { mode: geofencePolicy(s).mode, exempt: exemption(db, req.user, s, today(db))?.reason || null },
     });
+  });
+
+  // Office Wi-Fi addresses for the "Open on your phone" QR code. Only for someone on the server
+  // computer itself: they see "localhost", which a phone cannot open.
+  r.get('/meta/addresses', (req, res) => {
+    const port = req.socket?.localPort;
+    res.json({ urls: isLoopback(req.socket?.remoteAddress) && port ? lanAddresses().map((ip) => `http://${ip}:${port}`) : [] });
   });
 
   r.get('/files/photo/:employeeId', (req, res) => {
