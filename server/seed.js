@@ -1458,7 +1458,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         const g = chance(0.5) ? 'F' : 'M';
         const [first, last] = genName(g);
         usedNames.add(`${first} ${last}`);
-        // Candidate quality `q`: higher means more matching skills; extremes skew experience and pay.
+        // Quality `q`: higher means more matching skills; extremes skew experience and pay.
         const q = rand();
         const exp = Math.max(
           0.5,
@@ -2183,6 +2183,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     // people are missing one or two, recent joiners more, so the checklist
     // shows what HR still has to collect. Aarav has not sent his address proof.
     if (saveFile) {
+      // Degree certificate title by department.
       const DEGREES = {
         Technology: 'B.Tech Degree Certificate',
         Design: 'B.Des Degree Certificate',
@@ -2337,7 +2338,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       });
       officeOf[lId[loc]] = db.get('SELECT * FROM office_sites WHERE id = ?', oid);
     }
-    // A random point within `metres` of a site (degrees per metre at that latitude).
+    // A random point within `metres` of a site.
     const near = (s, metres) => {
       const angle = rand() * 2 * Math.PI;
       const d = metres * (0.2 + 0.8 * rand());
@@ -2361,6 +2362,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         lng: p.lng,
         accuracy_m: int(12, 65),
       });
+    // Today's check-ins, all logged from inside the person's office.
     for (const a of db.all(
       'SELECT employee_id, check_in FROM attendance WHERE date = ? AND check_in IS NOT NULL',
       T,
@@ -2369,6 +2371,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       const s = officeOf[emp?.location_id] || officeOf[lId.Bengaluru];
       if (emp) logAt(emp, a.check_in, 'check-in', 'in-office', s, near(s, 160));
     }
+    // Two sign-ins refused from 6.5-9.5 km away.
     for (const [nm, hm] of [
       ['Kavya Singh', '08:41'],
       ['Rohit Verma', '09:06'],
@@ -2382,6 +2385,8 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     // People who stepped out during the past week: Aarav's client meeting
     // left him short on the last working day and he has not explained it
     // yet; other short days are explained, decided, or waiting on a manager.
+    // Replaces a day's work sessions with `parts` ([start, end, gap reason, note]) and
+    // recomputes that day's attendance.
     const setSessions = (emp, d, parts, mode = 'office') => {
       db.run('DELETE FROM work_sessions WHERE employee_id = ? AND date = ?', emp.id, d);
       parts.forEach(([a, b, reason, note], i) =>
@@ -2398,6 +2403,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       );
       syncAttendance(db, emp.id, d, null);
     };
+    // The employee's last `k` present days in the past week, newest first.
     const recentDays = (emp, k) =>
       db
         .all(
@@ -2408,6 +2414,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
           k,
         )
         .map((r) => r.date);
+    // Files an explanation for the employee's latest short day and notifies their approvers.
     const explain = (emp, reason, daysAgo = 0) => {
       const s = db.get(
         'SELECT * FROM hour_shortfalls WHERE employee_id = ? ORDER BY date DESC LIMIT 1',
@@ -2427,7 +2434,9 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
           daysAgo,
         );
     };
+    // People with hand-written short days; the random pass below leaves them alone.
     const scripted = [];
+    // Aarav: short on his last working day, and an earlier day with a normal lunch break.
     const [aDay, , aEarlier] = recentDays(aarav, 3);
     if (aDay) {
       setSessions(aarav, aDay, [
@@ -2443,6 +2452,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       ]);
     const vikram = byName['Vikram Patel'];
     const vReports = current.filter((e) => e.manager_id === vikram.id);
+    // Explained short days for two of Vikram's team and one of the CEO's direct reports.
     const scriptedPlans = [
       [
         vReports[0],
@@ -2475,9 +2485,11 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         scripted.push(emp);
       }
     }
+    // Turn every short day so far into a shortfall, then file the scripted explanations.
     generateShortfalls(db, { today: T, notify: false });
     for (const [emp, , reason] of scriptedPlans)
       if (emp && scripted.includes(emp)) explain(emp, reason, 0);
+    // Ask Aarav to explain his short day.
     const aShort =
       aDay &&
       db.get('SELECT * FROM hour_shortfalls WHERE employee_id = ? AND date = ?', aarav.id, aDay);
@@ -2488,6 +2500,8 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         '/attendance?tab=short',
         0,
       );
+    // Everyone else's shortfalls: some from the last day stay unexplained, older ones are
+    // mostly decided, and the rest wait for a manager.
     const lastWorking = db.value('SELECT MAX(date) FROM hour_shortfalls');
     const reasons = [
       'Doctor appointment in the evening.',
@@ -2512,6 +2526,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         decided_by: decided ? approver : null,
         decided_at: decided ? isoAt(D.addDays(s.date, 1), '16:00') : null,
       });
+      // A rejected short day (this month only) becomes a half day; an approved one is present.
       if (reject)
         db.run(
           "UPDATE attendance SET status = 'HD', note = 'Short hours not approved' WHERE employee_id = ? AND date = ?",
@@ -2528,6 +2543,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
   });
 }
 
+// Starter policy documents dated relative to `T`; also used for fresh installs and resets.
 export function policyLibrary(T) {
   const d = (n) => new Date(`${D.addDays(T, -n)}T10:00:00+05:30`).toISOString();
   return [
@@ -2595,6 +2611,7 @@ export function policyLibrary(T) {
   ];
 }
 
+// True once the database has any employees.
 export function hasData(db) {
   return Boolean(db.value('SELECT COUNT(*) FROM employees'));
 }

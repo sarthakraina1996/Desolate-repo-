@@ -1,3 +1,5 @@
+// The app shell: side menu (or floating menu), top bar with search, clock, notifications and
+// account menu, and the phone navigation.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -45,6 +47,7 @@ import { GetAppModal, InstallBanner } from './InstallApp.jsx';
 import { canOfferApp, useInstall } from '../lib/pwa.js';
 import { useWorkday } from '../lib/workday.js';
 
+// BrainADZ HRMS wordmark; the small size drops the tagline.
 export function Logo({ size = '' }) {
   return (
     <div className={`logo ${size}`}>
@@ -57,7 +60,9 @@ export function Logo({ size = '' }) {
   );
 }
 
+// Brand colour of each vertical's name in its logo.
 const VSTYLE = { Live: '#E5243B', Marketing: '#E5243B', Exhibits: '#3C9A3A' };
+// A vertical's logo in the top bar; clicking shows only that vertical, clicking again shows all.
 export function VerticalLogo({ v, active, onClick }) {
   const Icon = VERTICAL_ICONS[v.short];
   return (
@@ -81,6 +86,7 @@ export function VerticalLogo({ v, active, onClick }) {
   );
 }
 
+// Wide banner with the product name and the "People, Power, Progress" line.
 export function BrandBanner() {
   return (
     <div className="brand-banner">
@@ -101,6 +107,7 @@ export function BrandBanner() {
   );
 }
 
+// Leaf drawing for the quote card at the bottom of the side menu.
 function Leaves() {
   return (
     <svg width="120" height="120" viewBox="0 0 120 120" aria-hidden="true">
@@ -114,6 +121,7 @@ function Leaves() {
   );
 }
 
+// Menu modules in order; `roles` limits who sees one, no `roles` means everyone.
 const NAV = [
   {
     to: '/',
@@ -138,8 +146,10 @@ const NAV = [
   { to: '/settings', label: 'Settings', icon: IconSettings, roles: ['admin', 'hr'] },
 ];
 
+// localStorage keys: sidebar collapsed or not, and docked or floating menu.
 const COLLAPSE_KEY = 'hrms.sidebar';
 const NAV_LAYOUT_KEY = 'hrms.navLayout';
+// Whether the sidebar was left collapsed last time.
 function readCollapsed() {
   try {
     return localStorage.getItem(COLLAPSE_KEY) === 'collapsed';
@@ -148,6 +158,7 @@ function readCollapsed() {
   }
 }
 
+// Side menu: logo, collapse button, module links, floating-menu switch and quote card.
 function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
   const { user } = useApp();
   // Labels for the icon-only rail; drawn outside the scrolling menu so they are not clipped.
@@ -162,8 +173,10 @@ function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
   const scroll = useScrollEdges();
   return (
     <>
+      {/* Backdrop behind the menu when it slides open on small screens */}
       {open && <div className="scrim" onClick={onClose} />}
       <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
+        {/* Logo, linking to the user's home page */}
         <div className="brand">
           <Link
             to={user.role === 'employee' ? '/my' : '/'}
@@ -175,6 +188,7 @@ function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
             <Monogram className="mono" />
           </Link>
         </div>
+        {/* Collapse to an icon-only rail */}
         <button
           type="button"
           className="collapse-btn"
@@ -185,6 +199,7 @@ function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
         >
           <ChevronsLeft size={16} />
         </button>
+        {/* Module links; scrolling hides the rail tooltip */}
         <nav
           className={`nav ${scroll.edges}`}
           aria-label="Main"
@@ -230,11 +245,13 @@ function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
             <span className="lbl">Floating menu</span>
           </button>
         </nav>
+        {/* Rail tooltip */}
         {collapsed && tip && (
           <div className="nav-tip" style={{ top: tip.top }} aria-hidden="true">
             {tip.label}
           </div>
         )}
+        {/* Quote card */}
         <div className="leaf-card">
           <b>Great People Build Brighter Tomorrows</b>
           <i />
@@ -245,6 +262,7 @@ function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
   );
 }
 
+// Top-bar search across employees, jobs and policies, with arrow-key navigation.
 function GlobalSearch() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
@@ -253,6 +271,7 @@ function GlobalSearch() {
   const dq = useDebounced(q, 220);
   const nav = useNavigate();
   const ref = useClickOutside(useCallback(() => setOpen(false), []));
+  // Search once typing pauses (2+ characters); a reply to an older query is ignored.
   useEffect(() => {
     if (dq.trim().length < 2) return setResults([]);
     let alive = true;
@@ -264,6 +283,7 @@ function GlobalSearch() {
       alive = false;
     };
   }, [dq]);
+  // Opens a result and clears the box.
   const go = (r) => {
     setOpen(false);
     setQ('');

@@ -246,6 +246,7 @@ export default function resignationRoutes(r, { db }) {
 
   const save = (row, patch) => db.update('resignations', row.id, patch);
 
+  // Manager (or HR) approves or rejects a pending resignation; approval passes it to HR.
   r.post('/resignations/:id/manager-decision', (req, res) => {
     const row = load(req.params.id);
     if (!canManagerAct(req.user, row)) fail(403, 'Only the reporting manager or HR can decide');
@@ -278,6 +279,7 @@ export default function resignationRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // HR accepts or rejects a resignation; accepting starts the notice period (HR only).
   r.post('/resignations/:id/hr-review', (req, res) => {
     requireHR(req);
     const row = load(req.params.id);
@@ -304,6 +306,7 @@ export default function resignationRoutes(r, { db }) {
       );
       return res.json({ ok: true });
     }
+    // Accept: confirm the last day, tick the manager and HR steps, put the employee on notice
     const lwd =
       date(req.body.last_working_day, { name: 'Last working day' }) || row.last_working_day;
     if (!steps.manager) steps.manager = now;
@@ -328,6 +331,7 @@ export default function resignationRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Withdraws a resignation (employee or HR); once HR has accepted it, only HR can.
   r.post('/resignations/:id/withdraw', (req, res) => {
     const row = load(req.params.id);
     if (row.employee_id !== req.user.employeeId && !isHR(req.user))
@@ -340,6 +344,7 @@ export default function resignationRoutes(r, { db }) {
       status: 'Withdrawn',
       decision_note: str(req.body.note, { max: 300 }) || 'Withdrawn',
     });
+    // An employee serving notice goes back to Active
     db.run(
       "UPDATE employees SET status = 'Active', exit_date = NULL WHERE id = ? AND status = 'Notice'",
       row.employee_id,
@@ -353,6 +358,7 @@ export default function resignationRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Updates an offboarding checklist item (HR; managers only knowledge transfer and handover).
   r.put('/resignations/:id/checklist', (req, res) => {
     const row = load(req.params.id);
     const key = oneOf(
@@ -371,11 +377,13 @@ export default function resignationRoutes(r, { db }) {
     });
     const checklist = json(row.checklist, {});
     checklist[key] = { status, at: new Date().toISOString(), by: req.user.name };
+    // Stamp the checklist step once all hands-on offboarding tasks are done
     const steps = json(row.steps, {});
     const offboarding = ['knowledge_transfer', 'handover', 'asset_return', 'access_revocation'];
     if (offboarding.every((k) => checklist[k]?.status === 'Completed'))
       steps.checklist = steps.checklist || new Date().toISOString();
     save(row, { checklist, steps });
+    // Returning assets marks them returned; access is revoked only after the last day
     if (key === 'asset_return' && status === 'Completed')
       db.run(
         "UPDATE assets SET status = 'Returned', returned_on = ? WHERE employee_id = ? AND status = 'Issued'",
@@ -387,6 +395,7 @@ export default function resignationRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Records a department's exit clearance sign-off (HR only).
   r.put('/resignations/:id/clearance', (req, res) => {
     requireHR(req);
     const row = load(req.params.id);
@@ -412,6 +421,7 @@ export default function resignationRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Saves the exit interview (HR or the employee) and ticks it on the checklist.
   r.post('/resignations/:id/exit-interview', (req, res) => {
     const row = load(req.params.id);
     if (!isHR(req.user) && row.employee_id !== req.user.employeeId)
@@ -435,6 +445,7 @@ export default function resignationRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Records the full & final settlement; F&F is ticked once a paid date is set (HR only).
   r.post('/resignations/:id/settlement', (req, res) => {
     requireHR(req);
     const row = load(req.params.id);
@@ -456,6 +467,7 @@ export default function resignationRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Sets rehire eligibility and which exit letters were issued (HR only).
   r.put('/resignations/:id/rehire', (req, res) => {
     requireHR(req);
     const row = load(req.params.id);
@@ -470,6 +482,7 @@ export default function resignationRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Completes the exit once the last day has passed and the checklist is done (HR only).
   r.post('/resignations/:id/complete', (req, res) => {
     requireHR(req);
     const row = load(req.params.id);
@@ -479,6 +492,7 @@ export default function resignationRoutes(r, { db }) {
     const checklist = json(row.checklist, {});
     const open = CHECKLIST.filter(([k]) => checklist[k]?.status !== 'Completed').map(([, l]) => l);
     if (open.length) fail(400, `Complete these first: ${open.join(', ')}`);
+    // Mark the employee exited and disable their login
     save(row, { status: 'Completed' });
     db.run(
       "UPDATE employees SET status = 'Exited', exit_date = ? WHERE id = ?",

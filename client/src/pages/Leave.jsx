@@ -60,7 +60,7 @@ export const LEAVE_ICONS = {
   home: House,
   ban: Ban,
 };
-// Holidays, POSH, reports and the leave type builder each have their own page, so they are not repeated here.
+// Holidays, POSH, reports and leave types live on their own pages, so they aren't repeated here.
 const TABS = [
   { value: 'overview', label: 'Overview' },
   { value: 'manage', label: 'Leave Management' },

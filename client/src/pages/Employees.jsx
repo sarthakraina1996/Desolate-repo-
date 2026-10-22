@@ -69,6 +69,7 @@ export default function Employees() {
   const tab = sp.get('tab') || 'people';
   return (
     <div>
+      {/* Only HR gets the tabs; everyone else always sees the directory */}
       {isHR && (
         <Tabs
           value={tab}
