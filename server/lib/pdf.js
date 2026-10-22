@@ -1,7 +1,10 @@
 // Minimal one-page PDF with a heading and lines of text (Helvetica, A4).
 // Used for the sample employee documents in the demo company.
 export function textPdf(heading, lines = [], { footer = '' } = {}) {
-  const esc = (s) => String(s).replace(/[\\()]/g, (c) => `\\${c}`).replace(/[^\x20-\x7e]/g, '?');
+  const esc = (s) =>
+    String(s)
+      .replace(/[\\()]/g, (c) => `\\${c}`)
+      .replace(/[^\x20-\x7e]/g, '?');
   const ops = ['BT', '/F2 18 Tf', '56 780 Td', `(${esc(heading)}) Tj`, '/F1 11 Tf', '0 -34 Td'];
   for (const l of lines) ops.push(`(${esc(l)}) Tj`, '0 -18 Td');
   ops.push('ET');

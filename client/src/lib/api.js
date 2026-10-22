@@ -12,11 +12,16 @@ export async function api(path, { method = 'GET', body, form } = {}) {
     res = await fetch(`/api${path}`, opts);
   } catch {
     // The request never reached the server (no signal, Wi-Fi dropped, server stopped).
-    const err = new Error(navigator.onLine === false ? "You're offline. Connect to the internet or office Wi-Fi and try again." : "Can't reach the HRMS server. Check your connection and try again.");
+    const err = new Error(
+      navigator.onLine === false
+        ? "You're offline. Connect to the internet or office Wi-Fi and try again."
+        : "Can't reach the HRMS server. Check your connection and try again.",
+    );
     err.offline = true;
     throw err;
   }
-  if (res.status === 401 && !path.startsWith('/auth')) window.dispatchEvent(new Event('hrms:unauthorized'));
+  if (res.status === 401 && !path.startsWith('/auth'))
+    window.dispatchEvent(new Event('hrms:unauthorized'));
   const type = res.headers.get('content-type') || '';
   const data = type.includes('application/json') ? await res.json() : await res.text();
   if (!res.ok) {
@@ -55,7 +60,12 @@ export function download(path) {
 
 // Saves the body of a POST response (e.g. a generated CSV) as a file.
 export async function postDownload(path, body, filename) {
-  const res = await fetch(`/api${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'hrms', 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const res = await fetch(`/api${path}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'hrms', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
     throw new Error(j.error || 'Download failed');

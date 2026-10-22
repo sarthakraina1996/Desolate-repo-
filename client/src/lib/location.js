@@ -18,11 +18,23 @@ function geoError(message, code) {
 // switcher when running as the claude.ai demo.
 export function getPosition({ maxAgeMs = 60000 } = {}) {
   if (window.hrmsDemo?.getPosition) return Promise.resolve(window.hrmsDemo.getPosition());
-  if (!window.isSecureContext) return Promise.reject(geoError('Location only works over a secure (https) connection. Ask your administrator to add this office network in Settings → Office locations.', 'geo_insecure'));
-  if (!navigator.geolocation) return Promise.reject(geoError('This browser cannot share its location.', 'geo_unavailable'));
+  if (!window.isSecureContext)
+    return Promise.reject(
+      geoError(
+        'Location only works over a secure (https) connection. Ask your administrator to add this office network in Settings → Office locations.',
+        'geo_insecure',
+      ),
+    );
+  if (!navigator.geolocation)
+    return Promise.reject(geoError('This browser cannot share its location.', 'geo_unavailable'));
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }),
+      (p) =>
+        resolve({
+          lat: p.coords.latitude,
+          lng: p.coords.longitude,
+          accuracy: Math.round(p.coords.accuracy),
+        }),
       (e) => reject(geoError(ERRORS[e.code] || 'Your location could not be found.', 'geo_failed')),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: maxAgeMs },
     );
@@ -53,7 +65,14 @@ export function setLocationStatus(s) {
   subscribers.forEach((f) => f());
 }
 export function useLocationStatus() {
-  return useSyncExternalStore((f) => { subscribers.add(f); return () => subscribers.delete(f); }, () => status);
+  return useSyncExternalStore(
+    (f) => {
+      subscribers.add(f);
+      return () => subscribers.delete(f);
+    },
+    () => status,
+  );
 }
 
-export const fmtDistance = (m) => (m == null ? '' : m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+export const fmtDistance = (m) =>
+  m == null ? '' : m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;

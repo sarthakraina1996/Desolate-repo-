@@ -22,7 +22,8 @@ export function verifyPassword(password, stored) {
 export function checkPasswordStrength(pw) {
   if (typeof pw !== 'string' || pw.length < 8) fail(400, 'Password must be at least 8 characters');
   if (pw.length > 200) fail(400, 'Password is too long');
-  if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) fail(400, 'Password must contain letters and numbers');
+  if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw))
+    fail(400, 'Password must contain letters and numbers');
 }
 
 export function tempPassword() {
@@ -51,9 +52,17 @@ export function createSession(db, req, res, userId, { expiresAt = null } = {}) {
   const token = crypto.randomBytes(32).toString('hex');
   const max = Date.now() + SESSION_DAYS * 86400000;
   const until = expiresAt && Date.parse(expiresAt) < max ? Date.parse(expiresAt) : max;
-  db.run('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)', sha256(token), userId, new Date(until).toISOString());
-  db.run("DELETE FROM sessions WHERE expires_at < ?", new Date().toISOString());
-  res.setHeader('Set-Cookie', `${COOKIE}=${token}; ${cookieOptions(req)}; Max-Age=${Math.max(60, Math.round((until - Date.now()) / 1000))}`);
+  db.run(
+    'INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
+    sha256(token),
+    userId,
+    new Date(until).toISOString(),
+  );
+  db.run('DELETE FROM sessions WHERE expires_at < ?', new Date().toISOString());
+  res.setHeader(
+    'Set-Cookie',
+    `${COOKIE}=${token}; ${cookieOptions(req)}; Max-Age=${Math.max(60, Math.round((until - Date.now()) / 1000))}`,
+  );
 }
 
 export function destroySession(db, req, res) {
@@ -63,10 +72,13 @@ export function destroySession(db, req, res) {
 }
 
 export function loadUser(db, userId) {
-  const row = db.get(`
+  const row = db.get(
+    `
     SELECT u.id, u.email, u.role, u.employee_id, u.must_change_password, u.active,
            e.first_name, e.last_name, e.designation, e.photo, e.code, e.gender
-    FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?`, userId);
+    FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?`,
+    userId,
+  );
   if (!row || !row.active) return null;
   return {
     id: row.id,
@@ -75,7 +87,9 @@ export function loadUser(db, userId) {
     employeeId: row.employee_id,
     name: row.first_name ? fullName(row) : row.email,
     firstName: row.first_name || row.email.split('@')[0],
-    designation: row.designation || ({ admin: 'Administrator', hr: 'HR', manager: 'Manager', employee: 'Employee' })[row.role],
+    designation:
+      row.designation ||
+      { admin: 'Administrator', hr: 'HR', manager: 'Manager', employee: 'Employee' }[row.role],
     hasPhoto: Boolean(row.photo),
     code: row.code,
     mustChangePassword: Boolean(row.must_change_password),
@@ -87,7 +101,10 @@ export function sessionMiddleware(db) {
   return (req, _res, next) => {
     const token = parseCookies(req.headers.cookie)[COOKIE];
     if (token) {
-      const s = db.get('SELECT user_id, expires_at FROM sessions WHERE token_hash = ?', sha256(token));
+      const s = db.get(
+        'SELECT user_id, expires_at FROM sessions WHERE token_hash = ?',
+        sha256(token),
+      );
       if (s && s.expires_at > new Date().toISOString()) req.user = loadUser(db, s.user_id);
     }
     next();

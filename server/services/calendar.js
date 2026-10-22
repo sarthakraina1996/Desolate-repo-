@@ -5,13 +5,19 @@ import { dow, eachDay, monthStart, monthEnd } from '../lib/dates.js';
 import { isWorkingDay } from '../lib/leave.js';
 
 export function calendarCtx(db, settings = getSettings(db)) {
-  const holidays = new Set(db.all("SELECT date FROM holidays WHERE type = 'Company'").map((r) => r.date));
+  const holidays = new Set(
+    db.all("SELECT date FROM holidays WHERE type = 'Company'").map((r) => r.date),
+  );
   return { weeklyOffs: settings.weeklyOffs, holidays };
 }
 
 export function holidayNames(db, from, to) {
   const map = new Map();
-  for (const h of db.all('SELECT date, name, type FROM holidays WHERE date BETWEEN ? AND ?', from, to)) {
+  for (const h of db.all(
+    'SELECT date, name, type FROM holidays WHERE date BETWEEN ? AND ?',
+    from,
+    to,
+  )) {
     if (h.type === 'Company' || !map.has(h.date)) map.set(h.date, h);
   }
   return map;
@@ -22,11 +28,16 @@ export function holidayNames(db, from, to) {
 export function approvedLeaveDays(db, employeeIds, from, to, ctx) {
   const out = new Map();
   if (!employeeIds.length) return out;
-  const rows = db.all(`
+  const rows = db.all(
+    `
     SELECT r.employee_id, r.from_date, r.to_date, r.half_day, t.code, t.name, t.paid, t.kind, t.calendar_days, t.color
     FROM leave_requests r JOIN leave_types t ON t.id = r.leave_type_id
     WHERE r.status = 'Approved' AND r.from_date <= ? AND r.to_date >= ?
-      AND r.employee_id IN (${employeeIds.map(() => '?').join(',')})`, to, from, ...employeeIds);
+      AND r.employee_id IN (${employeeIds.map(() => '?').join(',')})`,
+    to,
+    from,
+    ...employeeIds,
+  );
   for (const r of rows) {
     let m = out.get(r.employee_id);
     if (!m) out.set(r.employee_id, (m = new Map()));
@@ -34,7 +45,15 @@ export function approvedLeaveDays(db, employeeIds, from, to, ctx) {
     const end = r.to_date < to ? r.to_date : to;
     for (const d of eachDay(start, end)) {
       if (!r.calendar_days && !isWorkingDay(d, ctx)) continue;
-      m.set(d, { code: r.code, name: r.name, paid: Boolean(r.paid), kind: r.kind, half: Boolean(r.half_day), color: r.color, calendar: Boolean(r.calendar_days) });
+      m.set(d, {
+        code: r.code,
+        name: r.name,
+        paid: Boolean(r.paid),
+        kind: r.kind,
+        half: Boolean(r.half_day),
+        color: r.color,
+        calendar: Boolean(r.calendar_days),
+      });
     }
   }
   return out;
@@ -50,7 +69,12 @@ export function dayStatuses(db, employees, from, to, today, settings = getSettin
   const leaves = approvedLeaveDays(db, ids, from, to, ctx);
   const records = new Map();
   if (ids.length) {
-    for (const r of db.all(`SELECT * FROM attendance WHERE date BETWEEN ? AND ? AND employee_id IN (${ids.map(() => '?').join(',')})`, from, to, ...ids)) {
+    for (const r of db.all(
+      `SELECT * FROM attendance WHERE date BETWEEN ? AND ? AND employee_id IN (${ids.map(() => '?').join(',')})`,
+      from,
+      to,
+      ...ids,
+    )) {
       let m = records.get(r.employee_id);
       if (!m) records.set(r.employee_id, (m = new Map()));
       m.set(r.date, r);

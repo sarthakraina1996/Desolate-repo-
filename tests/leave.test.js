@@ -10,7 +10,10 @@ test('weekends and company holidays are not counted', () => {
 });
 
 test('calendar-day leave counts every day', () => {
-  assert.equal(countLeaveDays({ from: '2026-10-01', to: '2026-10-06', calendarDays: true }, ctx), 6);
+  assert.equal(
+    countLeaveDays({ from: '2026-10-01', to: '2026-10-06', calendarDays: true }, ctx),
+    6,
+  );
 });
 
 test('half day counts 0.5 and nothing on a weekly off', () => {
@@ -19,7 +22,10 @@ test('half day counts 0.5 and nothing on a weekly off', () => {
 });
 
 test('leave across the new year is split by year', () => {
-  const m = leaveDaysByYear({ from: '2026-12-30', to: '2027-01-04' }, { weeklyOffs: [0, 6], holidays: new Set() });
+  const m = leaveDaysByYear(
+    { from: '2026-12-30', to: '2027-01-04' },
+    { weeklyOffs: [0, 6], holidays: new Set() },
+  );
   assert.equal(m.get(2026), 2);
   assert.equal(m.get(2027), 2);
 });

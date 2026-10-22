@@ -38,23 +38,45 @@ export function dow(s) {
 
 export function todayIn(timeZone = 'Asia/Kolkata') {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).format(new Date());
 }
 
 export function nowTimeIn(timeZone = 'Asia/Kolkata') {
   return new Intl.DateTimeFormat('en-GB', {
-    timeZone, hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
   }).format(new Date());
 }
 
 // ISO timestamp for a wall-clock time ("18:30") on a date in a time zone.
 export function zonedIso(date, hm, timeZone = 'Asia/Kolkata') {
   const guess = Date.parse(`${date}T${hm}:00Z`);
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
-    timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).formatToParts(new Date(guess)).map((p) => [p.type, p.value]));
-  const shown = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute));
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+      .formatToParts(new Date(guess))
+      .map((p) => [p.type, p.value]),
+  );
+  const shown = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+  );
   return new Date(guess - (shown - guess)).toISOString();
 }
 
@@ -83,12 +105,19 @@ export function eachDay(from, to) {
 
 export function monthLabel(month) {
   const [y, m] = month.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 export function shortMonth(month) {
   const [y, m] = month.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', {
+    month: 'short',
+    timeZone: 'UTC',
+  });
 }
 
 // Whole years and months between two dates, used for tenure.

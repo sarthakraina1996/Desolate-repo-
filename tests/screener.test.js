@@ -2,7 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { extractFields, heuristicScreen, searchResume } from '../server/lib/screener.js';
 
-const job = { title: 'Senior Frontend Developer', must_have: ['React', 'JavaScript', 'TypeScript', 'Redux'], nice_to_have: ['GraphQL'], exp_min: 4, exp_max: 8, education: 'B.Tech / B.E. in CS', location: 'Bengaluru', work_mode: 'Hybrid', salary_min: 12, salary_max: 20, knockout: ['Do you have experience with React?'] };
+const job = {
+  title: 'Senior Frontend Developer',
+  must_have: ['React', 'JavaScript', 'TypeScript', 'Redux'],
+  nice_to_have: ['GraphQL'],
+  exp_min: 4,
+  exp_max: 8,
+  education: 'B.Tech / B.E. in CS',
+  location: 'Bengaluru',
+  work_mode: 'Hybrid',
+  salary_min: 12,
+  salary_max: 20,
+  knockout: ['Do you have experience with React?'],
+};
 const resume = `Ananya Rao
 Frontend Engineer | Bengaluru
 Email: ananya.rao@example.com | Phone: +91 98765 43210
@@ -34,7 +46,10 @@ test('strong resume scores high and matches synonyms', () => {
 });
 
 test('weak resume scores low and lists gaps', () => {
-  const a = heuristicScreen(job, 'Rahul Verma\nAccountant\nTotal Experience: 1 year\nTally, GST, Excel\nLocation: Kolkata');
+  const a = heuristicScreen(
+    job,
+    'Rahul Verma\nAccountant\nTotal Experience: 1 year\nTally, GST, Excel\nLocation: Kolkata',
+  );
   assert.ok(a.score < 45, `score ${a.score}`);
   assert.ok(a.missing.includes('React'));
 });

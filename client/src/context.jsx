@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from './lib/api.js';
 import { setTimeZone } from './lib/format.js';
@@ -34,7 +42,10 @@ export function AppProvider({ children }) {
   here.current = pathname;
   const toast = useCallback((text, kind = 'info', opts = {}) => {
     const tid = Math.random().toString(36).slice(2);
-    setToasts((t) => [...t.slice(-3), { id: tid, text, kind, module: moduleFor(opts.module || here.current) }]);
+    setToasts((t) => [
+      ...t.slice(-3),
+      { id: tid, text, kind, module: moduleFor(opts.module || here.current) },
+    ]);
   }, []);
   const dropToast = useCallback((tid) => setToasts((t) => t.filter((x) => x.id !== tid)), []);
 
@@ -72,12 +83,18 @@ export function AppProvider({ children }) {
     try {
       if (v) localStorage.setItem(VKEY, String(v));
       else localStorage.removeItem(VKEY);
-    } catch { /* storage unavailable */ }
+    } catch {
+      /* storage unavailable */
+    }
   }, []);
 
   // pause: stop the work clock; the next sign-in asks the reason for the gap.
   const logout = useCallback(async ({ pause = false } = {}) => {
-    try { await api.post('/auth/logout', { pause }); } catch { /* ignore */ }
+    try {
+      await api.post('/auth/logout', { pause });
+    } catch {
+      /* ignore */
+    }
     clearWorkday();
     setUser(null);
     setMeta(null);
@@ -86,7 +103,15 @@ export function AppProvider({ children }) {
   const value = useMemo(() => {
     const role = user?.role;
     return {
-      user, info, meta, vertical, setVertical, toast, loadMe, refreshMeta, logout,
+      user,
+      info,
+      meta,
+      vertical,
+      setVertical,
+      toast,
+      loadMe,
+      refreshMeta,
+      logout,
       isHR: role === 'admin' || role === 'hr',
       isAdmin: role === 'admin',
       isManager: role === 'manager',

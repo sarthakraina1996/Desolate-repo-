@@ -375,8 +375,13 @@ function bindable(v) {
 }
 
 function normalize(params) {
-  if (params.length === 1 && params[0] !== null && typeof params[0] === 'object'
-    && !Array.isArray(params[0]) && !(params[0] instanceof Uint8Array)) {
+  if (
+    params.length === 1 &&
+    params[0] !== null &&
+    typeof params[0] === 'object' &&
+    !Array.isArray(params[0]) &&
+    !(params[0] instanceof Uint8Array)
+  ) {
     const out = {};
     for (const [k, v] of Object.entries(params[0])) out[k] = bindable(v);
     return [out];

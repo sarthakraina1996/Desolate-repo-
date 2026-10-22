@@ -22,7 +22,9 @@ function notice(text) {
   el.textContent = text;
   el.hidden = false;
   clearTimeout(notice.t);
-  notice.t = setTimeout(() => { el.hidden = true; }, 5000);
+  notice.t = setTimeout(() => {
+    el.hidden = true;
+  }, 5000);
 }
 
 function installFetch(server) {
@@ -34,14 +36,23 @@ function installFetch(server) {
     const u = new URL(url, 'https://demo.invalid');
     const headers = {};
     for (const [k, v] of Object.entries(init.headers || {})) headers[k.toLowerCase()] = v;
-    headers.cookie = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
+    headers.cookie = Object.entries(cookies)
+      .map(([k, v]) => `${k}=${v}`)
+      .join('; ');
     let body = {};
     let formData = null;
     if (init.body instanceof FormData) formData = init.body;
     else if (typeof init.body === 'string' && init.body) body = JSON.parse(init.body);
     const query = {};
     for (const [k, v] of u.searchParams) query[k] = k in query ? [].concat(query[k], v) : v;
-    const res = await server.handle({ method: (init.method || 'GET').toUpperCase(), path: u.pathname.slice(4), query, headers, body, formData });
+    const res = await server.handle({
+      method: (init.method || 'GET').toUpperCase(),
+      path: u.pathname.slice(4),
+      query,
+      headers,
+      body,
+      formData,
+    });
     const setCookie = res.headers['set-cookie'];
     if (setCookie) {
       const [name, value] = setCookie.split(';')[0].split('=');
@@ -49,7 +60,10 @@ function installFetch(server) {
       else cookies[name.trim()] = value;
       delete res.headers['set-cookie'];
     }
-    return new Response(res.statusCode === 204 ? null : res.body, { status: res.statusCode, headers: res.headers });
+    return new Response(res.statusCode === 204 ? null : res.body, {
+      status: res.statusCode,
+      headers: res.headers,
+    });
   };
 }
 
@@ -104,7 +118,11 @@ async function boot() {
       await downloads.save({ filename, data: blob });
     } catch (e) {
       if (e?.code === 'declined') return;
-      notice(e?.code === 'rejected_extension' ? `${filename} is a file type this demo cannot download.` : 'The file could not be saved.');
+      notice(
+        e?.code === 'rejected_extension'
+          ? `${filename} is a file type this demo cannot download.`
+          : 'The file could not be saved.',
+      );
     }
   };
   window.hrmsDemo = {
@@ -117,7 +135,8 @@ async function boot() {
     async download(path) {
       const res = await fetch(`/api${path}`);
       if (!res.ok) return notice((await res.json().catch(() => ({}))).error || 'Download failed');
-      const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'download';
+      const name =
+        /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'download';
       await saveFile(await res.blob(), name);
     },
     saveFile,
@@ -134,12 +153,20 @@ async function boot() {
   // Claude features light up once the viewer's claude.ai session answers.
   const claude = window.claude;
   if (claude?.use) {
-    claude.use('sample').then((sample) => {
-      if (!sample) return;
-      setSample(sample);
-      process.env.HRMS_AI = 'on';
-    }).catch(() => {});
-    claude.use('downloads').then((d) => { downloads = d; }).catch(() => {});
+    claude
+      .use('sample')
+      .then((sample) => {
+        if (!sample) return;
+        setSample(sample);
+        process.env.HRMS_AI = 'on';
+      })
+      .catch(() => {});
+    claude
+      .use('downloads')
+      .then((d) => {
+        downloads = d;
+      })
+      .catch(() => {});
   }
 
   createRoot(document.getElementById('root')).render(
@@ -156,5 +183,6 @@ async function boot() {
 
 boot().catch((e) => {
   console.error(e);
-  document.getElementById('root').innerHTML = '<div class="demo-boot"><b>The demo could not start.</b><span>Reload the page to try again.</span></div>';
+  document.getElementById('root').innerHTML =
+    '<div class="demo-boot"><b>The demo could not start.</b><span>Reload the page to try again.</span></div>';
 });

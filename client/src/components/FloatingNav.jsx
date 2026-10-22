@@ -2,7 +2,15 @@
 // opens either a floating side menu or the Quick Access card.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronsRight, GripHorizontal, LayoutGrid, Menu as MenuIcon, PanelLeft, Search, X } from 'lucide-react';
+import {
+  ChevronsRight,
+  GripHorizontal,
+  LayoutGrid,
+  Menu as MenuIcon,
+  PanelLeft,
+  Search,
+  X,
+} from 'lucide-react';
 import { Monogram, moduleFor } from './icons.jsx';
 import { useScrollEdges } from '../lib/hooks.js';
 
@@ -13,11 +21,20 @@ const KEY = { spot: 'hrms.float.spot', mode: 'hrms.float.mode', wide: 'hrms.floa
 
 // Extra words the Quick Access search understands.
 const KEYWORDS = {
-  '/': 'home overview summary kpi', '/my': 'home profile payslips requests', '/hiring': 'jobs candidates recruitment pipeline interviews offers',
-  '/screener': 'resume cv ai screening', '/employees': 'people staff directory team profiles', '/documents': 'files letters uploads',
-  '/leave': 'time off wfh policy policies', '/calendar': 'holidays festivals public', '/payroll': 'salary payslip pay ctc',
-  '/performance': 'reviews goals appraisal ratings', '/attendance': 'clock check in timesheet hours location office',
-  '/posh': 'complaint harassment committee', '/resignation': 'exit notice offboarding', '/reports': 'analytics export',
+  '/': 'home overview summary kpi',
+  '/my': 'home profile payslips requests',
+  '/hiring': 'jobs candidates recruitment pipeline interviews offers',
+  '/screener': 'resume cv ai screening',
+  '/employees': 'people staff directory team profiles',
+  '/documents': 'files letters uploads',
+  '/leave': 'time off wfh policy policies',
+  '/calendar': 'holidays festivals public',
+  '/payroll': 'salary payslip pay ctc',
+  '/performance': 'reviews goals appraisal ratings',
+  '/attendance': 'clock check in timesheet hours location office',
+  '/posh': 'complaint harassment committee',
+  '/resignation': 'exit notice offboarding',
+  '/reports': 'analytics export',
   '/settings': 'configuration admin users offices',
 };
 
@@ -39,17 +56,25 @@ const viewport = () => ({ w: window.innerWidth, h: window.innerHeight });
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
 const keepOnScreen = (p, w, h) => {
   const vp = viewport();
-  return { ...p, x: clamp(p.x, MARGIN, vp.w - w - MARGIN), y: clamp(p.y, MARGIN, vp.h - h - MARGIN) };
+  return {
+    ...p,
+    x: clamp(p.x, MARGIN, vp.w - w - MARGIN),
+    y: clamp(p.y, MARGIN, vp.h - h - MARGIN),
+  };
 };
-const isActivePath = (n, path) => (n.end ? path === n.to : path === n.to || path.startsWith(`${n.to}/`));
+const isActivePath = (n, path) =>
+  n.end ? path === n.to : path === n.to || path.startsWith(`${n.to}/`);
 const typing = (t) => t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
 
 function usePref(key, fallback) {
   const [value, setValue] = useState(() => load(key, fallback));
-  const set = useCallback((v) => {
-    setValue(v);
-    save(key, v);
-  }, [key]);
+  const set = useCallback(
+    (v) => {
+      setValue(v);
+      save(key, v);
+    },
+    [key],
+  );
   return [value, set];
 }
 
@@ -75,13 +100,22 @@ function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
   const paint = () => {
     frame.current = 0;
     const d = s.current;
-    if (d?.next && elRef.current) elRef.current.style.transform = `translate3d(${d.next.x}px, ${d.next.y}px, 0)`;
+    if (d?.next && elRef.current)
+      elRef.current.style.transform = `translate3d(${d.next.x}px, ${d.next.y}px, 0)`;
   };
   const onPointerDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (ignore?.(e)) return;
     const p = getPos();
-    s.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: p.x, y: p.y, moved: false, next: null };
+    s.current = {
+      id: e.pointerId,
+      sx: e.clientX,
+      sy: e.clientY,
+      x: p.x,
+      y: p.y,
+      moved: false,
+      next: null,
+    };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e) => {
@@ -119,16 +153,28 @@ function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
       if (s.current?.done) s.current = null;
     }, 400);
   };
-  useEffect(() => () => {
-    cancelAnimationFrame(frame.current);
-    document.body.classList.remove('fnav-dragging');
-  }, []);
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(frame.current);
+      document.body.classList.remove('fnav-dragging');
+    },
+    [],
+  );
   const justDragged = () => {
     const was = Boolean(s.current?.done);
     if (was) s.current = null;
     return was;
   };
-  return { justDragged, handlers: { onPointerDown, onPointerMove, onPointerUp: finish, onPointerCancel: finish, onLostPointerCapture: finish } };
+  return {
+    justDragged,
+    handlers: {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp: finish,
+      onPointerCancel: finish,
+      onLostPointerCapture: finish,
+    },
+  };
 }
 
 // Animated open/close: stays mounted while it plays its closing animation.
@@ -163,11 +209,14 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
   // The button stays exactly where it is dropped, and there again next time. Its centre is
   // saved as a share of the window, so it keeps its place if the window changes size.
   const [saved, setSaved] = usePref(KEY.spot, null); // { cx, cy } as fractions of the window
-  const fromSaved = useCallback((spot) => {
-    const vp = viewport();
-    const c = spot || { cx: 1 - (MARGIN + size / 2) / vp.w, cy: 1 - (110 + size / 2) / vp.h }; // first time: lower right
-    return keepOnScreen({ x: c.cx * vp.w - size / 2, y: c.cy * vp.h - size / 2 }, size, size);
-  }, [size]);
+  const fromSaved = useCallback(
+    (spot) => {
+      const vp = viewport();
+      const c = spot || { cx: 1 - (MARGIN + size / 2) / vp.w, cy: 1 - (110 + size / 2) / vp.h }; // first time: lower right
+      return keepOnScreen({ x: c.cx * vp.w - size / 2, y: c.cy * vp.h - size / 2 }, size, size);
+    },
+    [size],
+  );
   const [pos, setPosState] = useState(() => fromSaved(saved));
   const posRef = useRef(pos);
   const spotRef = useRef(saved);
@@ -177,7 +226,10 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
   }, []);
   const moveTo = (p) => {
     setPos(p);
-    const spot = { cx: (p.x + size / 2) / window.innerWidth, cy: (p.y + size / 2) / window.innerHeight };
+    const spot = {
+      cx: (p.x + size / 2) / window.innerWidth,
+      cy: (p.y + size / 2) / window.innerHeight,
+    };
     spotRef.current = spot;
     setSaved(spot);
   };
@@ -207,7 +259,10 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
   closeRef.current = close;
   const btnRef = useRef(null);
   const rootRef = useRef(null);
-  const toggle = useCallback(() => (panel && !closing ? close() : open(mode)), [panel, closing, close, open, mode]);
+  const toggle = useCallback(
+    () => (panel && !closing ? close() : open(mode)),
+    [panel, closing, close, open, mode],
+  );
   const show = (which) => {
     setMode(which);
     open(which);
@@ -248,7 +303,12 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
   // Arrow keys move it too, for people using a keyboard.
   const onKeyDown = (e) => {
     const step = e.shiftKey ? 64 : 16;
-    const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+    const d = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    }[e.key];
     if (!d) return;
     e.preventDefault();
     if (panel === 'menu' && !closing) close();
@@ -259,22 +319,51 @@ export default function FloatingNav({ items, onDock, focusOnMount }) {
   const anchor = { ...pos, size, onRight };
   return (
     <div ref={rootRef} className="fnav-root no-print">
-      <div ref={floatRef} className="fnav-float" style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}>
+      <div
+        ref={floatRef}
+        className="fnav-float"
+        style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}
+      >
         <button
-          ref={btnRef} type="button" className={`fnav-btn ${panel && !closing ? 'open' : ''}`} style={{ width: size, height: size }}
+          ref={btnRef}
+          type="button"
+          className={`fnav-btn ${panel && !closing ? 'open' : ''}`}
+          style={{ width: size, height: size }}
           {...btnDrag.handlers}
-          onClick={() => !btnDrag.justDragged() && toggle()} onKeyDown={onKeyDown}
-          aria-haspopup="dialog" aria-expanded={Boolean(panel) && !closing}
-          aria-label="BrainADZ menu. Drag to move it anywhere." title="Open the menu · drag to move"
+          onClick={() => !btnDrag.justDragged() && toggle()}
+          onKeyDown={onKeyDown}
+          aria-haspopup="dialog"
+          aria-expanded={Boolean(panel) && !closing}
+          aria-label="BrainADZ menu. Drag to move it anywhere."
+          title="Open the menu · drag to move"
         >
           <Monogram height={Math.round(size * 0.46)} color="#fff" label={null} />
         </button>
       </div>
       {panel === 'menu' && (
-        <FloatMenu anchor={anchor} items={items} path={path} wide={wide} setWide={setWide} closing={closing} onPicked={close} onQuick={() => show('quick')} onDock={onDock} />
+        <FloatMenu
+          anchor={anchor}
+          items={items}
+          path={path}
+          wide={wide}
+          setWide={setWide}
+          closing={closing}
+          onPicked={close}
+          onQuick={() => show('quick')}
+          onDock={onDock}
+        />
       )}
       {panel === 'quick' && (
-        <QuickAccess anchor={anchor} items={items} path={path} closing={closing} onGo={go} onMenu={() => show('menu')} onDock={onDock} onClose={close} />
+        <QuickAccess
+          anchor={anchor}
+          items={items}
+          path={path}
+          closing={closing}
+          onGo={go}
+          onMenu={() => show('menu')}
+          onDock={onDock}
+          onClose={close}
+        />
       )}
     </div>
   );
@@ -304,7 +393,11 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
   const showTip = (e, label) => {
     if (wide) return;
     const r = e.currentTarget.getBoundingClientRect();
-    setTip(anchor.onRight ? { label, x: r.left - 10, y: r.top + r.height / 2, side: 'left' } : { label, x: r.right + 10, y: r.top + r.height / 2, side: 'right' });
+    setTip(
+      anchor.onRight
+        ? { label, x: r.left - 10, y: r.top + r.height / 2, side: 'left' }
+        : { label, x: r.right + 10, y: r.top + r.height / 2, side: 'right' },
+    );
   };
   const tipProps = (label) => ({
     onMouseEnter: (e) => showTip(e, label),
@@ -317,21 +410,49 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
   return (
     <>
       <div
-        ref={ref} role="dialog" aria-label="Menu" style={{ ...side, top }}
+        ref={ref}
+        role="dialog"
+        aria-label="Menu"
+        style={{ ...side, top }}
         className={`fnav-panel fnav-menu ${wide ? 'wide' : ''} ${closing ? 'closing' : ''} ${anchor.onRight ? 'from-right' : 'from-left'}`}
       >
         <div className="fnav-head">
           <Monogram height={28} />
-          <span className="fnav-word"><b>BrainADZ</b><b>HRMS</b></span>
-          <button type="button" className="fnav-expand" onClick={() => setWide(!wide)} aria-label={wide ? 'Show icons only' : 'Show names'} title={wide ? 'Show icons only' : 'Show names'}>
+          <span className="fnav-word">
+            <b>BrainADZ</b>
+            <b>HRMS</b>
+          </span>
+          <button
+            type="button"
+            className="fnav-expand"
+            onClick={() => setWide(!wide)}
+            aria-label={wide ? 'Show icons only' : 'Show names'}
+            title={wide ? 'Show icons only' : 'Show names'}
+          >
             <ChevronsRight size={14} strokeWidth={2.4} />
           </button>
         </div>
-        <nav className={`fnav-items ${scroll.edges}`} aria-label="Main" ref={scroll.ref} onScroll={() => { setTip(null); scroll.onScroll(); }}>
+        <nav
+          className={`fnav-items ${scroll.edges}`}
+          aria-label="Main"
+          ref={scroll.ref}
+          onScroll={() => {
+            setTip(null);
+            scroll.onScroll();
+          }}
+        >
           {items.map((n) => {
             const active = isActivePath(n, path);
             return (
-              <NavLink key={n.to} to={n.to} end={n.end} className={`fnav-item ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined} onClick={onPicked} {...tipProps(n.label)}>
+              <NavLink
+                key={n.to}
+                to={n.to}
+                end={n.end}
+                className={`fnav-item ${active ? 'active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+                onClick={onPicked}
+                {...tipProps(n.label)}
+              >
                 <n.icon size={24} />
                 <span className="lbl">{n.label}</span>
               </NavLink>
@@ -339,22 +460,49 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
           })}
         </nav>
         <div className="fnav-foot">
-          <button type="button" className="fnav-item" onClick={onQuick} {...tipProps('Quick Access')}>
-            <span className="fnav-act-ic"><LayoutGrid size={17} /></span><span className="lbl">Quick Access</span>
+          <button
+            type="button"
+            className="fnav-item"
+            onClick={onQuick}
+            {...tipProps('Quick Access')}
+          >
+            <span className="fnav-act-ic">
+              <LayoutGrid size={17} />
+            </span>
+            <span className="lbl">Quick Access</span>
           </button>
-          <button type="button" className="fnav-item" onClick={onDock} {...tipProps('Show the side menu')}>
-            <span className="fnav-act-ic"><PanelLeft size={17} /></span><span className="lbl">Show the side menu</span>
+          <button
+            type="button"
+            className="fnav-item"
+            onClick={onDock}
+            {...tipProps('Show the side menu')}
+          >
+            <span className="fnav-act-ic">
+              <PanelLeft size={17} />
+            </span>
+            <span className="lbl">Show the side menu</span>
           </button>
         </div>
       </div>
-      {tip && !closing && <div className={`fnav-tip ${tip.side}`} style={{ left: tip.x, top: tip.y }} role="tooltip">{tip.label}</div>}
+      {tip && !closing && (
+        <div className={`fnav-tip ${tip.side}`} style={{ left: tip.x, top: tip.y }} role="tooltip">
+          {tip.label}
+        </div>
+      )}
     </>
   );
 }
 
 const matches = (n, q) => {
   const t = q.trim().toLowerCase();
-  return !t || `${n.label} ${KEYWORDS[n.to] || ''}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(t)) || n.label.toLowerCase().includes(t);
+  return (
+    !t ||
+    `${n.label} ${KEYWORDS[n.to] || ''}`
+      .toLowerCase()
+      .split(/\s+/)
+      .some((w) => w.startsWith(t)) ||
+    n.label.toLowerCase().includes(t)
+  );
 };
 
 // Quick Access: a small card of shortcuts with a search, dragged around by its header.
@@ -373,7 +521,10 @@ function QuickAccess({ anchor, items, path, closing, onGo, onMenu, onDock, onClo
     posRef.current = p;
     setPosState(p);
   }, []);
-  const size = () => ({ w: cardRef.current?.offsetWidth || width, h: cardRef.current?.offsetHeight || 420 });
+  const size = () => ({
+    w: cardRef.current?.offsetWidth || width,
+    h: cardRef.current?.offsetHeight || 420,
+  });
   const moverRef = useRef(null);
   const drag = useDrag({
     elRef: moverRef,
@@ -398,36 +549,67 @@ function QuickAccess({ anchor, items, path, closing, onGo, onMenu, onDock, onClo
 
   const shown = items.filter((n) => matches(n, q));
   return (
-    <div ref={moverRef} className="fnav-quick-pos" style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}>
-      <div ref={cardRef} role="dialog" aria-label="Quick Access" style={{ width }} className={`fnav-panel fnav-quick ${closing ? 'closing' : ''} ${anchor.onRight ? 'from-right' : 'from-left'}`}>
+    <div
+      ref={moverRef}
+      className="fnav-quick-pos"
+      style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}
+    >
+      <div
+        ref={cardRef}
+        role="dialog"
+        aria-label="Quick Access"
+        style={{ width }}
+        className={`fnav-panel fnav-quick ${closing ? 'closing' : ''} ${anchor.onRight ? 'from-right' : 'from-left'}`}
+      >
         <div className="fq-head" {...drag.handlers} title="Drag to move">
           <GripHorizontal size={16} className="fq-grip" aria-hidden="true" />
           <Monogram height={21} />
           <b>Quick Access</b>
-          <button type="button" className="fq-x" onClick={onClose} aria-label="Close Quick Access"><X size={17} /></button>
+          <button type="button" className="fq-x" onClick={onClose} aria-label="Close Quick Access">
+            <X size={17} />
+          </button>
         </div>
         <div className="fq-search">
           <Search size={16} aria-hidden="true" />
           <input
-            autoFocus={!touch} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search pages, e.g. payroll, leave, payslips"
-            aria-label="Search pages" onKeyDown={(e) => e.key === 'Enter' && shown[0] && onGo(shown[0].to)}
+            autoFocus={!touch}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search pages, e.g. payroll, leave, payslips"
+            aria-label="Search pages"
+            onKeyDown={(e) => e.key === 'Enter' && shown[0] && onGo(shown[0].to)}
           />
         </div>
         {shown.length ? (
           <div className="fq-grid">
             {shown.map((n) => (
-              <button key={n.to} type="button" className={`fq-tile ${isActivePath(n, path) ? 'active' : ''}`} onClick={() => onGo(n.to)}>
-                <span className="fq-ic" style={{ '--tint': moduleFor(n.to).soft }}><n.icon size={28} /></span>
+              <button
+                key={n.to}
+                type="button"
+                className={`fq-tile ${isActivePath(n, path) ? 'active' : ''}`}
+                onClick={() => onGo(n.to)}
+              >
+                <span className="fq-ic" style={{ '--tint': moduleFor(n.to).soft }}>
+                  <n.icon size={28} />
+                </span>
                 <span className="fq-lbl">{n.label}</span>
               </button>
             ))}
           </div>
         ) : (
-          <div className="fq-none small muted">No page matches “{q}”. To find a person, job or policy, use the search at the top.</div>
+          <div className="fq-none small muted">
+            No page matches “{q}”. To find a person, job or policy, use the search at the top.
+          </div>
         )}
         <div className="fq-foot">
-          <button type="button" className="fq-link" onClick={onMenu}><MenuIcon size={15} />Full menu</button>
-          <button type="button" className="fq-link" onClick={onDock}><PanelLeft size={15} />Show the side menu</button>
+          <button type="button" className="fq-link" onClick={onMenu}>
+            <MenuIcon size={15} />
+            Full menu
+          </button>
+          <button type="button" className="fq-link" onClick={onDock}>
+            <PanelLeft size={15} />
+            Show the side menu
+          </button>
         </div>
       </div>
     </div>

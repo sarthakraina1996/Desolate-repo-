@@ -1,4 +1,7 @@
-export const inr = (n, digits = 0) => (n == null || Number.isNaN(Number(n)) ? '—' : `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: digits, minimumFractionDigits: 0 })}`);
+export const inr = (n, digits = 0) =>
+  n == null || Number.isNaN(Number(n))
+    ? '—'
+    : `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: digits, minimumFractionDigits: 0 })}`;
 
 export function inrShort(n) {
   if (n == null) return '—';
@@ -9,25 +12,32 @@ export function inrShort(n) {
   return inr(v);
 }
 
-export const lpa = (n) => (n == null ? '—' : `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 1 })} LPA`);
-export const num = (n, d = 0) => (n == null ? '—' : Number(n).toLocaleString('en-IN', { maximumFractionDigits: d }));
+export const lpa = (n) =>
+  n == null ? '—' : `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 1 })} LPA`;
+export const num = (n, d = 0) =>
+  n == null ? '—' : Number(n).toLocaleString('en-IN', { maximumFractionDigits: d });
 
 // Dates ('YYYY-MM-DD') are calendar days and render as-is; timestamps render
 // in the company's time zone (set from settings) so every viewer sees IST.
 let TZ;
-export const setTimeZone = (tz) => { TZ = tz; };
+export const setTimeZone = (tz) => {
+  TZ = tz;
+};
 const isDay = (s) => typeof s === 'string' && s.length === 10;
 const asDate = (s) => (s instanceof Date ? s : new Date(isDay(s) ? `${s}T00:00:00Z` : s));
 
 export function fmtDate(s, opts = { month: 'short', day: 'numeric', year: 'numeric' }) {
   if (!s) return '—';
   const d = asDate(s);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { ...opts, timeZone: isDay(s) ? 'UTC' : TZ });
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleDateString('en-US', { ...opts, timeZone: isDay(s) ? 'UTC' : TZ });
 }
 export const fmtShort = (s) => fmtDate(s, { month: 'short', day: 'numeric' });
 export const fmtDay = (s) => fmtDate(s, { weekday: 'short', day: 'numeric', month: 'short' });
 export const fmtMonth = (m) => (m ? fmtDate(`${m}-01`, { month: 'long', year: 'numeric' }) : '—');
-export const fmtMonthShort = (m) => (m ? fmtDate(`${m}-01`, { month: 'short', year: 'numeric' }) : '—');
+export const fmtMonthShort = (m) =>
+  m ? fmtDate(`${m}-01`, { month: 'short', year: 'numeric' }) : '—';
 
 export function fmtTime(s) {
   if (!s) return '—';
@@ -35,7 +45,11 @@ export function fmtTime(s) {
     const [h, m] = s.split(':').map(Number);
     return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
   }
-  return asDate(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+  return asDate(s).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: TZ,
+  });
 }
 export const fmtDateTime = (s) => (s ? `${fmtDate(s)}, ${fmtTime(s)}` : '—');
 
@@ -51,9 +65,27 @@ export function ago(s) {
   return fmtShort(s);
 }
 
-export const initials = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+export const initials = (name = '') =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase() || '?';
 
-const PALETTE = ['#E5243B', '#1A6DF0', '#1FA855', '#F2A600', '#7C5CFC', '#EF4778', '#1FB2D6', '#F06A2A', '#0F9D8F', '#5B6BD6'];
+const PALETTE = [
+  '#E5243B',
+  '#1A6DF0',
+  '#1FA855',
+  '#F2A600',
+  '#7C5CFC',
+  '#EF4778',
+  '#1FB2D6',
+  '#F06A2A',
+  '#0F9D8F',
+  '#5B6BD6',
+];
 export function colorFor(name = '') {
   let h = 0;
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;

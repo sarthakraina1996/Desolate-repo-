@@ -10,7 +10,9 @@ export class HttpError extends Error {
     this.status = status;
   }
 }
-export const fail = (status, message) => { throw new HttpError(status, message); };
+export const fail = (status, message) => {
+  throw new HttpError(status, message);
+};
 export const notFound = (what = 'Record') => fail(404, `${what} not found`);
 
 // ---------- input validation ----------
@@ -23,13 +25,17 @@ export function str(v, { max = 500, required = false, name = 'Field' } = {}) {
   if (s.length > max) fail(400, `${name} is too long (max ${max} characters)`);
   return s;
 }
-export function num(v, { min = -Infinity, max = Infinity, required = false, name = 'Value', int = false } = {}) {
+export function num(
+  v,
+  { min = -Infinity, max = Infinity, required = false, name = 'Value', int = false } = {},
+) {
   if (v == null || v === '') {
     if (required) fail(400, `${name} is required`);
     return null;
   }
   const n = Number(v);
-  if (!Number.isFinite(n) || n < min || n > max || (int && !Number.isInteger(n))) fail(400, `${name} is invalid`);
+  if (!Number.isFinite(n) || n < min || n > max || (int && !Number.isInteger(n)))
+    fail(400, `${name} is invalid`);
   return n;
 }
 export function date(v, { required = false, name = 'Date' } = {}) {
@@ -51,7 +57,11 @@ export function oneOf(v, options, { required = false, name = 'Value' } = {}) {
 export function strList(v, { max = 30, itemMax = 80 } = {}) {
   if (v == null) return [];
   const arr = Array.isArray(v) ? v : String(v).split(',');
-  return arr.map((s) => String(s).trim()).filter(Boolean).slice(0, max).map((s) => s.slice(0, itemMax));
+  return arr
+    .map((s) => String(s).trim())
+    .filter(Boolean)
+    .slice(0, max)
+    .map((s) => s.slice(0, itemMax));
 }
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function email(v, { required = false } = {}) {
@@ -66,7 +76,19 @@ export const id = (v) => {
 };
 
 // ---------- documents ----------
-export const DOC_CATEGORIES = ['Aadhaar Card', 'PAN Card', 'Address Proof', 'Education', 'Experience', 'Offer Letter', 'Appointment Letter', 'Bank Proof', 'ID Proof', 'Payslip', 'Other'];
+export const DOC_CATEGORIES = [
+  'Aadhaar Card',
+  'PAN Card',
+  'Address Proof',
+  'Education',
+  'Experience',
+  'Offer Letter',
+  'Appointment Letter',
+  'Bank Proof',
+  'ID Proof',
+  'Payslip',
+  'Other',
+];
 
 // ---------- settings ----------
 export const DEFAULT_SETTINGS = {
@@ -78,7 +100,15 @@ export const DEFAULT_SETTINGS = {
   lateAfter: '10:00',
   workHours: 8,
   shortHoursGraceMinutes: 15,
-  requiredDocuments: ['Aadhaar Card', 'PAN Card', 'Address Proof', 'Education', 'Offer Letter', 'Appointment Letter', 'Bank Proof'],
+  requiredDocuments: [
+    'Aadhaar Card',
+    'PAN Card',
+    'Address Proof',
+    'Education',
+    'Offer Letter',
+    'Appointment Letter',
+    'Bank Proof',
+  ],
   // Sign-in location check. mode: off | login (sign in and check in only at
   // an office) | strict (also signs people out when they leave the office).
   geofence: { mode: 'off', exemptEmployeeIds: [], allowWfhAndLeave: true, maxAccuracyM: 1500 },
@@ -102,7 +132,11 @@ export function getSettings(db) {
   return s;
 }
 export function setSetting(db, key, value) {
-  db.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
+  db.run(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    key,
+    JSON.stringify(value),
+  );
 }
 export const today = (db) => todayIn(getSettings(db).timezone);
 
@@ -113,11 +147,16 @@ export const isAdmin = (user) => user && user.role === 'admin';
 // All employees reporting (directly or indirectly) to the given employee.
 export function reportIds(db, employeeId) {
   if (!employeeId) return [];
-  return db.all(`
+  return db
+    .all(
+      `
     WITH RECURSIVE team(id) AS (
       SELECT id FROM employees WHERE manager_id = ?
       UNION SELECT e.id FROM employees e JOIN team t ON e.manager_id = t.id
-    ) SELECT id FROM team`, employeeId).map((r) => r.id);
+    ) SELECT id FROM team`,
+      employeeId,
+    )
+    .map((r) => r.id);
 }
 
 // Employees whose HR records this user may see: null means everyone.
@@ -158,21 +197,32 @@ export function scopeSql(scope, alias = 'e') {
 // ---------- notifications & audit ----------
 export function notifyUsers(db, userIds, text, link = null) {
   const unique = [...new Set(userIds.filter(Boolean))];
-  for (const uid of unique) db.run('INSERT INTO notifications (user_id, text, link) VALUES (?, ?, ?)', uid, text, link);
+  for (const uid of unique)
+    db.run('INSERT INTO notifications (user_id, text, link) VALUES (?, ?, ?)', uid, text, link);
 }
 export function hrUserIds(db) {
-  return db.all("SELECT id FROM users WHERE role IN ('admin','hr') AND active = 1").map((r) => r.id);
+  return db
+    .all("SELECT id FROM users WHERE role IN ('admin','hr') AND active = 1")
+    .map((r) => r.id);
 }
 export function userIdForEmployee(db, employeeId) {
-  return employeeId ? db.value('SELECT id FROM users WHERE employee_id = ? AND active = 1', employeeId) : null;
+  return employeeId
+    ? db.value('SELECT id FROM users WHERE employee_id = ? AND active = 1', employeeId)
+    : null;
 }
 export function managerUserId(db, employeeId) {
   const mgr = db.value('SELECT manager_id FROM employees WHERE id = ?', employeeId);
   return userIdForEmployee(db, mgr);
 }
 export function audit(db, user, action, entity, entityId, detail) {
-  db.run('INSERT INTO audit_log (user_id, action, entity, entity_id, detail) VALUES (?, ?, ?, ?, ?)',
-    user?.id ?? null, action, entity ?? null, entityId ?? null, detail ? JSON.stringify(detail) : null);
+  db.run(
+    'INSERT INTO audit_log (user_id, action, entity, entity_id, detail) VALUES (?, ?, ?, ?, ?)',
+    user?.id ?? null,
+    action,
+    entity ?? null,
+    entityId ?? null,
+    detail ? JSON.stringify(detail) : null,
+  );
 }
 
 export const fullName = (e) => (e ? `${e.first_name}${e.last_name ? ` ${e.last_name}` : ''}` : '');
@@ -187,7 +237,9 @@ export function toCsv(rows, columns) {
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const head = columns.map((c) => esc(c.label)).join(',');
-  const body = rows.map((r) => columns.map((c) => esc(typeof c.value === 'function' ? c.value(r) : r[c.value])).join(','));
+  const body = rows.map((r) =>
+    columns.map((c) => esc(typeof c.value === 'function' ? c.value(r) : r[c.value])).join(','),
+  );
   return [head, ...body].join('\r\n');
 }
 export function sendCsv(res, filename, rows, columns) {

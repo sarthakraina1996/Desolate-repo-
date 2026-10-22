@@ -20,7 +20,10 @@ export function useApi(path) {
     };
   }, [path, tick]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  const setData = useCallback((fn) => setState((s) => ({ ...s, data: typeof fn === 'function' ? fn(s.data) : fn })), []);
+  const setData = useCallback(
+    (fn) => setState((s) => ({ ...s, data: typeof fn === 'function' ? fn(s.data) : fn })),
+    [],
+  );
   return { ...state, reload, setData };
 }
 
@@ -37,16 +40,19 @@ export function useScrollEdges() {
     const down = n.scrollTop + n.clientHeight < n.scrollHeight - 1;
     setEdges([up && 'more-above', down && 'more-below'].filter(Boolean).join(' '));
   }, []);
-  const ref = useCallback((node) => {
-    watcher.current?.disconnect();
-    el.current = node;
-    if (!node) return;
-    onScroll();
-    if (typeof ResizeObserver === 'undefined') return;
-    watcher.current = new ResizeObserver(onScroll);
-    watcher.current.observe(node);
-    for (const child of node.children) watcher.current.observe(child);
-  }, [onScroll]);
+  const ref = useCallback(
+    (node) => {
+      watcher.current?.disconnect();
+      el.current = node;
+      if (!node) return;
+      onScroll();
+      if (typeof ResizeObserver === 'undefined') return;
+      watcher.current = new ResizeObserver(onScroll);
+      watcher.current.observe(node);
+      for (const child of node.children) watcher.current.observe(child);
+    },
+    [onScroll],
+  );
   return { ref, edges, onScroll };
 }
 
@@ -65,7 +71,8 @@ export function useClickOutside(onOutside) {
     const h = (e) => {
       // Dialogs are drawn at the top of the page, outside the panel that opened them, so a
       // click inside one must not close that panel (and the dialog with it).
-      if (ref.current && !ref.current.contains(e.target) && !e.target.closest?.('.overlay')) onOutside();
+      if (ref.current && !ref.current.contains(e.target) && !e.target.closest?.('.overlay'))
+        onOutside();
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
@@ -76,28 +83,36 @@ export function useClickOutside(onOutside) {
 // Small form-state helper: const [f, set, setF] = useForm({...}); <input value={f.x} onChange={set('x')} />
 export function useForm(initial) {
   const [values, setValues] = useState(initial);
-  const set = useCallback((k) => (e) => {
-    const v = e && e.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e;
-    setValues((s) => ({ ...s, [k]: v }));
-  }, []);
+  const set = useCallback(
+    (k) => (e) => {
+      const v =
+        e && e.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e;
+      setValues((s) => ({ ...s, [k]: v }));
+    },
+    [],
+  );
   return [values, set, setValues];
 }
 
 // Runs an async action with a busy flag and toast feedback.
 export function useAction(toast) {
   const [busy, setBusy] = useState(false);
-  const run = useCallback(async (fn, success) => {
-    setBusy(true);
-    try {
-      const out = await fn();
-      if (success && toast) toast(typeof success === 'function' ? success(out) : success, 'success');
-      return out;
-    } catch (e) {
-      if (toast) toast(e.message, 'error');
-      return undefined;
-    } finally {
-      setBusy(false);
-    }
-  }, [toast]);
+  const run = useCallback(
+    async (fn, success) => {
+      setBusy(true);
+      try {
+        const out = await fn();
+        if (success && toast)
+          toast(typeof success === 'function' ? success(out) : success, 'success');
+        return out;
+      } catch (e) {
+        if (toast) toast(e.message, 'error');
+        return undefined;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [toast],
+  );
   return [run, busy];
 }

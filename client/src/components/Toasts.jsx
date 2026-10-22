@@ -25,9 +25,16 @@ function Toast({ t, onDone }) {
   return (
     <div
       className={`toast ${t.kind} ${leaving ? 'leaving' : ''}`}
-      style={{ '--accent': t.module.color, '--accent-soft': t.module.soft, '--accent-ink': t.module.ink, '--toast-ms': `${TOAST_MS[t.kind] || TOAST_MS.info}ms` }}
+      style={{
+        '--accent': t.module.color,
+        '--accent-soft': t.module.soft,
+        '--accent-ink': t.module.ink,
+        '--toast-ms': `${TOAST_MS[t.kind] || TOAST_MS.info}ms`,
+      }}
       role={t.kind === 'error' ? 'alert' : 'status'}
-      onAnimationEnd={(e) => { if (leaving && e.target === e.currentTarget) onDone(t.id); }}
+      onAnimationEnd={(e) => {
+        if (leaving && e.target === e.currentTarget) onDone(t.id);
+      }}
     >
       <div className="toast-tile">
         <Icon size={24} />
@@ -37,12 +44,28 @@ function Toast({ t, onDone }) {
         </svg>
       </div>
       <div className="toast-body">
-        <div className="toast-mod">{t.module.label}<span className="sr-only"> · {p.label}</span></div>
+        <div className="toast-mod">
+          {t.module.label}
+          <span className="sr-only"> · {p.label}</span>
+        </div>
         <div className="toast-msg">{t.text}</div>
       </div>
-      <button type="button" className="toast-close" aria-label="Dismiss" onClick={() => setLeaving(true)}><X size={15} /></button>
+      <button
+        type="button"
+        className="toast-close"
+        aria-label="Dismiss"
+        onClick={() => setLeaving(true)}
+      >
+        <X size={15} />
+      </button>
       {/* The countdown; hovering pauses it. When it runs out the message slides away. */}
-      <div className="toast-bar" onAnimationEnd={(e) => { e.stopPropagation(); setLeaving(true); }} />
+      <div
+        className="toast-bar"
+        onAnimationEnd={(e) => {
+          e.stopPropagation();
+          setLeaving(true);
+        }}
+      />
     </div>
   );
 }
@@ -50,7 +73,9 @@ function Toast({ t, onDone }) {
 export default function Toasts({ toasts, onDone }) {
   return (
     <div className="toasts">
-      {toasts.map((t) => <Toast key={t.id} t={t} onDone={onDone} />)}
+      {toasts.map((t) => (
+        <Toast key={t.id} t={t} onDone={onDone} />
+      ))}
     </div>
   );
 }

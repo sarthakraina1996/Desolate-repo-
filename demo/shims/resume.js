@@ -11,10 +11,14 @@ export async function extractResumeText(filePath, ext) {
   if (ext === '.pdf') {
     const pdf = await getDocumentProxy(new Uint8Array(buf));
     const { text } = await extractText(pdf, { mergePages: true });
-    return String(text || '').replace(/[ \t]+\n/g, '\n').trim();
+    return String(text || '')
+      .replace(/[ \t]+\n/g, '\n')
+      .trim();
   }
   if (ext === '.docx') {
-    const { value } = await mammoth.extractRawText({ arrayBuffer: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) });
+    const { value } = await mammoth.extractRawText({
+      arrayBuffer: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+    });
     return value.trim();
   }
   if (ext === '.txt') return buf.toString('utf8').trim();

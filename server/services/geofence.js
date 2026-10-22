@@ -12,14 +12,22 @@ import { dayStatuses } from './calendar.js';
 export const GEOFENCE_MODES = ['off', 'login', 'strict'];
 
 export function geofencePolicy(settings) {
-  return { mode: 'off', exemptEmployeeIds: [], allowWfhAndLeave: true, maxAccuracyM: 1500, ...(settings.geofence || {}) };
+  return {
+    mode: 'off',
+    exemptEmployeeIds: [],
+    allowWfhAndLeave: true,
+    maxAccuracyM: 1500,
+    ...(settings.geofence || {}),
+  };
 }
 
 const toRad = (d) => (d * Math.PI) / 180;
 export function distanceM(a, b) {
   const dLat = toRad(b.lat - a.lat);
   const dLng = toRad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * 6371000 * Math.asin(Math.sqrt(h));
 }
 
@@ -35,7 +43,9 @@ function ipToInt(ip) {
 // ranges (e.g. "203.0.113.7, 192.168.1.0/24").
 export function ipMatches(ip, ranges) {
   const clean = String(ip || '').replace(/^::ffff:/, '');
-  for (const r of String(ranges || '').split(/[\s,]+/).filter(Boolean)) {
+  for (const r of String(ranges || '')
+    .split(/[\s,]+/)
+    .filter(Boolean)) {
     if (r === clean) return true;
     const [base, bits] = r.split('/');
     if (bits === undefined) continue;
@@ -54,8 +64,13 @@ export function readCoords(v) {
   const lat = Number(v.lat);
   const lng = Number(v.lng);
   const accuracy = Number(v.accuracy);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-  return { lat, lng, accuracy: Number.isFinite(accuracy) && accuracy >= 0 ? Math.round(accuracy) : 99999 };
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)
+    return null;
+  return {
+    lat,
+    lng,
+    accuracy: Number.isFinite(accuracy) && accuracy >= 0 ? Math.round(accuracy) : 99999,
+  };
 }
 
 // Why this user may skip the check today, or null. `dayOnly` exemptions
@@ -64,11 +79,13 @@ export function exemption(db, user, settings, today) {
   const p = geofencePolicy(settings);
   if (p.mode === 'off') return { reason: 'Location check is off' };
   if (user.role === 'admin') return { reason: 'Administrator' };
-  if (user.employeeId && p.exemptEmployeeIds.includes(user.employeeId)) return { reason: 'Allowed to work from anywhere' };
+  if (user.employeeId && p.exemptEmployeeIds.includes(user.employeeId))
+    return { reason: 'Allowed to work from anywhere' };
   if (p.allowWfhAndLeave && user.employeeId) {
     const e = db.get('SELECT * FROM employees WHERE id = ?', user.employeeId);
     const st = e && dayStatuses(db, [e], today, today, today, settings).get(e.id).get(today);
-    if (st?.code === 'WFH' && st.leave) return { reason: 'Approved work from home today', dayOnly: true };
+    if (st?.code === 'WFH' && st.leave)
+      return { reason: 'Approved work from home today', dayOnly: true };
     if (st?.code === 'L') return { reason: `On ${st.leave?.name || 'leave'} today`, dayOnly: true };
   }
   return null;
@@ -83,7 +100,12 @@ export function checkLocation(db, { user, coords, ip, today, settings = getSetti
   if (!sites.length) return { ok: true, method: 'exempt', exempt: 'No office locations set up' };
   const net = sites.find((s) => ipMatches(ip, s.ip_ranges));
   if (net) return { ok: true, method: 'network', site: net, dayBound: true };
-  if (!coords) return { ok: false, code: 'location_required', message: 'Share your location to continue. Sign-in is only allowed from the office.' };
+  if (!coords)
+    return {
+      ok: false,
+      code: 'location_required',
+      message: 'Share your location to continue. Sign-in is only allowed from the office.',
+    };
   let best = null;
   for (const s of sites) {
     const d = distanceM(coords, s);
@@ -91,15 +113,43 @@ export function checkLocation(db, { user, coords, ip, today, settings = getSetti
   }
   const distance = Math.round(best.distance);
   if (best.distance <= best.site.radius_m + Math.min(coords.accuracy, best.site.radius_m)) {
-    return { ok: true, method: 'gps', site: best.site, distance, accuracy: coords.accuracy, dayBound: true };
+    return {
+      ok: true,
+      method: 'gps',
+      site: best.site,
+      distance,
+      accuracy: coords.accuracy,
+      dayBound: true,
+    };
   }
   if (coords.accuracy > geofencePolicy(settings).maxAccuracyM) {
-    return { ok: false, code: 'location_imprecise', site: best.site, distance, accuracy: coords.accuracy, message: `Your location is too rough to confirm (within ${fmtDistance(coords.accuracy)}). Turn on Wi-Fi or location services and try again, or connect to the office network.` };
+    return {
+      ok: false,
+      code: 'location_imprecise',
+      site: best.site,
+      distance,
+      accuracy: coords.accuracy,
+      message: `Your location is too rough to confirm (within ${fmtDistance(coords.accuracy)}). Turn on Wi-Fi or location services and try again, or connect to the office network.`,
+    };
   }
-  return { ok: false, code: 'outside_office', site: best.site, distance, accuracy: coords.accuracy, message: `You are ${fmtDistance(distance)} from the nearest office (${best.site.name}). You can only sign in from the office.` };
+  return {
+    ok: false,
+    code: 'outside_office',
+    site: best.site,
+    distance,
+    accuracy: coords.accuracy,
+    message: `You are ${fmtDistance(distance)} from the nearest office (${best.site.name}). You can only sign in from the office.`,
+  };
 }
 
-const RESULT = { gps: 'in-office', network: 'office-network', exempt: 'exempt', outside_office: 'outside', location_required: 'no-location', location_imprecise: 'imprecise' };
+const RESULT = {
+  gps: 'in-office',
+  network: 'office-network',
+  exempt: 'exempt',
+  outside_office: 'outside',
+  location_required: 'no-location',
+  location_imprecise: 'imprecise',
+};
 
 export function logLocation(db, { user, event, coords, ip, check }) {
   return db.insert('location_log', {
@@ -114,7 +164,10 @@ export function logLocation(db, { user, event, coords, ip, check }) {
     lat: coords?.lat ?? null,
     lng: coords?.lng ?? null,
     accuracy_m: coords ? coords.accuracy : null,
-    ip: String(ip || '').replace(/^::ffff:/, '').slice(0, 64) || null,
+    ip:
+      String(ip || '')
+        .replace(/^::ffff:/, '')
+        .slice(0, 64) || null,
     note: check.exempt || null,
   });
 }

@@ -27,8 +27,11 @@ export function registerApp() {
   });
 }
 
-export const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
-export const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+export const isStandalone = () =>
+  window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+export const isIOS = () =>
+  /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 export const isPhone = () => window.matchMedia?.('(max-width: 760px)').matches ?? false;
 // The demo runs inside a single page with no server; installing it makes no sense there.
 export const canOfferApp = () => /^https?:$/.test(window.location.protocol) && !window.hrmsDemo;

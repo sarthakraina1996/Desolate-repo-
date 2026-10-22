@@ -9,9 +9,17 @@ const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist');
 let html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
 const read = (href) => fs.readFileSync(path.join(dist, href.replace(/^\.\//, '')), 'utf8');
 
-html = html.replace(/<link rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g, (_, href) => `<style>${read(href)}</style>`);
-html = html.replace(/<script type="module"[^>]*src="([^"]+)"[^>]*><\/script>/g, (_, src) => `<script type="module">${read(src).replace(/<\/script/gi, '<\\/script')}</script>`);
-html = html.replace(/<!doctype html>|<\/?html[^>]*>|<\/?head>|<\/?body>|<meta charset[^>]*>/gi, '').trim();
+html = html.replace(
+  /<link rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g,
+  (_, href) => `<style>${read(href)}</style>`,
+);
+html = html.replace(
+  /<script type="module"[^>]*src="([^"]+)"[^>]*><\/script>/g,
+  (_, src) => `<script type="module">${read(src).replace(/<\/script/gi, '<\\/script')}</script>`,
+);
+html = html
+  .replace(/<!doctype html>|<\/?html[^>]*>|<\/?head>|<\/?body>|<meta charset[^>]*>/gi, '')
+  .trim();
 // The title must stay within the first 8 KB, so put it first.
 const title = /<title>.*?<\/title>/.exec(html)[0];
 html = `${title}\n${html.replace(title, '')}`;

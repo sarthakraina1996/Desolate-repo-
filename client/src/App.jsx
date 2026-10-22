@@ -25,7 +25,8 @@ const HolidayCalendar = lazy(() => import('./pages/HolidayCalendar.jsx'));
 
 function Guard({ roles, children }) {
   const { user } = useApp();
-  if (roles && !roles.includes(user.role)) return <Navigate to={user.role === 'employee' ? '/my' : '/'} replace />;
+  if (roles && !roles.includes(user.role))
+    return <Navigate to={user.role === 'employee' ? '/my' : '/'} replace />;
   return children;
 }
 
@@ -50,10 +51,21 @@ class PageBoundary extends Component {
     if (!this.state.failed) return this.props.children;
     const offline = navigator.onLine === false;
     return (
-      <div className="card" style={{ padding: 28, maxWidth: 520, margin: '40px auto', textAlign: 'center' }}>
-        <h3 style={{ marginBottom: 8 }}>{offline ? 'This page needs a connection' : 'This page could not open'}</h3>
-        <p className="muted" style={{ marginBottom: 16 }}>{offline ? 'Connect to the internet or office Wi-Fi, then try again.' : 'Reload the app and try again.'}</p>
-        <button type="button" className="btn primary" onClick={() => window.location.reload()}>Try again</button>
+      <div
+        className="card"
+        style={{ padding: 28, maxWidth: 520, margin: '40px auto', textAlign: 'center' }}
+      >
+        <h3 style={{ marginBottom: 8 }}>
+          {offline ? 'This page needs a connection' : 'This page could not open'}
+        </h3>
+        <p className="muted" style={{ marginBottom: 16 }}>
+          {offline
+            ? 'Connect to the internet or office Wi-Fi, then try again.'
+            : 'Reload the app and try again.'}
+        </p>
+        <button type="button" className="btn primary" onClick={() => window.location.reload()}>
+          Try again
+        </button>
       </div>
     );
   }
@@ -78,33 +90,76 @@ function AppRoutes() {
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route path="/print/:kind/:id" element={<Print />} />
-        <Route path="*" element={(
-          <Layout>
-            <PageBoundary path={pathname}>
-            <Suspense fallback={<Loading />}>
-              <Routes>
-                <Route path="/" element={user.role === 'employee' ? <Navigate to="/my" replace /> : <Dashboard />} />
-                <Route path="/my" element={<MySpace />} />
-                <Route path="/hiring" element={<Guard roles={[...HR, 'manager']}><Hiring /></Guard>} />
-                <Route path="/screener" element={<Guard roles={HR}><Screener /></Guard>} />
-                <Route path="/employees" element={<Employees />} />
-                <Route path="/employees/:id" element={<Employees />} />
-                <Route path="/documents" element={<Documents />} />
-                <Route path="/leave" element={<Leave />} />
-                <Route path="/calendar" element={<HolidayCalendar />} />
-                <Route path="/payroll" element={<Guard roles={HR}><Payroll /></Guard>} />
-                <Route path="/performance" element={<Performance />} />
-                <Route path="/attendance" element={<Attendance />} />
-                <Route path="/posh" element={<Posh />} />
-                <Route path="/resignation" element={<Resignation />} />
-                <Route path="/reports" element={<Guard roles={HR}><Reports /></Guard>} />
-                <Route path="/settings" element={<Guard roles={HR}><SettingsPage /></Guard>} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-            </PageBoundary>
-          </Layout>
-        )} />
+        <Route
+          path="*"
+          element={
+            <Layout>
+              <PageBoundary path={pathname}>
+                <Suspense fallback={<Loading />}>
+                  <Routes>
+                    <Route
+                      path="/"
+                      element={
+                        user.role === 'employee' ? <Navigate to="/my" replace /> : <Dashboard />
+                      }
+                    />
+                    <Route path="/my" element={<MySpace />} />
+                    <Route
+                      path="/hiring"
+                      element={
+                        <Guard roles={[...HR, 'manager']}>
+                          <Hiring />
+                        </Guard>
+                      }
+                    />
+                    <Route
+                      path="/screener"
+                      element={
+                        <Guard roles={HR}>
+                          <Screener />
+                        </Guard>
+                      }
+                    />
+                    <Route path="/employees" element={<Employees />} />
+                    <Route path="/employees/:id" element={<Employees />} />
+                    <Route path="/documents" element={<Documents />} />
+                    <Route path="/leave" element={<Leave />} />
+                    <Route path="/calendar" element={<HolidayCalendar />} />
+                    <Route
+                      path="/payroll"
+                      element={
+                        <Guard roles={HR}>
+                          <Payroll />
+                        </Guard>
+                      }
+                    />
+                    <Route path="/performance" element={<Performance />} />
+                    <Route path="/attendance" element={<Attendance />} />
+                    <Route path="/posh" element={<Posh />} />
+                    <Route path="/resignation" element={<Resignation />} />
+                    <Route
+                      path="/reports"
+                      element={
+                        <Guard roles={HR}>
+                          <Reports />
+                        </Guard>
+                      }
+                    />
+                    <Route
+                      path="/settings"
+                      element={
+                        <Guard roles={HR}>
+                          <SettingsPage />
+                        </Guard>
+                      }
+                    />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Suspense>
+              </PageBoundary>
+            </Layout>
+          }
+        />
       </Routes>
     </Suspense>
   );

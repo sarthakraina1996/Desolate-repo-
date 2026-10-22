@@ -25,7 +25,9 @@ export function salaryStructure(ctcAnnual, rules = DEFAULT_PAYROLL_RULES) {
   const monthlyCtc = r((Number(ctcAnnual) || 0) / 12);
   const basic = r((monthlyCtc * rules.basicPct) / 100);
   const hra = r((basic * rules.hraPct) / 100);
-  const employerPf = rules.pfEnabled ? r((Math.min(basic, rules.pfWageCeiling) * rules.pfRate) / 100) : 0;
+  const employerPf = rules.pfEnabled
+    ? r((Math.min(basic, rules.pfWageCeiling) * rules.pfRate) / 100)
+    : 0;
   const special = Math.max(0, monthlyCtc - basic - hra - employerPf);
   return { monthlyCtc, basic, hra, special, employerPf, gross: basic + hra + special };
 }
@@ -37,7 +39,15 @@ export function salaryStructure(ctcAnnual, rules = DEFAULT_PAYROLL_RULES) {
 export function estimateMonthlyTds(ctcAnnual, rules = DEFAULT_PAYROLL_RULES) {
   const s = salaryStructure(ctcAnnual, rules);
   const taxable = Math.max(0, s.gross * 12 - 75000);
-  const slabs = [[400000, 0], [800000, 0.05], [1200000, 0.1], [1600000, 0.15], [2000000, 0.2], [2400000, 0.25], [Infinity, 0.3]];
+  const slabs = [
+    [400000, 0],
+    [800000, 0.05],
+    [1200000, 0.1],
+    [1600000, 0.15],
+    [2000000, 0.2],
+    [2400000, 0.25],
+    [Infinity, 0.3],
+  ];
   let tax = 0;
   let lower = 0;
   for (const [upper, rate] of slabs) {
@@ -50,7 +60,15 @@ export function estimateMonthlyTds(ctcAnnual, rules = DEFAULT_PAYROLL_RULES) {
 }
 
 // adjustments: [{ kind: 'Bonus'|'Arrears'|'Reimbursement'|'Deduction', amount }]
-export function computePayslip({ ctc, monthlyTds = 0, month, employedDays, lopDays = 0, adjustments = [], rules = DEFAULT_PAYROLL_RULES }) {
+export function computePayslip({
+  ctc,
+  monthlyTds = 0,
+  month,
+  employedDays,
+  lopDays = 0,
+  adjustments = [],
+  rules = DEFAULT_PAYROLL_RULES,
+}) {
   const dim = daysInMonth(month);
   const employed = employedDays ?? dim;
   const lop = Math.min(Math.max(0, lopDays), employed);
@@ -58,7 +76,10 @@ export function computePayslip({ ctc, monthlyTds = 0, month, employedDays, lopDa
   const factor = paidDays / dim;
   const s = salaryStructure(ctc, rules);
 
-  const sum = (kinds) => adjustments.filter((a) => kinds.includes(a.kind)).reduce((t, a) => t + (Number(a.amount) || 0), 0);
+  const sum = (kinds) =>
+    adjustments
+      .filter((a) => kinds.includes(a.kind))
+      .reduce((t, a) => t + (Number(a.amount) || 0), 0);
   const bonus = sum(['Bonus', 'Arrears']);
   const reimbursement = sum(['Reimbursement']);
   const otherDeduction = sum(['Deduction']);
