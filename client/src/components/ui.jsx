@@ -17,6 +17,7 @@ import { photoUrl } from '../lib/api.js';
 import { useClickOutside } from '../lib/hooks.js';
 import { useApp } from '../context.jsx';
 
+// Page card with an optional title, sub-title and header action; `flush` drops the body padding.
 export function Card({ title, sub, action, children, className = '', flush, tight, style, id }) {
   return (
     <section
@@ -38,8 +39,10 @@ export function Card({ title, sub, action, children, className = '', flush, tigh
   );
 }
 
+// Percentage change with an up/down arrow; `invert` marks a rise as bad (e.g. attrition).
 export function Delta({ value, label = 'vs. last month', invert = false }) {
   if (value == null) return null;
+  // No change: a neutral 0% without an arrow.
   if (value === 0)
     return (
       <span className="delta">
@@ -62,6 +65,7 @@ export function Delta({ value, label = 'vs. last month', invert = false }) {
   );
 }
 
+// KPI card: tinted icon, label, value with unit and an optional change; clickable when given onClick.
 export function Kpi({
   icon: Icon,
   tone = 'blue',
@@ -90,6 +94,7 @@ export function Kpi({
   );
 }
 
+// Badge colour for each status name used across modules; anything unlisted is gray.
 const STATUS_TONES = {
   green: [
     'Approved',
@@ -156,10 +161,12 @@ const STATUS_TONES = {
     'On Leave',
   ],
 };
+// Badge tone for a status name.
 export function toneOf(status) {
   for (const [tone, list] of Object.entries(STATUS_TONES)) if (list.includes(status)) return tone;
   return 'gray';
 }
+// Status pill; picks its colour from the text unless `tone` is given.
 export function Badge({ tone, children, lg, title }) {
   return (
     <span className={`badge b-${tone || toneOf(children)} ${lg ? 'lg' : ''}`} title={title}>
@@ -167,6 +174,7 @@ export function Badge({ tone, children, lg, title }) {
     </span>
   );
 }
+// Employee status with a coloured dot (active, on leave, notice, exited).
 export function StatusDot({ status }) {
   const color =
     {
@@ -183,6 +191,7 @@ export function StatusDot({ status }) {
   );
 }
 
+// Profile photo, or coloured initials when there is none or it fails to load.
 export function Avatar({ name = '', id, hasPhoto, size = 36, online, square }) {
   const [broken, setBroken] = useState(false);
   const src = hasPhoto && id ? photoUrl(id) : null;
@@ -203,6 +212,7 @@ export function Avatar({ name = '', id, hasPhoto, size = 36, online, square }) {
   );
 }
 
+// Avatar with a name (linked to the employee's profile) and a sub-line.
 export function Person({ name, sub, id, hasPhoto, size = 36, link = true, extra }) {
   return (
     <div className="person">
@@ -227,10 +237,12 @@ export function Person({ name, sub, id, hasPhoto, size = 36, link = true, extra 
   );
 }
 
+// '#RRGGBB' as a 12% tint for chip backgrounds.
 const hexToSoft = (hex) => {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0.12)`;
 };
+// Vertical chip in its brand colour, with the department when it differs.
 export function VChip({ vertical, color = '#1A6DF0', department }) {
   if (!vertical) return <span className="muted">—</span>;
   const label = department && department !== vertical ? `${vertical} • ${department}` : vertical;
@@ -241,6 +253,7 @@ export function VChip({ vertical, color = '#1A6DF0', department }) {
   );
 }
 
+// Button with an optional icon; `loading` swaps the icon for a spinner and disables it.
 export function Button({
   variant = '',
   size = '',
@@ -267,7 +280,9 @@ export function Button({
   );
 }
 
+// Dialog with a title, body and optional footer; closes on Escape or a click on the backdrop.
 export function Modal({ title, onClose, children, footer, size = '' }) {
+  // Escape closes it, and the page behind stops scrolling while it is open.
   useEffect(() => {
     const h = (e) => e.key === 'Escape' && onClose?.();
     document.addEventListener('keydown', h);
@@ -302,6 +317,7 @@ export function Modal({ title, onClose, children, footer, size = '' }) {
   );
 }
 
+// Form field wrapper: label, the control, then a hint or error.
 export function Field({ label, hint, error, children, className = '' }) {
   return (
     <div className={`field ${className}`}>
@@ -318,6 +334,7 @@ export const Input = ({ className = '', ...p }) => (
 export const Textarea = ({ className = '', ...p }) => (
   <textarea className={`textarea ${className}`} {...p} />
 );
+// Select from plain strings or { value, label, disabled } options, with an optional empty choice.
 export function Select({ options = [], placeholder, className = '', ...p }) {
   return (
     <select className={`select ${className}`} {...p}>
@@ -336,6 +353,7 @@ export function Select({ options = [], placeholder, className = '', ...p }) {
     </select>
   );
 }
+// Picker over the employee list from app meta ("Name · Code"), minus any in `exclude`.
 export function EmployeeSelect({
   value,
   onChange,
@@ -358,6 +376,7 @@ export function EmployeeSelect({
   );
 }
 
+// Tab strip; tabs are strings or { value, label }.
 export function Tabs({ tabs, value, onChange, variant = '' }) {
   return (
     <div className={`tabs ${variant}`} role="tablist">
@@ -380,6 +399,7 @@ export function Tabs({ tabs, value, onChange, variant = '' }) {
     </div>
   );
 }
+// Segmented control for a small set of options (strings or { value, label }).
 export function Seg({ options, value, onChange }) {
   return (
     <div className="seg">
@@ -400,6 +420,7 @@ export function Seg({ options, value, onChange }) {
   );
 }
 
+// Empty-state placeholder with an icon, message and optional actions.
 export function Empty({ icon: Icon = Inbox, text = 'Nothing here yet', children }) {
   return (
     <div className="empty">
@@ -409,12 +430,14 @@ export function Empty({ icon: Icon = Inbox, text = 'Nothing here yet', children 
     </div>
   );
 }
+// Spinner with a message.
 export const Loading = ({ text = 'Loading…' }) => (
   <div className="loading">
     <LoaderCircle className="spin" size={20} />
     {text}
   </div>
 );
+// Error message with an optional Retry link.
 export function ErrorBox({ error, onRetry }) {
   // Retries by itself once the connection comes back.
   useEffect(() => {
@@ -434,6 +457,7 @@ export function ErrorBox({ error, onRetry }) {
   );
 }
 
+// Progress bar for a 0-100 value.
 export function Progress({ value = 0, color = 'var(--blue)', height = 8 }) {
   return (
     <div className="progress" style={{ height }}>
@@ -441,6 +465,7 @@ export function Progress({ value = 0, color = 'var(--blue)', height = 8 }) {
     </div>
   );
 }
+// On/off switch; `label` names it for screen readers.
 export function Toggle({ on, onChange, disabled, label }) {
   return (
     <button
@@ -454,8 +479,10 @@ export function Toggle({ on, onChange, disabled, label }) {
   );
 }
 
+// Page buttons with prev/next and an optional page-size picker.
 export function Pagination({ page, pageSize, total, onPage, onPageSize }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
+  // Show the first, last and neighbouring pages; collapse the rest into '…'.
   const nums = [];
   for (let p = 1; p <= pages; p++) {
     if (p === 1 || p === pages || Math.abs(p - page) <= 1) nums.push(p);
@@ -500,6 +527,7 @@ export function Pagination({ page, pageSize, total, onPage, onPageSize }) {
           <ChevronRight size={16} />
         </button>
       </div>
+      {/* Page size */}
       {onPageSize && (
         <div className="row small muted">
           Show
@@ -528,6 +556,7 @@ export function useConfirm() {
     (opts) => new Promise((resolve) => setState({ ...opts, resolve })),
     [],
   );
+  // Settles the pending promise with the answer and hides the dialog.
   const close = (v) => {
     state?.resolve(v);
     setState(null);
@@ -554,6 +583,7 @@ export function useConfirm() {
   return [confirm, el];
 }
 
+// "More actions" dropdown; falsy items are skipped so callers can add them conditionally.
 export function Menu({ items, label = 'More actions', icon: Icon = Ellipsis, align = 'right' }) {
   const [open, setOpen] = useState(false);
   const ref = useClickOutside(useCallback(() => setOpen(false), []));
@@ -573,6 +603,7 @@ export function Menu({ items, label = 'More actions', icon: Icon = Ellipsis, ali
       >
         <Icon size={18} />
       </button>
+      {/* Menu items; clicks don't reach the row underneath */}
       {open && (
         <div className="dropdown" style={{ minWidth: 200, [align]: 0 }}>
           {visible.map((it) => (
@@ -596,6 +627,7 @@ export function Menu({ items, label = 'More actions', icon: Icon = Ellipsis, ali
   );
 }
 
+// Calendar-style tile showing a date's day and short month.
 export function DateBox({ date }) {
   const d = new Date(`${String(date).slice(0, 10)}T00:00:00`);
   return (
@@ -606,6 +638,7 @@ export function DateBox({ date }) {
   );
 }
 
+// Drop zone for files; clicking it opens the file picker instead.
 export function FileDrop({ onFiles, accept, multiple = true, children }) {
   const input = useRef(null);
   const [over, setOver] = useState(false);
@@ -631,6 +664,7 @@ export function FileDrop({ onFiles, accept, multiple = true, children }) {
         background: over ? 'var(--blue-soft)' : 'var(--surface-2)',
       }}
     >
+      {/* Hidden picker; cleared after each pick so the same file can be chosen again */}
       <input
         ref={input}
         type="file"
@@ -649,6 +683,7 @@ export function FileDrop({ onFiles, accept, multiple = true, children }) {
 
 export function SimpleMarkdown({ text = '' }) {
   // Renders the small subset used by policies: ## headings, - bullets, paragraphs.
+  // Group lines into blocks; consecutive bullets share one list.
   const blocks = [];
   let list = null;
   for (const raw of String(text).split('\n')) {

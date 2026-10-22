@@ -1,18 +1,10 @@
-// Work sessions and short-hours follow-up.
-//
-// A day can have several sessions: check in, step out (check out or sign
-// out), check in again. Coming back asks for the reason for the gap. The
-// attendance row stays the day's summary (first check-in, last check-out,
-// status) so the register, leave and payroll code keep working unchanged.
-//
-// From the next day, a working day with fewer hours than required becomes an
-// hour_shortfalls row: the employee explains it, and their reporting manager
-// or an administrator approves it (the day counts in full) or rejects it (the
-// day becomes a half day).
+// Work sessions (several a day; the attendance row keeps the day's summary) and short hours.
+// Short days are explained, then the manager or an admin approves them or makes them half days.
 import { getSettings, fullName, notifyUsers, userIdForEmployee } from '../core.js';
 import * as D from '../lib/dates.js';
 import { dayStatuses } from './calendar.js';
 
+// Reasons offered when someone checks in again after time away.
 export const GAP_REASONS = [
   'Client meeting',
   'Site / field visit',
@@ -21,10 +13,14 @@ export const GAP_REASONS = [
   'Medical',
   'Other',
 ];
+// An office day under 4 hours is marked as a half day.
 const HALF_DAY_MINUTES = 240;
 
+// Whole minutes between two ISO timestamps, never negative.
 const minutesBetween = (a, b) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 60000));
+// "7h 05m".
 export const fmtMinutes = (m) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+// "Mon, 3 Mar" for a date.
 export const dayLabel = (date) =>
   new Intl.DateTimeFormat('en-GB', {
     timeZone: 'UTC',
@@ -60,6 +56,7 @@ export function ensureSessions(db, employeeId, date) {
   });
 }
 
+// The day's sessions, or one built from the attendance row; read-only, unlike ensureSessions.
 export function sessionsFor(db, employeeId, date) {
   const rows = db.all(
     'SELECT * FROM work_sessions WHERE employee_id = ? AND date = ? ORDER BY start_at',
@@ -112,10 +109,12 @@ export function gapsOf(sessions) {
   return out;
 }
 
+// Required minutes of work per day (workHours setting, default 8).
 export function requiredMinutes(settings) {
   return Math.round(Number(settings.workHours || 8) * 60);
 }
 
+// The day's sessions, gaps, time worked and clock state for the attendance widget.
 export function workdaySummary(db, employeeId, date, settings = getSettings(db)) {
   const sessions = sessionsFor(db, employeeId, date);
   const open = sessions.find((s) => !s.end_at) || null;
@@ -149,6 +148,7 @@ export function syncAttendance(db, employeeId, date, userId) {
     date,
   );
   if (!sessions.length) return;
+  // WFH if the day started remote, else present; a finished office day under 4h is a half day.
   const open = sessions.some((s) => !s.end_at);
   const base = sessions[0].mode === 'wfh' ? 'WFH' : 'P';
   const worked = workedMinutes(sessions);
@@ -166,6 +166,8 @@ export function syncAttendance(db, employeeId, date, userId) {
   );
 }
 
+// Starts the work clock. Checking in again the same day needs a gap reason and keeps
+// the day's first mode (office or WFH).
 export function startSession(
   db,
   { employeeId, date, mode, gapReason, gapNote, userId, now = new Date().toISOString() },

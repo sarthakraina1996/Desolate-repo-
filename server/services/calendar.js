@@ -4,6 +4,7 @@ import { getSettings } from '../core.js';
 import { dow, eachDay, monthStart, monthEnd } from '../lib/dates.js';
 import { isWorkingDay } from '../lib/leave.js';
 
+// Weekly offs and company holidays, the context isWorkingDay needs.
 export function calendarCtx(db, settings = getSettings(db)) {
   const holidays = new Set(
     db.all("SELECT date FROM holidays WHERE type = 'Company'").map((r) => r.date),
@@ -11,6 +12,7 @@ export function calendarCtx(db, settings = getSettings(db)) {
   return { weeklyOffs: settings.weeklyOffs, holidays };
 }
 
+// Holidays in a range by date; a company holiday wins over another type on the same day.
 export function holidayNames(db, from, to) {
   const map = new Map();
   for (const h of db.all(
@@ -43,6 +45,7 @@ export function approvedLeaveDays(db, employeeIds, from, to, ctx) {
     if (!m) out.set(r.employee_id, (m = new Map()));
     const start = r.from_date > from ? r.from_date : from;
     const end = r.to_date < to ? r.to_date : to;
+    // Working-day leave types skip offs and holidays; calendar-day types cover every day.
     for (const d of eachDay(start, end)) {
       if (!r.calendar_days && !isWorkingDay(d, ctx)) continue;
       m.set(d, {
@@ -67,6 +70,7 @@ export function dayStatuses(db, employees, from, to, today, settings = getSettin
   const ctx = calendarCtx(db, settings);
   const ids = employees.map((e) => e.id);
   const leaves = approvedLeaveDays(db, ids, from, to, ctx);
+  // Attendance marks indexed by employee, then date.
   const records = new Map();
   if (ids.length) {
     for (const r of db.all(
@@ -91,6 +95,8 @@ export function dayStatuses(db, employees, from, to, today, settings = getSettin
       const employed = d >= e.join_date && (!e.exit_date || d <= e.exit_date);
       const r = rec?.get(d);
       const leave = lv?.get(d);
+      // First match wins. Calendar-day leave (e.g. maternity) overrides holidays and offs;
+      // lop is the loss-of-pay days the day counts for in payroll.
       let s;
       if (!employed) s = { code: 'NA', lop: 0 };
       else if (leave && leave.calendar) s = { code: 'L', lop: leave.paid ? 0 : 1, leave };
@@ -109,6 +115,7 @@ export function dayStatuses(db, employees, from, to, today, settings = getSettin
       } else {
         s = { code: 'F', lop: 0 };
       }
+      // Keep the raw mark and times for display, whatever the derived status is.
       if (r) {
         s.checkIn = r.check_in;
         s.checkOut = r.check_out;
@@ -122,6 +129,7 @@ export function dayStatuses(db, employees, from, to, today, settings = getSettin
   return result;
 }
 
+// [first day, last day] of a 'YYYY-MM' month.
 export function monthRange(month) {
   return [monthStart(month), monthEnd(month)];
 }

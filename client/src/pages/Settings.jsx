@@ -39,6 +39,7 @@ import {
 import { TempPasswordModal } from '../components/forms.jsx';
 import { LEAVE_ICONS } from './Leave.jsx';
 
+// Settings page: one tab per area; the audit log and data tools are for administrators only.
 export default function SettingsPage() {
   const { isAdmin } = useApp();
   const [sp, setSp] = useSearchParams();
@@ -66,6 +67,7 @@ export default function SettingsPage() {
         </div>
       </div>
       <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={tabs} />
+      {/* Active tab; admin-only tabs also check the role here */}
       {tab === 'company' && <Company />}
       {tab === 'payroll' && <PayrollRules />}
       {tab === 'org' && <Org />}
@@ -78,21 +80,26 @@ export default function SettingsPage() {
   );
 }
 
+// Loads company settings along with the vertical, department and location masters.
 function useSettings() {
   return useApi('/settings');
 }
 
+// Company tab: name, working hours, weekly offs and HR defaults, plus AI screening status.
 function Company() {
   const { toast, refreshMeta, loadMe, info } = useApp();
   const { data, error } = useSettings();
   const [f, setF] = useState(null);
   const [run, busy] = useAction(toast);
+  // Fill the form once, when the settings first load
   useEffect(() => {
     if (data && !f) setF(data.settings);
   }, [data, f]);
   if (error) return <ErrorBox error={error} />;
   if (!f) return <Loading />;
+  // Change handler for a text field.
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Weekly offs are stored as day indexes, Sunday = 0
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   return (
     <div className="grid">
@@ -177,6 +184,7 @@ function Company() {
             />
           </Field>
         </div>
+        {/* Saves only this form's fields, then refreshes app data and the work clock */}
         <Button
           variant="primary"
           icon={Save}
@@ -226,6 +234,7 @@ function Company() {
           Save
         </Button>
       </Card>
+      {/* Whether resume screening uses Claude or the rule-based fallback */}
       <Card className="span-4" title="AI resume screening">
         <div className="row gap-6 mb-12">
           <Bot size={20} className="blue" />
@@ -251,16 +260,19 @@ function Company() {
   );
 }
 
+// Payroll Rules tab: salary split, PF, ESI, PT, LWF and how unmarked days are paid.
 function PayrollRules() {
   const { toast } = useApp();
   const { data, error } = useSettings();
   const [p, setP] = useState(null);
   const [run, busy] = useAction(toast);
+  // Fill the form once, when the settings first load
   useEffect(() => {
     if (data && !p) setP(data.settings.payroll);
   }, [data, p]);
   if (error) return <ErrorBox error={error} />;
   if (!p) return <Loading />;
+  // Number field bound to payroll rule k.
   const num = (k, label, hint) => (
     <Field label={label} hint={hint}>
       <Input
@@ -294,6 +306,7 @@ function PayrollRules() {
         <div className="form-section">Salary structure</div>
         {num('basicPct', 'Basic (% of monthly CTC)')}
         {num('hraPct', 'HRA (% of Basic)', '40% non-metro, 50% metro')}
+        {/* Empty cell keeps the next section on its own row */}
         <div />
         <div className="form-section">Provident Fund</div>
         <label className="check">
@@ -316,6 +329,7 @@ function PayrollRules() {
         <div />
         {num('lwfEmployee', 'LWF employee (₹)')}
         {num('lwfEmployer', 'LWF employer (₹)')}
+        {/* LWF months are stored as 1-12 */}
         <Field label="LWF deducted in">
           <div className="row wrap" style={{ gap: 8 }}>
             {months.map((m, i) => (
@@ -362,6 +376,7 @@ function PayrollRules() {
   );
 }
 
+// Organisation tab: the verticals, departments and locations masters.
 function Org() {
   const { data, error, reload } = useSettings();
   if (error) return <ErrorBox error={error} />;
@@ -381,18 +396,21 @@ function Org() {
   );
 }
 
+// Editable list for one master table: add, rename and delete; verticals also get a colour.
 function Master({ table, items, reload, withColor }) {
   const { toast, refreshMeta } = useApp();
   const [name, setName] = useState('');
   const [edit, setEdit] = useState(null);
   const [run, busy] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
+  // Reloads the list and the app-wide lookups after a change.
   const done = () => {
     reload();
     refreshMeta();
   };
   return (
     <div>
+      {/* Items with their employee counts; delete only works when nothing uses the item */}
       {items.map((x) => (
         <div key={x.id} className="list-item" style={{ padding: '8px 0' }}>
           {withColor && (
@@ -431,6 +449,7 @@ function Master({ table, items, reload, withColor }) {
           />
         </div>
       ))}
+      {/* Add a new item; its short name starts out as the full name */}
       <div className="row mt-12" style={{ gap: 8 }}>
         <Input
           className="sm"
@@ -452,6 +471,7 @@ function Master({ table, items, reload, withColor }) {
           Add
         </Button>
       </div>
+      {/* Edit modal */}
       {edit && (
         <Modal
           title={`Edit ${edit.name}`}
@@ -482,6 +502,7 @@ function Master({ table, items, reload, withColor }) {
                 onChange={(e) => setEdit({ ...edit, name: e.target.value })}
               />
             </Field>
+            {/* Vertical-only fields */}
             {withColor && (
               <>
                 <Field label="Short name (shown in the top bar)">
@@ -513,12 +534,14 @@ function Master({ table, items, reload, withColor }) {
   );
 }
 
+// Leave Types tab: the leave policy builder, listing types and editing quotas, accrual and rules.
 function LeaveTypes() {
   const { toast, refreshMeta } = useApp();
   const { data, reload } = useApi('/leave/types');
   const [edit, setEdit] = useState(null);
   const [run, busy] = useAction(toast);
   if (!data) return <Loading />;
+  // Creates or updates the type; unlimited types are saved with no annual quota.
   const save = async () => {
     const body = { ...edit, annual_quota: edit.unlimited ? null : edit.annual_quota };
     if (
@@ -563,6 +586,7 @@ function LeaveTypes() {
         </Button>
       }
     >
+      {/* Leave types table */}
       <div className="table-wrap" style={{ marginTop: 8 }}>
         <table className="table">
           <thead>
@@ -611,6 +635,7 @@ function LeaveTypes() {
                     {t.active ? <Badge tone="green">Active</Badge> : <Badge tone="gray">Off</Badge>}
                   </td>
                   <td className="right" style={{ paddingRight: 18 }}>
+                    {/* A type with no quota opens as "Unlimited" */}
                     <Button
                       size="xs"
                       icon={Pencil}
@@ -627,6 +652,7 @@ function LeaveTypes() {
           </tbody>
         </table>
       </div>
+      {/* Leave type editor */}
       {edit && (
         <Modal
           title={edit.id ? `Edit ${edit.name}` : 'New leave type'}
@@ -641,6 +667,7 @@ function LeaveTypes() {
           }
         >
           <div className="form-grid">
+            {/* The code is set only when the type is created */}
             {!edit.id && (
               <Field label="Code">
                 <Input
@@ -715,6 +742,7 @@ function LeaveTypes() {
                 style={{ minHeight: 60 }}
               />
             </Field>
+            {/* Paid, calendar-day counting, WFH and active switches */}
             <label className="check">
               <input
                 type="checkbox"
@@ -754,17 +782,21 @@ function LeaveTypes() {
   );
 }
 
+// Users & Roles tab: roles, login on/off, password resets and bulk login creation.
 function Users() {
   const { toast, isAdmin, user } = useApp();
   const { data, reload } = useApi('/users');
   const [q, setQ] = useState('');
+  // Reset result holding the one-time password to show
   const [temp, setTemp] = useState(null);
   const [run, busy] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
   if (!data) return <Loading />;
+  // Search by name or email
   const items = data.users.filter(
     (u) => !q || `${u.name} ${u.email}`.toLowerCase().includes(q.toLowerCase()),
   );
+  // Only administrators can grant the admin role
   const roles = [
     { value: 'employee', label: 'Employee' },
     { value: 'manager', label: 'Manager' },
@@ -773,6 +805,7 @@ function Users() {
   ];
   return (
     <div>
+      {/* What each role can do */}
       <div className="alert info mb-16" style={{ alignItems: 'center' }}>
         <span className="grow">
           <b>Roles:</b> Employee = self-service · Manager = their team's leave, attendance, reviews
@@ -780,6 +813,7 @@ function Users() {
           payroll management approval and data reset.
         </span>
       </div>
+      {/* Logins table, with search and bulk creation for employees without a login */}
       <Card
         flush
         title={`Logins (${data.users.length})`}
@@ -843,6 +877,7 @@ function Users() {
                     </div>
                   </td>
                   <td>
+                    {/* Locked for your own login, and for admins unless you are one */}
                     <select
                       className="select sm"
                       style={{ width: 150 }}
@@ -855,6 +890,7 @@ function Users() {
                         ).then(reload)
                       }
                     >
+                      {/* Keep Administrator listed so non-admins still see an admin's role */}
                       {roles
                         .concat(
                           u.role === 'admin' && !isAdmin
@@ -869,6 +905,7 @@ function Users() {
                     </select>
                   </td>
                   <td>
+                    {/* You can't disable your own login */}
                     <Toggle
                       on={Boolean(u.active)}
                       disabled={u.id === user.id}
@@ -885,6 +922,7 @@ function Users() {
                     {u.last_login ? fmtDateTime(u.last_login) : 'Never'}
                   </td>
                   <td className="right" style={{ paddingRight: 18 }}>
+                    {/* Reset issues a one-time password, shown in a modal */}
                     <Button
                       size="xs"
                       icon={KeyRound}
@@ -918,6 +956,7 @@ function Users() {
   );
 }
 
+// Audit log tab: the latest 200 recorded actions.
 function Audit() {
   const { data } = useApi('/audit');
   if (!data) return <Loading />;
@@ -961,18 +1000,22 @@ function Audit() {
   );
 }
 
+// Data tab: remove the demo data to start with real data, or reload the demo company.
 function DataTab() {
   const { toast, loadMe, info } = useApp();
   const navigate = useNavigate();
   const [run, busy] = useAction(toast);
   const [modal, setModal] = useState(null);
   const [text, setText] = useState('');
+  // New admin login, needed for a fresh start since the demo password stops working
   const [login, setLogin] = useState({ email: '', password: '', repeat: '' });
   const fresh = modal === 'fresh';
   const mismatch = fresh && login.repeat && login.password !== login.repeat;
+  // Confirm needs the typed phrase, plus a complete login with matching passwords for a fresh start
   const ready =
     text === (fresh ? 'START FRESH' : 'RESET') &&
     (!fresh || (login.email && login.password && login.password === login.repeat));
+  // Runs the wipe or reset, then goes home and reloads the signed-in user.
   const go = async () => {
     const path = fresh ? '/settings/start-fresh' : '/settings/reset-demo';
     const body = fresh
@@ -989,6 +1032,7 @@ function DataTab() {
   };
   return (
     <div className="grid">
+      {/* Start fresh; only offered while on demo data */}
       <Card className="span-6" title="Start using with real data">
         <p className="small" style={{ lineHeight: 1.6, color: 'var(--text-2)' }}>
           Removes every demo employee, candidate, payroll run and record, keeping only your
@@ -1011,6 +1055,7 @@ function DataTab() {
           </Badge>
         )}
       </Card>
+      {/* Reset to demo */}
       <Card className="span-6" title="Reset demo">
         <p className="small" style={{ lineHeight: 1.6, color: 'var(--text-2)' }}>
           Deletes everything and reloads the demo company. Useful for training sessions.
@@ -1024,6 +1069,7 @@ function DataTab() {
           Reset to demo data
         </Button>
       </Card>
+      {/* Confirmation modal for either action */}
       {modal && (
         <Modal
           title={modal === 'fresh' ? 'Remove all demo data?' : 'Reset to demo data?'}

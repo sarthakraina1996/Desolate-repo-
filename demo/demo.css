@@ -1,5 +1,6 @@
 /* Demo-only additions: the start-up screen and the corner badge. Colours
    come from the app's tokens in client/src/styles.css. */
+/* Start-up screen: centred title, note and loading bar while the demo company is built */
 .demo-boot {
   min-height: 100%;
   display: grid;
@@ -16,6 +17,7 @@
   color: var(--muted);
   font-size: 14px;
 }
+/* Indeterminate loading bar: a red segment sliding across a grey track */
 .demo-boot .bar {
   width: 220px;
   height: 4px;
@@ -41,6 +43,7 @@
     transform: translateX(250%);
   }
 }
+/* Reduced motion: a full, still bar instead of the slide */
 @media (prefers-reduced-motion: reduce) {
   .demo-boot .bar::after {
     animation: none;
@@ -48,6 +51,7 @@
   }
 }
 
+/* Demo note pinned bottom-left; z-index 250 keeps it above the app's toasts (200) */
 .demo-badge {
   position: fixed;
   left: 12px;
@@ -65,6 +69,7 @@
   border-radius: 999px;
   box-shadow: var(--shadow-lg);
 }
+/* Lets the note wrap to a second line, with a smaller radius to suit */
 .demo-badge {
   flex-wrap: wrap;
   border-radius: 16px;
@@ -75,6 +80,7 @@
   text-transform: uppercase;
   font-size: 11px;
 }
+/* "You are in the office / at home" picker for the location check-in */
 .demo-badge .place {
   display: inline-flex;
   align-items: center;
@@ -94,6 +100,7 @@
   outline: 2px solid #fff;
   outline-offset: 2px;
 }
+/* Round button that hides the note */
 .demo-badge button {
   border: 0;
   background: rgba(255, 255, 255, 0.16);
@@ -110,6 +117,7 @@
   outline: 2px solid #fff;
   outline-offset: 2px;
 }
+/* Brief message for things outside the app's toasts (downloads); z-index 260 clears the note */
 .demo-notice {
   position: fixed;
   left: 50%;

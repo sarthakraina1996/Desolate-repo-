@@ -30,6 +30,7 @@ test('stepping out and coming back asks the reason for the gap', async () => {
   const noReason = await emp.post('/attendance/check-in', { mode: 'office' });
   assert.equal(noReason.status, 400);
   assert.match(noReason.body.error, /reason for the gap/);
+  // "Other" needs a note.
   assert.equal((await emp.post('/attendance/check-in', { gap_reason: 'Other' })).status, 400);
   assert.equal(
     (
@@ -40,6 +41,7 @@ test('stepping out and coming back asks the reason for the gap', async () => {
     ).status,
     200,
   );
+  // Already checked in.
   assert.equal(
     (await emp.post('/attendance/check-in', { gap_reason: 'Client meeting' })).status,
     409,
@@ -79,6 +81,7 @@ test('a short day is explained by the employee and decided by their manager or t
     )
     .map((r) => r.date);
   assert.equal(days.length, 2, 'need two recent working days');
+  // Replace each day's sessions with two 3-hour spans around a long gap.
   for (const d of days) {
     db.run('DELETE FROM work_sessions WHERE employee_id = ? AND date = ?', emp.id, d);
     db.insert('work_sessions', {
@@ -154,6 +157,7 @@ test('a short day is explained by the employee and decided by their manager or t
     ),
   );
 
+  // The employee's own manager rejects one, which marks that day a half day.
   const mgr = await as(ctx.base, MGR_OF_EMP);
   const queue = (await mgr.get('/attendance/short-hours?view=team&status=open')).body.items;
   const row = queue.find((x) => x.id === a.id);
@@ -178,6 +182,7 @@ test('a short day is explained by the employee and decided by their manager or t
     409,
   );
 
+  // The CEO approves the other, which keeps it a present day.
   const ceo = await as(ctx.base, CEO);
   assert.equal(
     (await ceo.post(`/attendance/short-hours/${b.id}/decide`, { action: 'approve' })).status,
@@ -206,6 +211,7 @@ test('a clock left running overnight is closed at the end of that workday', asyn
   );
   db.run('DELETE FROM work_sessions WHERE employee_id = ? AND date = ?', emp.id, d);
   db.run('DELETE FROM hour_shortfalls WHERE employee_id = ? AND date = ?', emp.id, d);
+  // A session on an earlier day that was never checked out.
   db.insert('work_sessions', {
     employee_id: emp.id,
     date: d,
@@ -213,6 +219,7 @@ test('a clock left running overnight is closed at the end of that workday', asyn
     mode: 'office',
   });
   syncAttendance(db, emp.id, d, null);
+  // Opening the work clock closes it at the default 18:30 workday end.
   const c = await as(ctx.base, 'kavya.singh@brainadz.com');
   await c.get('/attendance/workday');
   const s = db.get('SELECT * FROM work_sessions WHERE employee_id = ? AND date = ?', emp.id, d);
@@ -237,6 +244,7 @@ test('HR sets the working hours per day used for short-hours checks', async () =
   );
   const emp = await as(ctx.base, EMP);
   assert.equal((await emp.get('/attendance/workday')).body.workday.requiredMinutes, 540);
+  // Invalid values are refused, then the defaults are restored.
   assert.equal((await hr.put('/settings', { workHours: 30 })).status, 400);
   assert.equal((await hr.put('/settings', { workdayEnd: '7pm' })).status, 400);
   assert.equal(

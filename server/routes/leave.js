@@ -215,6 +215,7 @@ export default function leaveRoutes(r, { db }) {
     const halfDay = Boolean(body.half_day);
     if (halfDay && from !== to) fail(400, 'Half day leave must be a single date');
     if (from < emp.join_date) fail(400, 'Leave cannot start before the joining date');
+    // Leave starting more than 45 days ago can only be applied by HR
     const T = today(db);
     if (from < D.addDays(T, -45) && !isHR(user))
       fail(400, 'Leave older than 45 days must be applied by HR');
@@ -234,6 +235,7 @@ export default function leaveRoutes(r, { db }) {
       from,
     );
     if (overlap) fail(409, 'You already have leave applied for some of these dates');
+    // Types with a quota need enough balance in each year the leave falls in
     if (type.annual_quota != null) {
       for (const [year, n] of perYear) {
         const b = balances(
@@ -253,6 +255,7 @@ export default function leaveRoutes(r, { db }) {
     return { emp, type, from, to, halfDay, days };
   }
 
+  // Dry run of an application: returns the day count or the validation error.
   r.post('/leave/preview', (req, res) => {
     try {
       const v = validateRequest(req.body, req.user);
@@ -262,6 +265,7 @@ export default function leaveRoutes(r, { db }) {
     }
   });
 
+  // Applies for leave; HR can record leave for someone else and approve it at once.
   r.post('/leave/requests', (req, res) => {
     const v = validateRequest(req.body, req.user);
     const reason = str(req.body.reason, { max: 500 });
@@ -279,11 +283,13 @@ export default function leaveRoutes(r, { db }) {
       decided_by: autoApprove ? req.user.id : null,
       decided_at: autoApprove ? new Date().toISOString() : null,
     });
+    // Short date label for the notification, e.g. "Mar 04 – Mar 06"
     const name = fullName(v.emp);
     const when =
       v.from === v.to
         ? D.parseYmd(v.from).toDateString().slice(4, 10)
         : `${D.parseYmd(v.from).toDateString().slice(4, 10)} – ${D.parseYmd(v.to).toDateString().slice(4, 10)}`;
+    // Notify the manager (HR if there is none), or the employee when HR recorded it
     if (!autoApprove) {
       const mgr = managerUserId(db, v.emp.id);
       notifyUsers(
@@ -304,6 +310,7 @@ export default function leaveRoutes(r, { db }) {
     res.json({ id: rid, days: v.days });
   });
 
+  // Approves or rejects a pending request (HR or the employee's manager) and tells them.
   r.post('/leave/requests/:id/decision', (req, res) => {
     const rid = id(req.params.id);
     const lr =
@@ -318,6 +325,7 @@ export default function leaveRoutes(r, { db }) {
       name: 'Action',
     });
     const note = str(req.body.note, { max: 300 });
+    // The client can ask for a reason to be mandatory when rejecting
     if (action === 'reject' && !note && req.body.requireNote)
       fail(400, 'Add a reason for rejecting');
     const status = action === 'approve' ? 'Approved' : 'Rejected';
@@ -337,6 +345,7 @@ export default function leaveRoutes(r, { db }) {
     res.json({ ok: true, status });
   });
 
+  // Cancels pending or approved leave (owner or HR); only HR can cancel leave already started.
   r.post('/leave/requests/:id/cancel', (req, res) => {
     const rid = id(req.params.id);
     const lr =
@@ -363,6 +372,7 @@ export default function leaveRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Leave balances for the user, or for an employee they can see.
   r.get('/leave/balances', (req, res) => {
     const T = today(db);
     const eid = req.query.employee ? id(req.query.employee) : req.user.employeeId;
@@ -376,11 +386,13 @@ export default function leaveRoutes(r, { db }) {
     });
   });
 
+  // Team leave calendar for up to two months, grouped by employee.
   r.get('/leave/calendar', (req, res) => {
     const T = today(db);
     const from = date(req.query.from) || T;
     const to = date(req.query.to) || D.addDays(from, 6);
     if (D.diffDays(from, to) > 62) fail(400, 'Choose a range of up to two months');
+    // Employees see their manager's team: their peers and the manager
     let ids = scopeIds(db, req.user);
     if (ids !== null && req.user.role === 'employee' && req.user.employeeId) {
       const mgr = db.value('SELECT manager_id FROM employees WHERE id = ?', req.user.employeeId);
@@ -416,6 +428,7 @@ export default function leaveRoutes(r, { db }) {
       `${LIST_SELECT} WHERE ${where.join(' AND ')} ORDER BY e.first_name, r.from_date`,
       ...params,
     );
+    // Group the requests by employee
     const byEmp = new Map();
     for (const x of rows) {
       if (!byEmp.has(x.employee_id))
@@ -454,6 +467,7 @@ export default function leaveRoutes(r, { db }) {
   });
 
   // ---------- holidays ----------
+  // Holidays in a year (default: this year).
   r.get('/holidays', (req, res) => {
     const year = Number(req.query.year) || D.yearOf(today(db));
     res.json({
@@ -483,6 +497,7 @@ export default function leaveRoutes(r, { db }) {
         to,
         from,
       );
+      // One entry per day in the year; working-day types skip offs and holidays
       for (const r of rows) {
         for (const d of D.eachDay(
           r.from_date < from ? from : r.from_date,
@@ -512,6 +527,7 @@ export default function leaveRoutes(r, { db }) {
     });
   });
 
+  // Adds a holiday (HR only); the same name twice on one date is rejected.
   r.post('/holidays', (req, res) => {
     requireHR(req);
     const h = {
@@ -523,6 +539,7 @@ export default function leaveRoutes(r, { db }) {
       fail(409, `${h.name} is already on the calendar for ${h.date}`);
     res.json({ id: db.insert('holidays', h) });
   });
+  // Removes a holiday (HR only).
   r.delete('/holidays/:id', (req, res) => {
     requireHR(req);
     db.run('DELETE FROM holidays WHERE id = ?', id(req.params.id));
@@ -530,9 +547,11 @@ export default function leaveRoutes(r, { db }) {
   });
 
   // ---------- leave policy builder ----------
+  // Lists every leave type, including inactive ones.
   r.get('/leave/types', (_req, res) => {
     res.json({ items: db.all('SELECT * FROM leave_types ORDER BY sort, id') });
   });
+  // Validates a leave type form; a blank quota means no balance limit.
   function readType(b) {
     return {
       name: str(b.name, { required: true, max: 60, name: 'Name' }),
@@ -551,6 +570,7 @@ export default function leaveRoutes(r, { db }) {
       active: b.active === false || b.active === 0 ? 0 : 1,
     };
   }
+  // Creates a leave type with a 2-6 letter code, added at the end of the list (HR only).
   r.post('/leave/types', (req, res) => {
     requireHR(req);
     const code = str(req.body.code, { required: true, max: 6, name: 'Code' }).toUpperCase();
@@ -563,6 +583,7 @@ export default function leaveRoutes(r, { db }) {
     audit(db, req.user, 'leave_type.create', 'leave_type', tid);
     res.json({ id: tid });
   });
+  // Updates a leave type (HR only); its code stays the same.
   r.put('/leave/types/:id', (req, res) => {
     requireHR(req);
     const tid = id(req.params.id);

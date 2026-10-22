@@ -18,6 +18,7 @@ import {
 import { textPdf } from './lib/pdf.js';
 import { distanceM } from './services/geofence.js';
 
+// Every seeded login shares this password; DEMO_ACCOUNTS are offered on the sign-in page.
 export const DEMO_PASSWORD = 'Brainadz@2026';
 export const DEMO_ACCOUNTS = [
   { email: 'priya.sharma@brainadz.com', role: 'hr', label: 'HR Manager' },
@@ -26,6 +27,7 @@ export const DEMO_ACCOUNTS = [
   { email: 'aarav.mehta@brainadz.com', role: 'employee', label: 'Employee' },
 ];
 
+// Small seeded PRNG, so the demo data comes out the same on every run.
 function mulberry32(a) {
   return () => {
     a |= 0;
@@ -36,6 +38,7 @@ function mulberry32(a) {
   };
 }
 
+// The company's business lines and their brand colours.
 const VERTICALS = [
   { name: 'BrainADZ Live', short: 'Live', tagline: 'From Vision to Visibility', color: '#E5243B' },
   {
@@ -70,6 +73,7 @@ const DEPARTMENTS = [
 ];
 const LOCATIONS = ['Bengaluru', 'Mumbai', 'Delhi NCR'];
 
+// Leave types with yearly quotas; a null quota means unlimited.
 export const LEAVE_TYPES = [
   {
     code: 'EL',
@@ -136,6 +140,7 @@ export const LEAVE_TYPES = [
   },
 ];
 
+// Holidays for a year as [date, name, type]: fixed dates, plus festivals where known.
 export function holidaysFor(year) {
   const list = [
     [`${year}-01-14`, 'Makar Sankranti / Pongal', 'Restricted'],
@@ -160,6 +165,7 @@ export function holidaysFor(year) {
   return list;
 }
 
+// Name pools for generated employees and candidates.
 const MALE = [
   'Aarav',
   'Vihaan',
@@ -263,6 +269,7 @@ const LAST = [
   'Hegde',
 ];
 
+// Profile skills by department.
 const SKILLS = {
   Leadership: [
     'Strategy',
@@ -316,6 +323,7 @@ const SKILLS = {
   IT: ['Networking', 'Windows Server', 'IT Support', 'Cloud', 'Security'],
   Admin: ['Facilities', 'Procurement', 'Vendor Management', 'Travel Desk'],
 };
+// Certifications ([name, issuer]) people in some departments may hold.
 const CERTS = {
   Marketing: [
     ['Google Ads Certification', 'Google'],
@@ -331,6 +339,7 @@ const CERTS = {
   Creative: [['Adobe Certified Professional', 'Adobe']],
 };
 
+// Teams: lead, fixed named members, titles for generated members and total size `n`.
 const TEAMS = [
   {
     v: 'Live',
@@ -471,11 +480,13 @@ const TEAMS = [
     n: 2,
   },
 ];
+// Business head of each vertical; they report to the CEO.
 const HEADS = {
   Live: ['Arvind', 'Menon', 'M', 'Business Head – BrainADZ Live'],
   Marketing: ['Kavita', 'Rao', 'F', 'Head of Marketing'],
   Exhibits: ['Suresh', 'Iyer', 'M', 'Business Head – BrainADZ Exhibits'],
 };
+// Titles on the lowest pay band.
 const JUNIOR = [
   'Facilities Coordinator',
   'Site Supervisor',
@@ -483,6 +494,7 @@ const JUNIOR = [
   'Logistics Coordinator',
   'Production Executive',
 ];
+// Bank name and IFSC prefix.
 const BANKS = [
   ['HDFC Bank', 'HDFC'],
   ['ICICI Bank', 'ICIC'],
@@ -490,6 +502,7 @@ const BANKS = [
   ['Axis Bank', 'UTIB'],
   ['Kotak Mahindra Bank', 'KKBK'],
 ];
+// Current employers and colleges for candidate resumes.
 const COMPANIES = [
   'Infosys',
   'TCS',
@@ -531,20 +544,26 @@ const INSTITUTES = [
   'Osmania University',
 ];
 
+// Fills an empty database with the whole demo company, dated relative to `today`.
+// `saveFile` stores the sample document PDFs; without it no documents are seeded.
 export function seedDemo(db, { today, saveFile = null } = {}) {
   const T = today || D.todayIn('Asia/Kolkata');
   const rand = mulberry32(20261012);
+  // Random helpers on the seeded PRNG.
   const pick = (a) => a[Math.floor(rand() * a.length)];
   const int = (a, b) => a + Math.floor(rand() * (b - a + 1));
   const chance = (p) => rand() < p;
   const thisMonth = D.monthOf(T);
+  // ISO timestamp for an IST date and time.
   const isoAt = (d, hm = '10:00') => new Date(`${d}T${hm}:00+05:30`).toISOString();
+  // Moves a weekend date to the next weekday, or the previous one when dir is -1.
   const workday = (d, dir = 1) => {
     let x = d;
     while ([0, 6].includes(D.dow(x))) x = D.addDays(x, dir);
     return x;
   };
 
+  // One transaction, so a failed seed leaves nothing half-written.
   db.tx(() => {
     // ---------- settings & masters ----------
     setSetting(db, 'companyName', 'BrainADZ');
@@ -560,6 +579,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     for (const l of LOCATIONS) lId[l] = db.insert('locations', { name: l });
     LEAVE_TYPES.forEach((t, i) => db.insert('leave_types', { ...t, sort: i }));
     const lt = Object.fromEntries(db.all('SELECT * FROM leave_types').map((t) => [t.code, t]));
+    // Holidays for last year, this year and next.
     const year = D.yearOf(T);
     for (const y of [year - 1, year, year + 1])
       for (const [date, name, type] of holidaysFor(y)) db.insert('holidays', { date, name, type });
@@ -572,6 +592,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     const all = [];
     const recentJoinMonths = [-5, -4, -3, -2, -1, 0];
 
+    // Annual CTC in rupees, by grade and then by how senior the title sounds.
     function ctcFor(grade, title) {
       if (grade === 'CXO') return int(60, 75) * 100000;
       if (grade === 'Head') return int(32, 45) * 100000;
@@ -586,6 +607,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       return int(36, 75) * 10000;
     }
 
+    // Inserts one employee with generated contact, ID, bank and profile details.
     function addEmp({
       first,
       last,
@@ -604,7 +626,8 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     }) {
       const name = `${first} ${last}`;
       usedNames.add(name);
-      let email = `${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, '') + '@brainadz.com';
+      // Repeated names get a numbered email (first.last2@...).
+      let email =`${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, '') + '@brainadz.com';
       let n = 2;
       while (usedEmails.has(email))
         email = `${first}.${last}${n++}`.toLowerCase().replace(/[^a-z0-9.]/g, '') + '@brainadz.com';
@@ -656,6 +679,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       return e;
     }
 
+    // A random name for gender `g` that is not taken yet.
     function genName(g) {
       for (;;) {
         const first = pick(g === 'F' ? FEMALE : MALE);
@@ -663,10 +687,12 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         if (!usedNames.has(`${first} ${last}`)) return [first, last];
       }
     }
+    // A weekday join date between `from` and `backDays` before today.
     const pastJoin = (from = '2017-01-01', backDays = 200) => {
       const span = D.diffDays(from, D.addDays(T, -backDays));
       return workday(D.addDays(from, int(0, Math.max(0, span))));
     };
+    // A weekday join date in the last six months, never later than yesterday.
     const recentJoin = () => {
       const m = D.addMonths(thisMonth, pick(recentJoinMonths));
       const last = m === thisMonth ? D.addDays(T, -1) : D.monthEnd(m);
@@ -674,6 +700,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       return workday(D.addDays(D.monthStart(m), int(0, span)));
     };
 
+    // The CEO, then the vertical heads reporting to him.
     const ceo = addEmp({
       first: 'Rajiv',
       last: 'Malhotra',
@@ -702,6 +729,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         loc: v === 'Live' ? 'Mumbai' : v === 'Exhibits' ? 'Delhi NCR' : 'Bengaluru',
       });
     }
+    // Each team's lead, then its named and generated members.
     const leads = {};
     const byName = {};
     for (const t of TEAMS) {
@@ -743,6 +771,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
           [first2, last2] = genName(g2);
           title2 = pick(t.titles);
         }
+        // About a fifth of generated members are recent joiners; Aarav's join date is fixed.
         const recent = !m.named && chance(0.22);
         const type = chance(0.9) ? 'Full-time' : pick(['Contract', 'Intern', 'Part-time']);
         const emp = addEmp({
@@ -766,6 +795,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         byName[`${first2} ${last2}`] = emp;
       }
     }
+    // Hand-written profile for Aarav, the demo employee login.
     const aarav = byName['Aarav Mehta'];
     db.update('employees', aarav.id, {
       about:
@@ -806,6 +836,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       'Relocation',
     ];
     const exited = [];
+    // Two exits a month, spread across teams.
     exitReasons.forEach((reason, i) => {
       const t = TEAMS[(i * 5) % TEAMS.length];
       const g = chance(0.5) ? 'F' : 'M';
@@ -834,6 +865,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     // ---------- users ----------
     const demoHash = hashPassword(DEMO_PASSWORD);
     const users = {};
+    // Creates a login for an employee and remembers its id by employee id.
     const addUser = (emp, role) => {
       const uid = db.insert('users', {
         email: emp.email,
@@ -844,6 +876,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       users[emp.id] = uid;
       return uid;
     };
+    // CEO as admin, two HR logins, every head and lead as manager, and a few employees.
     const ceoUser = addUser(ceo, 'admin');
     const hrUser = addUser(byName['Priya Sharma'], 'hr');
     addUser(byName['Neha Kapoor'], 'hr');
@@ -851,11 +884,15 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     for (const l of Object.values(leads)) if (!users[l.id]) addUser(l, 'manager');
     for (const n of ['Aarav Mehta', 'Kavya Singh', 'Rohit Verma', 'Ananya Singh', 'Sneha Kapoor'])
       addUser(byName[n], 'employee');
+    // Seeded payroll runs are processed as Priya.
     const hrActor = { id: hrUser, name: 'Priya Sharma' };
 
     // ---------- leave ----------
+    // Dates already on leave per employee, so requests never overlap.
     const busy = new Map();
+    // Leave is decided by the manager's login, or by HR when the manager has none.
     const managerUser = (e) => users[e.manager_id] || hrUser;
+    // Adds a leave request if it suits the type, employment dates and existing leave; else null.
     function addLeave(
       e,
       code,
@@ -876,6 +913,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       if (dates.some((d) => set.has(d))) return null;
       if (status !== 'Rejected') dates.forEach((d) => set.add(d));
       busy.set(e.id, set);
+      // Applied for 2-10 days ahead unless `created` is given; never dated after today.
       const createdAt = created || D.addDays(from, -int(2, 10));
       return db.insert('leave_requests', {
         employee_id: e.id,
@@ -909,6 +947,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       });
     }
     const current = all.filter((e) => e.status !== 'Exited');
+    // Two to five past requests per person over the last 200 days; LOP is rare.
     for (const e of all) {
       const n = int(2, 5);
       for (let i = 0; i < n; i++) {
@@ -926,6 +965,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     const shuffled = [...current]
       .filter((e) => e.join_date < D.addDays(T, -30) && e.grade !== 'CXO')
       .sort(() => rand() - 0.5);
+    // `k` steps through the shuffled staff so these requests go to different people.
     let k = 0;
     for (let i = 0; i < 4; i++, k++)
       addLeave(
@@ -944,6 +984,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         workday(D.addDays(from, int(0, 3))),
       );
     }
+    // Pending requests from named people, so the demo logins have approvals waiting.
     const pend = (name, code, inDays, len, reason) => {
       const e = byName[name];
       const from = workday(D.addDays(T, inDays));
@@ -985,6 +1026,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     }
 
     // ---------- attendance ----------
+    // Daily attendance from six months back, skipping weekly offs, holidays and leave.
     const attFrom = D.monthStart(D.addMonths(thisMonth, -6));
     const insAtt = db.raw.prepare(
       'INSERT OR REPLACE INTO attendance (employee_id, date, status, check_in, check_out) VALUES (?, ?, ?, ?, ?)',
@@ -995,11 +1037,13 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       for (const d of D.eachDay(attFrom > e.join_date ? attFrom : e.join_date, T)) {
         if (e.exit_date && d > e.exit_date) break;
         if (ctx.weeklyOffs.includes(D.dow(d)) || ctx.holidays.has(d) || leaveDates.has(d)) continue;
+        // Today: most people have checked in and nobody has checked out yet.
         if (d === T) {
           if (chance(0.78)) insAtt.run(e.id, d, 'P', isoAt(d, `09:${D.pad(int(5, 59))}`), null);
           continue;
         }
         if (d >= lastMonthStart && chance(0.012)) continue; // left unmarked
+        // Mostly present, with some WFH, half days and absences; about one in eight are late.
         const r = rand();
         const status = r < 0.86 ? 'P' : r < 0.93 ? 'WFH' : r < 0.97 ? 'HD' : 'A';
         if (status === 'A') insAtt.run(e.id, d, status, null, null);
@@ -1020,6 +1064,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     }
 
     // ---------- payroll ----------
+    // Approved reimbursements and bonuses each month, plus claims still pending this month.
     const payMonths = [-6, -5, -4, -3, -2, -1].map((n) => D.addMonths(thisMonth, n));
     for (const m of [...payMonths, thisMonth]) {
       const pool = all.filter(
@@ -1054,6 +1099,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
             status: 'Pending',
           });
     }
+    // Past six runs are processed for real, then marked paid with a full approval trail.
     for (const m of payMonths) {
       const run = processRun(db, hrActor, m, { today: T });
       const end = D.monthEnd(m);
@@ -1086,6 +1132,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       });
       db.run("UPDATE payslips SET status = 'Paid' WHERE run_id = ?", run.id);
     }
+    // This month's run is reviewed by Finance and waits for the CEO's approval.
     const cur = processRun(db, hrActor, thisMonth, { today: T });
     const curApprovals = JSON.parse(
       db.value('SELECT approvals FROM payroll_runs WHERE id = ?', cur.id),
@@ -1098,6 +1145,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     db.update('payroll_runs', cur.id, { status: 'Finance Reviewed', approvals: curApprovals });
 
     // ---------- hiring ----------
+    // Job openings; `ago` is days since posting and `n` the number of applicants.
     const JOBS = [
       {
         title: 'Senior Frontend Developer',
@@ -1314,6 +1362,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
         n: 5,
       },
     ];
+    // Where candidates come from; repeats weight the pick towards LinkedIn and Naukri.
     const SOURCES = [
       'LinkedIn',
       'LinkedIn',
@@ -1329,6 +1378,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       'Referrals',
       'Other',
     ];
+    // Pipeline stages in order; Rejected and On Hold sit outside it.
     const STAGES = [
       'Applied',
       'AI Screened',
@@ -1338,6 +1388,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       'Offer',
       'Hired',
     ];
+    // Candidate degree and first-round interviewer by department.
     const DEG = {
       Technology: 'B.Tech - CSE',
       Marketing: 'MBA - Marketing',

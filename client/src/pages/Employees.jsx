@@ -111,8 +111,10 @@ function People({ selectedId }) {
   });
   for (const [k, v] of [...qs.entries()]) if (!v) qs.delete(k);
   const { data, error, reload } = useApi(`/employees?${qs}`);
+  // Back to page 1 whenever the search or filters change
   useEffect(() => setPage(1), [dq, filters, vertical]);
   const first = data?.items[0]?.id;
+  // On wide screens, show the first employee's profile when none is selected
   const shown = selectedId || (window.innerWidth > 1100 ? first : null);
   const setF = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }));
   const k = data?.kpis;
@@ -125,6 +127,7 @@ function People({ selectedId }) {
             Our people make BrainADZ extraordinary. <VerticalFilterNote />
           </div>
         </div>
+        {/* Headcount stats */}
         {k && (
           <div className="row wrap" style={{ gap: 12 }}>
             <MiniStat icon={Users} tone="blue" label="Total Employees" value={k.total} />
@@ -152,8 +155,10 @@ function People({ selectedId }) {
           </div>
         )}
       </div>
+      {/* Employee list, narrowed when a profile is open beside it */}
       <div className="grid" style={{ alignItems: 'start' }}>
         <div className={`card ${shown ? 'span-5' : 'span-12'}`}>
+          {/* Search, add and export */}
           <div className="row mb-12">
             <div className="search grow" style={{ width: 'auto' }}>
               <Search size={18} />
@@ -178,6 +183,7 @@ function People({ selectedId }) {
               />
             )}
           </div>
+          {/* Filters */}
           <div className="form-grid mb-12" style={{ gap: 10 }}>
             <Select
               value={filters.department}
@@ -212,6 +218,7 @@ function People({ selectedId }) {
           {error && <ErrorBox error={error} onRetry={reload} />}
           {data ? (
             <>
+              {/* Result range and sort */}
               <div className="row between small muted mb-8">
                 <span>
                   Showing {data.total ? (page - 1) * pageSize + 1 : 0} -{' '}
@@ -233,6 +240,7 @@ function People({ selectedId }) {
                   </select>
                 </span>
               </div>
+              {/* Employee table; the role column hides while a profile is open */}
               <div className="table-wrap">
                 <table className="table">
                   <thead>
@@ -293,6 +301,7 @@ function People({ selectedId }) {
             <Loading />
           )}
         </div>
+        {/* Selected employee's profile */}
         {shown && (
           <div className="span-7">
             <EmployeeProfile
@@ -304,6 +313,7 @@ function People({ selectedId }) {
           </div>
         )}
       </div>
+      {/* Add employee, then open the new profile */}
       {adding && (
         <EmployeeForm
           onClose={() => setAdding(false)}
@@ -317,6 +327,7 @@ function People({ selectedId }) {
   );
 }
 
+// Small stat card with an icon, label, value and optional status dot.
 function MiniStat({ icon: Icon, tone, label, value, dot }) {
   return (
     <div className="card tight row" style={{ gap: 12, minWidth: 170 }}>
@@ -347,8 +358,10 @@ function MiniStat({ icon: Icon, tone, label, value, dot }) {
 }
 
 // ---------------------------------------------------------------- profile
+// Employee profile card: header, HR actions menu and the profile tabs.
 export function EmployeeProfile({ id, onChanged, isSelf }) {
   const { isHR, toast, refreshMeta } = useApp();
+  // Attendance month being viewed; null means the server's default (this month)
   const [month, setMonth] = useState(null);
   const { data, error, reload } = useApi(`/employees/${id}${month ? `?month=${month}` : ''}`);
   const [tab, setTab] = useState('Overview');
@@ -369,11 +382,13 @@ export function EmployeeProfile({ id, onChanged, isSelf }) {
       </Card>
     );
   const e = data.employee;
+  // Reloads this profile and the list beside it.
   const refresh = () => {
     reload();
     onChanged?.();
   };
   const canEdit = isHR || isSelf;
+  // Viewers outside this employee's scope get a limited view: Overview only
   const tabs = data.limited
     ? ['Overview']
     : [
@@ -385,6 +400,7 @@ export function EmployeeProfile({ id, onChanged, isSelf }) {
         ...(data.compensation ? ['Compensation'] : []),
         'Assets',
       ];
+  // Uploads a new photo and refreshes lookup data so avatars elsewhere update too.
   const uploadPhoto = async (file) => {
     const form = new FormData();
     form.append('photo', file);
@@ -393,6 +409,7 @@ export function EmployeeProfile({ id, onChanged, isSelf }) {
       refreshMeta();
     }
   };
+  // Actions menu; most items are HR-only and depend on whether the employee has exited
   const menu = [
     canEdit && { label: 'Change photo', icon: Camera, onClick: () => photoRef.current?.click() },
     isHR && {
@@ -435,6 +452,7 @@ export function EmployeeProfile({ id, onChanged, isSelf }) {
   ];
   return (
     <div className="card" style={{ padding: 0 }}>
+      {/* Hidden file picker behind "Change photo" */}
       <input
         ref={photoRef}
         type="file"
@@ -445,6 +463,7 @@ export function EmployeeProfile({ id, onChanged, isSelf }) {
           ev.target.value = '';
         }}
       />
+      {/* Header: photo, name, role, tags and contact details */}
       <div className="row wrap" style={{ gap: 22, padding: 22, alignItems: 'flex-start' }}>
         <div style={{ position: 'relative' }}>
           <Avatar
@@ -515,6 +534,7 @@ export function EmployeeProfile({ id, onChanged, isSelf }) {
           </div>
         </div>
       </div>
+      {/* Tabs */}
       <div style={{ padding: '0 22px' }}>
         <Tabs tabs={tabs} value={tab} onChange={setTab} />
       </div>
@@ -537,6 +557,7 @@ export function EmployeeProfile({ id, onChanged, isSelf }) {
         {tab === 'Compensation' && <Compensation data={data} />}
         {tab === 'Assets' && <Assets data={data} reload={refresh} />}
       </div>
+      {/* Modals: edit, login, leave, request, exit */}
       {modal === 'edit' && (
         <EmployeeForm
           employee={data}
@@ -576,14 +597,17 @@ export function EmployeeProfile({ id, onChanged, isSelf }) {
   );
 }
 
+// Overview tab: about, skills, org chart, acknowledgements, team, onboarding and self-service.
 function Overview({ data, isSelf, onAction, reload }) {
   const { isHR } = useApp();
   const nav = useNavigate();
   const e = data.employee;
+  // Managers see their direct reports; everyone else sees their teammates
   const team = data.reports.length ? data.reports : data.peers;
   return (
     <div className="grid" style={{ marginBottom: 0 }}>
       <div className="span-7 col" style={{ gap: 16 }}>
+        {/* About and key details */}
         <div className="card tight">
           <h3 className="mb-8" style={{ fontSize: 15 }}>
             About
@@ -658,6 +682,7 @@ function Overview({ data, isSelf, onAction, reload }) {
             )}
           </dl>
         </div>
+        {/* Skills */}
         <div className="card tight">
           <h3 className="mb-8" style={{ fontSize: 15 }}>
             Skills
@@ -674,6 +699,7 @@ function Overview({ data, isSelf, onAction, reload }) {
             )}
           </div>
         </div>
+        {/* Certifications */}
         {e.certifications?.length > 0 && (
           <div className="card tight">
             <h3 className="mb-8" style={{ fontSize: 15 }}>
@@ -697,6 +723,7 @@ function Overview({ data, isSelf, onAction, reload }) {
         )}
       </div>
       <div className="span-5 col" style={{ gap: 16 }}>
+        {/* Org chart: manager, this employee, first four reports */}
         <div className="card tight">
           <h3 className="mb-12" style={{ fontSize: 15 }}>
             Organization Structure
@@ -725,12 +752,14 @@ function Overview({ data, isSelf, onAction, reload }) {
             )}
           </div>
         </div>
+        {/* Policy acknowledgements and POSH training */}
         {!data.limited && (
           <div className="card tight">
             <h3 className="mb-8" style={{ fontSize: 15 }}>
               Document Acknowledgements
             </h3>
             {data.acknowledgements.map((a) => {
+              // Acknowledging an older version doesn't count once the policy is updated
               const ok = a.acked_at && a.acked_version === a.version;
               return (
                 <div key={a.id} className="list-item" style={{ padding: '7px 0' }}>
@@ -761,6 +790,7 @@ function Overview({ data, isSelf, onAction, reload }) {
             )}
           </div>
         )}
+        {/* Team or teammates */}
         {team.length > 0 && (
           <div className="card tight">
             <h3 className="mb-8" style={{ fontSize: 15 }}>
@@ -781,6 +811,7 @@ function Overview({ data, isSelf, onAction, reload }) {
             ))}
           </div>
         )}
+        {/* Onboarding checklist; the new joiner can see it but not tick items */}
         {data.onboarding?.length > 0 && (
           <Onboarding
             tasks={data.onboarding}
@@ -788,6 +819,7 @@ function Overview({ data, isSelf, onAction, reload }) {
             canEdit={isHR || (!isSelf && !data.limited)}
           />
         )}
+        {/* Self-service shortcuts on your own profile */}
         {isSelf && (
           <div className="card tight">
             <h3 className="mb-12" style={{ fontSize: 15 }}>
@@ -824,6 +856,7 @@ function Overview({ data, isSelf, onAction, reload }) {
             </div>
           </div>
         )}
+        {/* HR view of this employee's HRMS login */}
         {isHR && !isSelf && data.login !== undefined && (
           <div className="card tight small">
             <h3 className="mb-8" style={{ fontSize: 15 }}>
@@ -854,6 +887,7 @@ function Overview({ data, isSelf, onAction, reload }) {
   );
 }
 
+// Org chart box for one person, linking to their profile.
 function OrgNode({ p, tone = '#fff', small }) {
   return (
     <Link
@@ -879,6 +913,7 @@ function OrgNode({ p, tone = '#fff', small }) {
   );
 }
 
+// Icon tile button for the self-service quick actions.
 function QuickAction({ icon: Icon, color, label, onClick }) {
   return (
     <button
@@ -903,6 +938,7 @@ function QuickAction({ icon: Icon, color, label, onClick }) {
   );
 }
 
+// Onboarding checklist with progress; items can be ticked only when canEdit is set.
 export function Onboarding({ tasks, reload, canEdit }) {
   const { toast } = useApp();
   const [run] = useAction(toast);
@@ -941,6 +977,7 @@ export function Onboarding({ tasks, reload, canEdit }) {
   );
 }
 
+// Documents tab: upload by category (HR or the employee), download, and HR-only delete.
 function Documents({ data, reload }) {
   const { isHR, toast, user, meta } = useApp();
   const e = data.employee;
@@ -948,6 +985,7 @@ function Documents({ data, reload }) {
   const [run, busy] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
   const canUpload = isHR || user.employeeId === e.id;
+  // Uploads files one at a time under the chosen category, then reloads.
   const upload = async (files) => {
     for (const f of files) {
       const form = new FormData();
@@ -959,6 +997,7 @@ function Documents({ data, reload }) {
   };
   return (
     <div>
+      {/* Category picker and upload drop zone */}
       {canUpload && (
         <div className="row wrap mb-16" style={{ gap: 12, alignItems: 'stretch' }}>
           <Field label="Category" className="">
@@ -979,6 +1018,7 @@ function Documents({ data, reload }) {
           </div>
         </div>
       )}
+      {/* Uploaded documents */}
       {data.documents.length ? (
         <table className="table">
           <thead>
@@ -1046,6 +1086,7 @@ function Documents({ data, reload }) {
   );
 }
 
+// Labels for the day codes in the attendance calendar.
 const CODE_LABEL = {
   P: 'Present',
   WFH: 'Work from home',
@@ -1058,12 +1099,16 @@ const CODE_LABEL = {
   F: 'Upcoming',
   NA: '—',
 };
+// Attendance tab: month calendar of day codes with counts and month navigation.
 function AttendanceTab({ data, month, setMonth }) {
   const days = data.attendance.days;
+  // Number of days per code, for the legend
   const counts = days.reduce((m, d) => ({ ...m, [d.code]: (m[d.code] || 0) + 1 }), {});
+  // Weekday of the 1st, to pad the calendar's first row
   const first = new Date(`${month}-01T00:00:00Z`).getUTCDay();
   return (
     <div>
+      {/* Month switcher and per-code counts */}
       <div className="row between mb-12">
         <div className="row">
           <Button size="sm" onClick={() => setMonth(addMonths(month, -1))}>
@@ -1085,6 +1130,7 @@ function AttendanceTab({ data, month, setMonth }) {
           ))}
         </div>
       </div>
+      {/* Calendar grid; hover a day for its status and check-in/out times */}
       <div className="calendar" style={{ gap: 6 }}>
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
           <div key={d} className="dh">
@@ -1121,9 +1167,11 @@ function AttendanceTab({ data, month, setMonth }) {
   );
 }
 
+// Leave tab: this year's balance per leave type and recent requests.
 function LeaveTab({ data, onApply, canApply }) {
   return (
     <div>
+      {/* Balances; ∞ for types without an entitlement */}
       <div className="row between mb-12">
         <b>Leave balance {new Date().getFullYear()}</b>
         {canApply && (
@@ -1162,6 +1210,7 @@ function LeaveTab({ data, onApply, canApply }) {
           </div>
         ))}
       </div>
+      {/* Recent leave requests */}
       <h3 className="mt-16 mb-8" style={{ fontSize: 15 }}>
         Recent requests
       </h3>

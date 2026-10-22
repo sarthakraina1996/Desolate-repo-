@@ -3816,6 +3816,7 @@ table.table {
     opacity: 0;
   }
 }
+/* Bottom sheet (z 99, under modals); .pulling drops the easing while it's dragged down */
 .sheet {
   position: fixed;
   left: 0;
@@ -3848,6 +3849,7 @@ table.table {
     transform: translateY(100%);
   }
 }
+/* Drag handle area with the grip bar */
 .sheet-top {
   touch-action: none;
   cursor: grab;
@@ -3861,6 +3863,7 @@ table.table {
   border-radius: 3px;
   background: #d5dce7;
 }
+/* Sheet title and close button */
 .sheet-head {
   display: flex;
   align-items: center;
@@ -3883,6 +3886,7 @@ table.table {
   color: var(--text-2);
   cursor: pointer;
 }
+/* Module search box */
 .sheet-search {
   position: relative;
   margin: 0 16px 12px;
@@ -3908,6 +3912,7 @@ table.table {
   background: #fff;
   box-shadow: 0 0 0 3px var(--blue-soft);
 }
+/* Scrolling body with a three-column module grid */
 .sheet-body {
   overflow-y: auto;
   padding: 0 16px 16px;
@@ -3918,6 +3923,7 @@ table.table {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+/* Full-width action row under the grid (e.g. install the app) with a navy icon */
 .sheet-row {
   display: flex;
   align-items: center;
@@ -3996,6 +4002,7 @@ table.table {
   color: var(--muted);
   cursor: pointer;
 }
+/* Install dialog: app icon and blurb, then a full-width button */
 .app-intro {
   display: flex;
   align-items: center;
@@ -4023,6 +4030,7 @@ table.table {
   justify-content: center;
   height: 44px;
 }
+/* QR view: intro line and numbered phone steps with an icon on the right */
 .app-lead {
   color: var(--text-2);
   line-height: 1.5;
@@ -4067,6 +4075,7 @@ table.table {
   background: var(--surface-2);
   color: var(--blue);
 }
+/* QR code card with the Br logo over its centre; .app-qr-wait shimmers while loading */
 .app-qr {
   position: relative;
   width: 208px;
@@ -4101,6 +4110,7 @@ table.table {
   background-size: 400% 100%;
   animation: sk 1.4s ease infinite;
 }
+/* Address picker (e.g. office Wi-Fi or online) and the chosen address with a copy button */
 .app-seg {
   display: flex;
   flex-wrap: wrap;
@@ -4119,6 +4129,7 @@ table.table {
   word-break: break-all;
   text-align: center;
 }
+/* Offline notice near the bottom; z-index 150 sits above modals, below toasts */
 .offline-bar {
   position: fixed;
   left: 50%;
@@ -4144,6 +4155,7 @@ table.table {
   flex-shrink: 0;
 }
 
+/* Phones: bottom tab bar replaces the burger; content pads clear of it */
 @media (max-width: 760px) {
   .bnav {
     position: fixed;
@@ -4192,6 +4204,7 @@ table.table {
     font-size: 16px;
   }
 }
+/* Phone toasts drop in from the top and rise back out */
 @keyframes toast-drop {
   0% {
     transform: translateY(calc(-100% - 24px));
@@ -4211,6 +4224,7 @@ table.table {
     opacity: 0;
   }
 }
+/* Reduced motion: sheets and banners appear without sliding, toasts just fade */
 @media (prefers-reduced-motion: reduce) {
   .sheet,
   .sheet.out,
@@ -4225,6 +4239,7 @@ table.table {
     animation-name: toast-fade-out !important;
   }
 }
+/* Printing: hide the mobile tab bar, sheets, install banner and offline notice */
 @media print {
   .bnav,
   .sheet,

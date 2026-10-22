@@ -1,16 +1,11 @@
-// Office geofence: sign-in and office check-in only from an office.
-//
-// An office is a point with a radius plus optional network addresses (the
-// office's public IP, or LAN ranges when the server runs on the office
-// network). Being on an office network counts as being in the office, which
-// covers desktops whose browser location is rough. Administrators, people
-// HR allows to work from anywhere (field staff), and anyone on approved work
-// from home or leave today are exempt.
+// Office geofence: sign-in and check-in only within an office's radius or on its network.
+// Admins, staff HR lets work from anywhere, and anyone on approved WFH or leave are exempt.
 import { getSettings } from '../core.js';
 import { dayStatuses } from './calendar.js';
 
 export const GEOFENCE_MODES = ['off', 'login', 'strict'];
 
+// Geofence settings with defaults filled in.
 export function geofencePolicy(settings) {
   return {
     mode: 'off',
@@ -22,6 +17,7 @@ export function geofencePolicy(settings) {
 }
 
 const toRad = (d) => (d * Math.PI) / 180;
+// Great-circle distance in metres between two { lat, lng } points (haversine).
 export function distanceM(a, b) {
   const dLat = toRad(b.lat - a.lat);
   const dLng = toRad(b.lng - a.lng);
@@ -31,8 +27,10 @@ export function distanceM(a, b) {
   return 2 * 6371000 * Math.asin(Math.sqrt(h));
 }
 
+// "350 m" or "2.4 km".
 export const fmtDistance = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
+// Dotted IPv4 address as an unsigned 32-bit number, or null if invalid.
 function ipToInt(ip) {
   const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
   if (!m || m.slice(1).some((x) => Number(x) > 255)) return null;
@@ -42,6 +40,7 @@ function ipToInt(ip) {
 // True if `ip` is one of the comma/space separated addresses or IPv4 CIDR
 // ranges (e.g. "203.0.113.7, 192.168.1.0/24").
 export function ipMatches(ip, ranges) {
+  // Strip the IPv6 prefix Node adds to IPv4 clients.
   const clean = String(ip || '').replace(/^::ffff:/, '');
   for (const r of String(ranges || '')
     .split(/[\s,]+/)
@@ -59,6 +58,7 @@ export function ipMatches(ip, ranges) {
   return false;
 }
 
+// Validates browser coordinates; missing accuracy is treated as very rough.
 export function readCoords(v) {
   if (!v || typeof v !== 'object') return null;
   const lat = Number(v.lat);
@@ -94,10 +94,12 @@ export function exemption(db, user, settings, today) {
 // Decides whether the user may sign in (or check in at the office) from
 // where they are. Returns { ok, method, code?, message?, site?, distance? }.
 export function checkLocation(db, { user, coords, ip, today, settings = getSettings(db) }) {
+  // Exempt users, or no offices configured: allow.
   const ex = exemption(db, user, settings, today);
   if (ex) return { ok: true, method: 'exempt', exempt: ex.reason, dayBound: Boolean(ex.dayOnly) };
   const sites = db.all('SELECT * FROM office_sites WHERE active = 1');
   if (!sites.length) return { ok: true, method: 'exempt', exempt: 'No office locations set up' };
+  // Being on an office network counts as in the office, which helps desktops with rough GPS.
   const net = sites.find((s) => ipMatches(ip, s.ip_ranges));
   if (net) return { ok: true, method: 'network', site: net, dayBound: true };
   if (!coords)
@@ -106,6 +108,7 @@ export function checkLocation(db, { user, coords, ip, today, settings = getSetti
       code: 'location_required',
       message: 'Share your location to continue. Sign-in is only allowed from the office.',
     };
+  // Nearest office. Inside if within its radius plus the GPS error (capped at one radius).
   let best = null;
   for (const s of sites) {
     const d = distanceM(coords, s);
@@ -122,6 +125,7 @@ export function checkLocation(db, { user, coords, ip, today, settings = getSetti
       dayBound: true,
     };
   }
+  // Outside, but the fix is too rough to be sure: ask for a better location instead.
   if (coords.accuracy > geofencePolicy(settings).maxAccuracyM) {
     return {
       ok: false,
@@ -142,6 +146,7 @@ export function checkLocation(db, { user, coords, ip, today, settings = getSetti
   };
 }
 
+// Location log result labels, keyed by check method (allowed) or code (refused).
 const RESULT = {
   gps: 'in-office',
   network: 'office-network',
@@ -151,6 +156,7 @@ const RESULT = {
   location_imprecise: 'imprecise',
 };
 
+// Records a location check (sign-in, check-in, blocked attempt) in the location log.
 export function logLocation(db, { user, event, coords, ip, check }) {
   return db.insert('location_log', {
     user_id: user?.id ?? null,

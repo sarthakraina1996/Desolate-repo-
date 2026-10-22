@@ -3,12 +3,14 @@ import { calendarCtx } from './calendar.js';
 import { entitlement, leaveDaysByYear } from '../lib/leave.js';
 import { yearOf } from '../lib/dates.js';
 
+// Active leave types that apply to this employee (gender-specific types filtered out).
 export function leaveTypesFor(db, employee) {
   return db
     .all('SELECT * FROM leave_types WHERE active = 1 ORDER BY sort, id')
     .filter((t) => !t.gender || !employee?.gender || t.gender === employee.gender);
 }
 
+// Days of a request charged to `year`; recounted only when it crosses a year boundary.
 function chargedDays(req, year, ctx) {
   if (yearOf(req.from_date) === year && yearOf(req.to_date) === year) return req.days;
   return (
@@ -24,6 +26,7 @@ function chargedDays(req, year, ctx) {
   );
 }
 
+// Approved and pending days per leave type for the employee in `year`.
 function usage(db, employeeId, year, ctx) {
   const rows = db.all(
     `
@@ -57,6 +60,7 @@ export function balances(db, employee, year, asOf, ctx = calendarCtx(db), depth 
       ]),
     );
   }
+  // Available = entitled + carried - used - pending; null entitlement means unlimited.
   return types.map((t) => {
     const ent = entitlement(t, employee.join_date, year, asOf);
     let carried = 0;

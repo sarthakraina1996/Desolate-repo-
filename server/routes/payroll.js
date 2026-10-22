@@ -19,8 +19,10 @@ import { json } from '../db.js';
 import * as D from '../lib/dates.js';
 import { buildPayroll, processRun, runSummary, runRef, payDate } from '../services/payroll.js';
 
+// Payroll adjustment kinds; employees may only submit reimbursements.
 const KINDS = ['Bonus', 'Arrears', 'Reimbursement', 'Deduction'];
 
+// Shapes a stored payslip into a line of the payroll table.
 function lineFromPayslip(p) {
   const data = json(p.data, {});
   return {
@@ -42,7 +44,9 @@ function lineFromPayslip(p) {
   };
 }
 
+// Payroll dashboard, run approval workflow, payslips, exports and adjustment routes.
 export default function payrollRoutes(r, { db }) {
+  // AND clause for the vertical, department and location filters.
   function filterSql(q, alias = 'e') {
     const where = [];
     const params = [];
@@ -54,17 +58,20 @@ export default function payrollRoutes(r, { db }) {
     return { sql: where.length ? `AND ${where.join(' AND ')}` : '', params };
   }
 
+  // Payroll for a month: lines, KPIs, statutory totals, exceptions and trend (HR only).
   r.get('/payroll', (req, res) => {
     requireHR(req);
     const T = today(db);
     const month = D.isValidMonth(req.query.month) ? req.query.month : D.monthOf(T);
     const f = filterSql(req.query);
     const run = db.get('SELECT * FROM payroll_runs WHERE month = ?', month);
+    // Live preview from current data, filtered the same way as stored lines
     const keep = (e) =>
       (!req.query.vertical || e.vertical_id === Number(req.query.vertical)) &&
       (!req.query.department || e.department_id === Number(req.query.department)) &&
       (!req.query.location || e.location_id === Number(req.query.location));
     const preview = buildPayroll(db, month, { today: T }).filter((l) => keep(l.employee));
+    // Stored payslips once the month has a run, otherwise the preview
     let lines;
     if (run) {
       lines = db
@@ -103,6 +110,7 @@ export default function payrollRoutes(r, { db }) {
           exceptions: l.exceptions,
         }));
     }
+    // Cost and net pay vs the previous month's run
     const sum = (k, src = lines) => src.reduce((t, l) => t + (Number(l[k]) || 0), 0);
     const prevRun = db.get('SELECT * FROM payroll_runs WHERE month = ?', D.addMonths(month, -1));
     const prev = prevRun
@@ -164,6 +172,7 @@ export default function payrollRoutes(r, { db }) {
       return { type, label, count: people.length, people };
     });
 
+    // Cost trend over the last six runs up to this month
     const trend = db
       .all('SELECT * FROM payroll_runs WHERE month <= ? ORDER BY month DESC LIMIT 6', month)
       .reverse()
@@ -182,6 +191,7 @@ export default function payrollRoutes(r, { db }) {
         };
       });
 
+    // Processing progress and how complete attendance and leave data are
     const eligible = preview.length;
     const processed = run
       ? lines.filter((l) => ['Processed', 'Paid'].includes(l.status)).length
@@ -192,6 +202,7 @@ export default function payrollRoutes(r, { db }) {
       D.monthEnd(month),
       D.monthStart(month),
     );
+    // The month's adjustments, pending first
     const adjustments = db
       .all(
         `SELECT a.*, e.first_name, e.last_name, e.code FROM payroll_adjustments a JOIN employees e ON e.id = a.employee_id
@@ -234,6 +245,7 @@ export default function payrollRoutes(r, { db }) {
     });
   });
 
+  // Runs or recomputes a month's payroll while it is still in review (HR only).
   r.post('/payroll/runs', (req, res) => {
     requireHR(req);
     const month = req.body.month;
@@ -243,6 +255,7 @@ export default function payrollRoutes(r, { db }) {
     const existing = db.get('SELECT * FROM payroll_runs WHERE month = ?', month);
     if (existing && !['In Review', 'Finance Reviewed'].includes(existing.status))
       fail(409, `Payroll for ${D.monthLabel(month)} is already ${existing.status.toLowerCase()}`);
+    // Tell the other HR users and admins it is ready for review
     const run = processRun(db, req.user, month);
     notifyUsers(
       db,
@@ -259,9 +272,11 @@ export default function payrollRoutes(r, { db }) {
     res.json(runSummary(db, run));
   });
 
+  // Loads a payroll run by id or 404s.
   const getRun = (rid) =>
     db.get('SELECT * FROM payroll_runs WHERE id = ?', id(rid)) || notFound('Payroll run');
 
+  // Approves a run in two steps: finance review by HR, then management approval by an admin.
   r.post('/payroll/runs/:id/approve', (req, res) => {
     requireHR(req);
     const run = getRun(req.params.id);
@@ -272,6 +287,7 @@ export default function payrollRoutes(r, { db }) {
     const approvals = json(run.approvals, []);
     const steps = json(run.steps, {});
     const now = new Date().toISOString();
+    // Finance review, then ask the admins for management approval
     if (stage === 'finance') {
       if (run.status !== 'In Review') fail(409, 'This run is not waiting for finance review');
       approvals.push({ stage: 'Review by Finance', by: req.user.name, at: now });
@@ -293,6 +309,7 @@ export default function payrollRoutes(r, { db }) {
     res.json(runSummary(db, db.get('SELECT * FROM payroll_runs WHERE id = ?', run.id)));
   });
 
+  // Sends a reviewed run back to In Review, keeping only HR's preparation step (HR only).
   r.post('/payroll/runs/:id/send-back', (req, res) => {
     requireHR(req);
     const run = getRun(req.params.id);
@@ -313,6 +330,7 @@ export default function payrollRoutes(r, { db }) {
     res.json(runSummary(db, db.get('SELECT * FROM payroll_runs WHERE id = ?', run.id)));
   });
 
+  // Schedules the bank transfer batch for an approved run (HR only).
   r.post('/payroll/runs/:id/transfer', (req, res) => {
     requireHR(req);
     const run = getRun(req.params.id);
@@ -342,6 +360,7 @@ export default function payrollRoutes(r, { db }) {
     res.json(runSummary(db, db.get('SELECT * FROM payroll_runs WHERE id = ?', run.id)));
   });
 
+  // Marks the transfer done and payslips paid, then tells employees (HR only).
   r.post('/payroll/runs/:id/complete', (req, res) => {
     requireHR(req);
     const run = getRun(req.params.id);
@@ -376,6 +395,7 @@ export default function payrollRoutes(r, { db }) {
     res.json(runSummary(db, db.get('SELECT * FROM payroll_runs WHERE id = ?', run.id)));
   });
 
+  // Deletes a run that has not been approved yet (HR only).
   r.delete('/payroll/runs/:id', (req, res) => {
     requireHR(req);
     const run = getRun(req.params.id);
@@ -386,6 +406,7 @@ export default function payrollRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Holds or releases a payslip until the bank transfer is scheduled (HR only).
   r.put('/payroll/payslips/:id/hold', (req, res) => {
     requireHR(req);
     const p =
@@ -403,6 +424,7 @@ export default function payrollRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // One payslip; employees can see their own once the run is completed.
   r.get('/payroll/payslips/:id', (req, res) => {
     const p =
       db.get(
@@ -425,6 +447,7 @@ export default function payrollRoutes(r, { db }) {
     });
   });
 
+  // The user's payslips from completed runs and their recent claims.
   r.get('/payroll/my', (req, res) => {
     if (!req.user.employeeId) return res.json({ items: [] });
     res.json({
@@ -442,6 +465,7 @@ export default function payrollRoutes(r, { db }) {
     });
   });
 
+  // Bank transfer CSV with net pay for processed and paid payslips (HR only).
   r.get('/payroll/runs/:id/bank-file.csv', (req, res) => {
     requireHR(req);
     const run = getRun(req.params.id);
@@ -460,6 +484,7 @@ export default function payrollRoutes(r, { db }) {
     ]);
   });
 
+  // Payroll register CSV with every earning and deduction per payslip (HR only).
   r.get('/payroll/runs/:id/register.csv', (req, res) => {
     requireHR(req);
     const run = getRun(req.params.id);
@@ -495,6 +520,7 @@ export default function payrollRoutes(r, { db }) {
   });
 
   // ---------- adjustments (bonuses, reimbursements, deductions) ----------
+  // Adds a bonus, arrears, reimbursement or deduction; employees may only claim reimbursements.
   r.post('/payroll/adjustments', (req, res) => {
     const T = today(db);
     const hr = isHR(req.user);
@@ -504,10 +530,12 @@ export default function payrollRoutes(r, { db }) {
     const kind = oneOf(req.body.kind || 'Reimbursement', KINDS, { name: 'Type' });
     if (!hr && kind !== 'Reimbursement')
       fail(403, 'Employees can only submit reimbursement claims');
+    // Only for a month whose payroll is not approved yet
     const month = D.isValidMonth(req.body.month) ? req.body.month : D.monthOf(T);
     const run = db.get('SELECT status FROM payroll_runs WHERE month = ?', month);
     if (run && !['In Review', 'Finance Reviewed'].includes(run.status))
       fail(409, `Payroll for ${D.monthLabel(month)} is already approved. Choose next month.`);
+    // HR can approve on entry; employee claims start pending and notify HR
     const aid = db.insert('payroll_adjustments', {
       employee_id: employeeId,
       month,
@@ -531,6 +559,7 @@ export default function payrollRoutes(r, { db }) {
       );
     res.json({ id: aid });
   });
+  // Sets an adjustment's status and tells the employee once decided (HR only).
   r.put('/payroll/adjustments/:id', (req, res) => {
     requireHR(req);
     const a =
@@ -551,6 +580,7 @@ export default function payrollRoutes(r, { db }) {
       );
     res.json({ ok: true });
   });
+  // Deletes an adjustment (HR); employees can delete their own pending claims.
   r.delete('/payroll/adjustments/:id', (req, res) => {
     const a =
       db.get('SELECT * FROM payroll_adjustments WHERE id = ?', id(req.params.id)) ||

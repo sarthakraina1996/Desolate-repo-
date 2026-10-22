@@ -16,7 +16,9 @@ import { useScrollEdges } from '../lib/hooks.js';
 
 const MARGIN = 12; // never closer than this to the edge of the screen
 const GAP = 12; // between the button and what it opens
+// Length of the panels' closing animation.
 const CLOSE_MS = 220;
+// localStorage keys: the button's spot, which panel it opens and the menu width.
 const KEY = { spot: 'hrms.float.spot', mode: 'hrms.float.mode', wide: 'hrms.float.wide' };
 
 // Extra words the Quick Access search understands.
@@ -38,6 +40,7 @@ const KEYWORDS = {
   '/settings': 'configuration admin users offices',
 };
 
+// Read and write JSON preferences in localStorage.
 const load = (key, fallback) => {
   try {
     return JSON.parse(localStorage.getItem(key)) ?? fallback;
@@ -53,7 +56,9 @@ const save = (key, value) => {
   }
 };
 const viewport = () => ({ w: window.innerWidth, h: window.innerHeight });
+// Limits v to lo..hi; lo wins when the range is empty (a box wider than the screen).
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
+// Moves a w x h box at p back inside the screen margins.
 const keepOnScreen = (p, w, h) => {
   const vp = viewport();
   return {

@@ -5,6 +5,7 @@ import mammoth from 'mammoth';
 
 export const RESUME_EXTS = ['.pdf', '.docx', '.txt'];
 
+// Reads a resume file and returns its plain text; throws for other formats.
 export async function extractResumeText(filePath, ext) {
   const buf = await fs.readFile(filePath);
   if (ext === '.pdf') {
