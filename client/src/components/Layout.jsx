@@ -4,7 +4,7 @@ import { Menu as MenuIcon, LogOut, KeyRound, User, LayoutGrid, CheckCheck, Chevr
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
 import { ago } from '../lib/format.js';
-import { useClickOutside, useDebounced } from '../lib/hooks.js';
+import { useClickOutside, useDebounced, useScrollEdges } from '../lib/hooks.js';
 import { Avatar, Button, Field, Input, Modal } from './ui.jsx';
 import {
   IconDashboard, IconMySpace, IconHiring, IconScreener, IconEmployees, IconDocuments, IconLeave, IconHolidays, IconPayroll,
@@ -107,6 +107,7 @@ function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
   };
   const hideTip = () => setTip(null);
   useEffect(hideTip, [collapsed]);
+  const scroll = useScrollEdges();
   return (
     <>
       {open && <div className="scrim" onClick={onClose} />}
@@ -120,7 +121,7 @@ function Sidebar({ items, open, onClose, collapsed, onToggle, onFloat }) {
         <button type="button" className="collapse-btn" onClick={onToggle} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!collapsed} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
           <ChevronsLeft size={16} />
         </button>
-        <nav className="nav" aria-label="Main" onScroll={hideTip}>
+        <nav className={`nav ${scroll.edges}`} aria-label="Main" ref={scroll.ref} onScroll={() => { hideTip(); scroll.onScroll(); }}>
           {items.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} onClick={onClose} onMouseEnter={showTip(n.label)} onMouseLeave={hideTip} onFocus={showTip(n.label)} onBlur={hideTip}>
               <n.icon size={22} /><span className="lbl">{n.label}</span>

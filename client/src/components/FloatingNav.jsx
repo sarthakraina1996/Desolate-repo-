@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronsRight, GripHorizontal, LayoutGrid, Menu as MenuIcon, PanelLeft, Search, X } from 'lucide-react';
 import { Monogram, moduleFor } from './icons.jsx';
+import { useScrollEdges } from '../lib/hooks.js';
 
 const MARGIN = 12; // never closer than this to the edge of the screen
 const GAP = 12; // between the button and what it opens
@@ -298,6 +299,7 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
     ref.current?.querySelector('.fnav-item.active, .fnav-item')?.focus({ preventScroll: true });
   }, []);
   useEffect(() => setTip(null), [wide]);
+  const scroll = useScrollEdges();
 
   const showTip = (e, label) => {
     if (wide) return;
@@ -325,7 +327,7 @@ function FloatMenu({ anchor, items, path, wide, setWide, closing, onPicked, onQu
             <ChevronsRight size={14} strokeWidth={2.4} />
           </button>
         </div>
-        <nav className="fnav-items" aria-label="Main">
+        <nav className={`fnav-items ${scroll.edges}`} aria-label="Main" ref={scroll.ref} onScroll={() => { setTip(null); scroll.onScroll(); }}>
           {items.map((n) => {
             const active = isActivePath(n, path);
             return (

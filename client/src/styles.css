@@ -83,7 +83,15 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
 .collapse-btn:hover { color: var(--navy); border-color: var(--navy); }
 .collapse-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .collapse-btn svg { transition: transform 0.34s var(--ease-out); }
-.nav { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 0; }
+.nav { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; padding: 8px 0; }
+/* Menus never show the browser's scrollbar (on Windows a grey bar with arrows inside the rail).
+   Rows shrink a little to fit short screens; if they still don't fit, the list scrolls and fades
+   at the edge that has more items past it. */
+.nav, .fnav-items { scrollbar-width: none; overscroll-behavior: contain; }
+.nav::-webkit-scrollbar, .fnav-items::-webkit-scrollbar { display: none; }
+.nav.more-below, .fnav-items.more-below { -webkit-mask-image: linear-gradient(#000 calc(100% - 32px), transparent); mask-image: linear-gradient(#000 calc(100% - 32px), transparent); }
+.nav.more-above, .fnav-items.more-above { -webkit-mask-image: linear-gradient(transparent, #000 32px); mask-image: linear-gradient(transparent, #000 32px); }
+.nav.more-above.more-below, .fnav-items.more-above.more-below { -webkit-mask-image: linear-gradient(transparent, #000 32px, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(transparent, #000 32px, #000 calc(100% - 32px), transparent); }
 .nav .lbl { transition: opacity 0.2s ease 0.12s; }
 .nav-tip {
   position: fixed; left: calc(var(--sidebar-mini) + 10px); transform: translateY(-50%); z-index: 70; pointer-events: none;
@@ -93,8 +101,8 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
 .nav-tip::before { content: ''; position: absolute; left: -4px; top: 50%; width: 8px; height: 8px; background: inherit; transform: translateY(-50%) rotate(45deg); border-radius: 1px; }
 @keyframes tip-in { from { opacity: 0; transform: translate(-4px, -50%); } }
 .nav a {
-  display: flex; align-items: center; gap: 13px;
-  padding: 11px 18px 11px 20px; margin: 2px 12px 2px 0;
+  display: flex; align-items: center; gap: 13px; flex: 0 1 44px; min-height: 34px;
+  padding: 0 18px 0 20px; margin: 2px 12px 2px 0;
   color: var(--text-2); font-weight: 500; font-size: 14.5px; white-space: nowrap;
   border-radius: 0 12px 12px 0; border-left: 4px solid transparent;
   text-decoration: none;
@@ -120,7 +128,8 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
   .sidebar.collapsed .collapse-btn svg { transform: rotate(180deg); }
   .sidebar.collapsed .nav a { margin-right: 8px; }
   .sidebar.collapsed .nav .lbl { opacity: 0; transition: opacity 0.1s ease; }
-  .sidebar.collapsed .leaf-card { opacity: 0; visibility: hidden; transition: opacity 0.1s ease, visibility 0s 0.1s; }
+  /* Hidden and out of the way, so the icons keep their full spacing. */
+  .sidebar.collapsed .leaf-card { position: absolute; left: 0; right: 0; bottom: 0; opacity: 0; visibility: hidden; transition: opacity 0.1s ease, visibility 0s 0.1s; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sidebar, .sidebar .brand .logo, .sidebar .brand .mono, .collapse-btn svg, .nav .lbl, .leaf-card { transition: none !important; }
@@ -128,7 +137,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
 
 /* "Floating menu" switch at the end of the side menu */
 .nav .nav-act {
-  position: relative; display: flex; align-items: center; gap: 13px; width: calc(100% - 12px); margin: 12px 12px 2px 0; padding: 9px 18px 9px 18px;
+  position: relative; display: flex; align-items: center; gap: 13px; flex: none; width: calc(100% - 12px); margin: 12px 12px 2px 0; padding: 9px 18px 9px 18px;
   border: 0; border-left: 4px solid transparent; border-radius: 0 12px 12px 0; background: none; color: var(--muted);
   font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; text-align: left; cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
@@ -196,7 +205,7 @@ body.fnav-dragging, body.fnav-dragging * { user-select: none !important; -webkit
 .fnav-items { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; }
 .fnav-menu:not(.wide) .fnav-items { padding-top: 22px; }
 .fnav-item {
-  position: relative; display: flex; align-items: center; gap: 12px; flex-shrink: 0; height: 44px; padding: 0 12px 0 13px; border: 0; border-radius: 12px; background: none;
+  position: relative; display: flex; align-items: center; gap: 12px; flex: 0 1 44px; min-height: 36px; padding: 0 12px 0 13px; border: 0; border-radius: 12px; background: none;
   color: var(--text-2); font: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; text-align: left; text-decoration: none; cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -209,7 +218,7 @@ body.fnav-dragging, body.fnav-dragging * { user-select: none !important; -webkit
 .fnav-item .lbl { opacity: 1; transition: opacity 0.2s ease 0.08s; }
 .fnav-menu:not(.wide) .fnav-item .lbl { opacity: 0; transition: opacity 0.08s; }
 .fnav-foot { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px; border-top: 1px solid var(--border); }
-.fnav-foot .fnav-item { height: 40px; color: var(--muted); font-size: 13.5px; }
+.fnav-foot .fnav-item { flex: none; height: 40px; color: var(--muted); font-size: 13.5px; }
 .fnav-act-ic { width: 26px; height: 26px; flex-shrink: 0; display: grid; place-items: center; border-radius: 8px; background: var(--surface-2); color: var(--text-2); }
 .fnav-tip { position: fixed; z-index: 95; padding: 7px 11px; border-radius: 8px; background: #1b2848; color: #fff; font-size: 12.5px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-lg); pointer-events: none; animation: fnav-tip-in 0.14s ease; }
 .fnav-tip.right { transform: translate(0, -50%); }
