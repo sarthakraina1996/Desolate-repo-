@@ -12,6 +12,7 @@ export function geofencePolicy(settings) {
     exemptEmployeeIds: [],
     allowWfhAndLeave: true,
     maxAccuracyM: 1500,
+    verifyCheckIn: false, // fingerprint / face / screen lock on the person's own phone at check-in
     ...(settings.geofence || {}),
   };
 }
@@ -157,7 +158,10 @@ const RESULT = {
 };
 
 // Records a location check (sign-in, check-in, blocked attempt) in the location log.
-export function logLocation(db, { user, event, coords, ip, check }) {
+export function logLocation(
+  db,
+  { user, event, coords, ip, check, device = null, verified = false },
+) {
   return db.insert('location_log', {
     user_id: user?.id ?? null,
     employee_id: user?.employeeId ?? null,
@@ -174,6 +178,7 @@ export function logLocation(db, { user, event, coords, ip, check }) {
       String(ip || '')
         .replace(/^::ffff:/, '')
         .slice(0, 64) || null,
-    note: check.exempt || null,
+    note: [check.exempt, verified && 'Fingerprint confirmed'].filter(Boolean).join(' · ') || null,
+    device,
   });
 }

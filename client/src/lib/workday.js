@@ -4,6 +4,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { api } from './api.js';
 import { withLocation } from './location.js';
+import { askForSetup, confirmIdentity } from './passkeys.js';
 
 // Cached workday and the request in flight, shared by every caller.
 let state = null;
@@ -83,11 +84,22 @@ export const clockText = (minutes, seconds = true) => {
     : `${h}h ${String(m).padStart(2, '0')}m`;
 };
 
-// Office check-in needs the device's location when the office-only rule is on.
+// Office check-in needs the device's location when the office-only rule is on, and the
+// fingerprint check when HR has turned that on (set up on the spot the first time).
 export async function checkIn(body) {
-  const r = await withLocation((location) =>
-    api.post('/attendance/check-in', { ...body, ...(location ? { location } : {}) }),
-  );
+  const send = () =>
+    withLocation((location) =>
+      api.post('/attendance/check-in', { ...body, ...(location ? { location } : {}) }),
+    );
+  let r;
+  try {
+    r = await send();
+  } catch (e) {
+    if (e.code === 'verify_required') await confirmIdentity();
+    else if (e.code === 'verify_setup') await askForSetup();
+    else throw e;
+    r = await send();
+  }
   await refreshWorkday();
   return r;
 }

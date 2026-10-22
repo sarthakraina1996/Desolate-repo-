@@ -17,6 +17,7 @@ It is a complete application: a Node.js server with a SQLite database, real logi
 | **Work clock** | A live timer at the right of the top bar (and in the browser tab title) from check-in. "Pop out clock" opens a small always-on-top window that stays visible when the app is minimised (Chrome and Edge on a computer; it can open automatically at check-in). A day can have several sessions: check out or sign out with "Pause clock" when stepping out, and on return the app asks the reason for the gap (client meeting, site visit, lunch, personal, medical, other). |
 | **Attendance** | Today's board, check-in times with late flags, and a monthly register HR and managers can correct. Feeds loss-of-pay into payroll. **Short hours:** the morning after a working day under the required hours (8 by default, 15 minutes' grace), the employee is alerted to explain why; their reporting manager or the CEO approves (the day counts in full) or rejects (the day becomes a half day). HR can see every case. Clocks left running overnight are closed at the end of that workday. |
 | **Office-only sign-in** | Sign-in and office check-in only from an office: within a set distance of the office's position (browser location), or from the office network. Administrators, staff HR allows to work from anywhere, and people on approved work from home or leave that day are exempt. Office-only sign-ins end at midnight, so each workday starts in the office. Locations are recorded at sign-in, at check-in and every 10 minutes while the work clock runs; HR sees everyone's log (Attendance → Location log), managers their team's, and employees their own. An optional strict rule also signs people out when they leave the office, pausing their clock. Off until HR sets it up. |
+| **Fingerprint check-in** | Stops people checking in for each other. Each person sets it up once on their own phone; every check-in then asks for that phone's fingerprint, face or screen lock (passkeys), so knowing a colleague's password isn't enough. Every check-in is logged with its device: if one phone checks in two people on the same day, HR is notified and the Location log marks it. Anyone signing in from a new device gets an alert. Off until HR turns it on. |
 | **Documents** | Every employee's joining and HR documents in one place. HR gets a checklist of the required documents (Aadhaar, PAN, address proof, education, offer letter, appointment letter, bank proof) showing what is on file and what is missing, and can upload for anyone. Employees see and upload their own; managers do not see their team's ID documents. |
 | **Holiday Calendar** | The year at a glance: company and restricted public holidays on twelve month grids, with weekly offs, today and your own leave marked, plus the list of holidays and the next one coming up. HR adds and removes holidays here. |
 | **Payroll** | Monthly run: Basic / HRA / special allowance from CTC, PF (with wage ceiling), ESI, professional tax, LWF, TDS, loss of pay from attendance and leave, bonuses and reimbursements. Workflow: run → finance review → management approval → bank transfer → paid. Payslips (print / save as PDF), bank transfer CSV, payroll register, statutory dues, exceptions (missing attendance, KYC, bank details, pending claims). |
@@ -174,12 +175,27 @@ Things to know:
 - A determined person can fake browser location with developer tools; the office network check is much harder to fake. Use both.
 - Tell employees their location is checked at sign-in and recorded while their work clock runs, and why (India's Digital Personal Data Protection Act expects notice). Everyone can see their own history under Attendance → Location log.
 
+## Turn on fingerprint check-in
+
+1. Make sure people use the online **https://** address (passkeys don't work over plain http or in the claude.ai demo).
+2. Go to **Settings → Office Locations → Fingerprint check-in** and turn it on.
+3. At their next check-in, each person is asked to set it up on their own phone: one tap and their fingerprint, face or screen lock. They can also do it beforehand from their profile menu (**Fingerprint check-in**) or the reminder in My Space.
+
+Things to know:
+
+- **One device per person.** When someone changes phone, reset them in the same card and they set it up again. This also stops someone who learns a password from adding their own phone.
+- People are told whenever fingerprint check-in is set up or reset on their account, and whenever their account signs in from a new device, so a setup they didn't make doesn't go unnoticed.
+- Fingerprints never leave the phone; the HRMS stores only a public key. Passkeys belong to one web address: if you move to a new domain, everyone sets it up again.
+- No software can stop someone handing over their unlocked phone and its PIN. What this does is make that deliberate, and the Location log shows it.
+
 ## Security notes
 
 - Passwords are hashed with scrypt; sessions are HTTP-only cookies; repeated failed logins are throttled.
 - Every state-changing request needs a custom header the browser can't send cross-site (CSRF protection), and the server sends a strict Content Security Policy.
 - Access is enforced on the server for every endpoint: employees see only their own HR data, managers only their team's, and POSH complaints only the ICC and administrators.
 - Uploaded files are stored with random names outside the web root and are only served to people allowed to see them.
+- Optional fingerprint check-in (passkeys, the WebAuthn standard) proves it's the account owner starting the clock; see above.
+- Each browser gets a random device cookie (stored hashed) so new-device sign-ins and shared phones can be flagged.
 - Change the demo password or remove demo data before inviting real users; the login page lists the demo accounts while demo data is loaded.
 
 ## For developers

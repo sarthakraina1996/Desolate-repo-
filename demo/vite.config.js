@@ -25,6 +25,7 @@ export default defineConfig({
       { find: /^(node:)?path$/, replacement: shim('path.js') },
       { find: /^(node:)?crypto$/, replacement: shim('crypto.js') },
       { find: /^@anthropic-ai\/sdk$/, replacement: shim('anthropic.js') },
+      { find: /^@simplewebauthn\/server$/, replacement: shim('webauthn.js') },
       // Matches the import in server/routes/screener.js.
       { find: /^\.\.\/services\/resume\.js$/, replacement: shim('resume.js') },
     ],

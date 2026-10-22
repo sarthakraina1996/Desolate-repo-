@@ -21,6 +21,8 @@ import resignationRoutes from '../server/routes/resignations.js';
 import performanceRoutes from '../server/routes/performance.js';
 import reportRoutes from '../server/routes/reports.js';
 import settingsRoutes from '../server/routes/settings.js';
+import passkeyRoutes from '../server/routes/passkeys.js';
+import { deviceMiddleware } from '../server/services/devices.js';
 
 // Content types for files served from the in-memory upload store.
 const MIME = {
@@ -111,7 +113,8 @@ function makeRes() {
       return this;
     },
     setHeader(k, v) {
-      this.headers[k.toLowerCase()] = String(v);
+      // Set-Cookie can be a list (session and device cookies in one response)
+      this.headers[k.toLowerCase()] = Array.isArray(v) ? v : String(v);
     },
     getHeader(k) {
       return this.headers[k.toLowerCase()];
@@ -227,10 +230,12 @@ export function createDemoServer() {
     performanceRoutes,
     reportRoutes,
     settingsRoutes,
+    passkeyRoutes,
   ]) {
     register(api, ctx);
   }
   const session = sessionMiddleware(db);
+  const device = deviceMiddleware();
 
   // Handles one request the way server/app.js does and returns the filled-in response.
   // req: { method, path, query, headers, body, formData }
@@ -239,9 +244,12 @@ export function createDemoServer() {
     req.params = {};
     req.ip = '127.0.0.1';
     req.secure = false;
+    req.protocol = 'https';
+    req.hostname = 'demo.invalid';
     req.get = (h) => req.headers[h.toLowerCase()];
     try {
       session(req, res, () => {});
+      device(req, res, () => {});
       // Same CSRF guard as the real server: writes must carry X-Requested-With: hrms.
       if (!['GET', 'HEAD'].includes(req.method) && req.get('x-requested-with') !== 'hrms')
         throw new HttpError(403, 'Request blocked (missing X-Requested-With header)');

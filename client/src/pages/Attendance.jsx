@@ -11,6 +11,8 @@ import {
   Download,
   CheckCheck,
   MapPin,
+  Fingerprint,
+  TriangleAlert,
 } from 'lucide-react';
 import { fmtDistance } from '../lib/location.js';
 import { useApp } from '../context.jsx';
@@ -971,8 +973,9 @@ function LocationLog({ team }) {
         <span>
           {data?.mode === 'off' ? (
             <>
-              The office-only sign-in rule is off, so locations are not being checked.{' '}
-              {team ? 'HR can turn it on in Settings → Office Locations.' : ''}
+              The office-only sign-in rule is off, so locations are not being checked. Check-ins are
+              still logged with their device.{' '}
+              {team ? 'HR can turn the rule on in Settings → Office Locations.' : ''}
             </>
           ) : (
             <>
@@ -989,7 +992,7 @@ function LocationLog({ team }) {
         title={view === 'team' ? 'Location log' : 'My location history'}
         sub={
           data
-            ? `${data.summary.inOffice} in office · ${data.summary.outside} outside · ${data.summary.blocked} refused or signed out`
+            ? `${data.summary.inOffice} in office · ${data.summary.outside} outside · ${data.summary.blocked} refused or signed out${data.summary.shared ? ` · ${data.summary.shared} from a shared device` : ''}`
             : undefined
         }
         action={
@@ -1019,6 +1022,17 @@ function LocationLog({ team }) {
             Only problems
           </label>
         </div>
+        {/* One phone used to check in more than one person */}
+        {data?.summary.shared > 0 && (
+          <div className="alert warn" style={{ margin: '0 18px 14px' }}>
+            <TriangleAlert size={16} />
+            <span>
+              {data.summary.shared} check-in{data.summary.shared === 1 ? ' was' : 's were'} made
+              from a phone or browser that also checked in someone else that day. Check whether
+              someone is starting a colleague&apos;s clock.
+            </span>
+          </div>
+        )}
         {/* Log table */}
         {!data ? (
           <Loading />
@@ -1035,12 +1049,17 @@ function LocationLog({ team }) {
                   <th>Result</th>
                   <th>Where</th>
                   <th className="hide-sm">Accuracy</th>
+                  <th className="hide-sm">Device</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((x) => {
                   const [label, tone] = LOC_RESULT[x.result] || [x.result, 'gray'];
+                  // The note can carry "Fingerprint confirmed" after the exemption reason
+                  const verified = /Fingerprint confirmed/.test(x.note || '');
+                  const exemptNote =
+                    (x.note || '').replace(/( · )?Fingerprint confirmed/, '') || '—';
                   return (
                     <tr key={x.id}>
                       <td className="small nowrap" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -1068,7 +1087,7 @@ function LocationLog({ team }) {
                       <td className="small">
                         {/* Exemption note, or the office with distance from it */}
                         {x.result === 'exempt'
-                          ? x.note
+                          ? exemptNote
                           : x.site_name
                             ? `${x.result === 'outside' || x.result === 'imprecise' ? `${fmtDistance(x.distance_m)} from ` : ''}${x.site_name}${x.result === 'in-office' && x.distance_m != null ? ` · ${fmtDistance(x.distance_m)}` : ''}`
                             : '—'}
@@ -1079,6 +1098,22 @@ function LocationLog({ team }) {
                           : x.result === 'office-network'
                             ? 'Network'
                             : '—'}
+                      </td>
+                      {/* Device, and whether the fingerprint was checked or the device is shared */}
+                      <td className="hide-sm small">
+                        <div className="row wrap gap-6">
+                          <span className="muted">{x.device_label || '—'}</span>
+                          {verified && (
+                            <Badge tone="green">
+                              <Fingerprint size={12} /> Fingerprint
+                            </Badge>
+                          )}
+                          {x.shared && (
+                            <span title={`Same device as ${x.sharedWith.join(', ')}`}>
+                              <Badge tone="amber">Shared device</Badge>
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="right">
                         {x.lat != null && (

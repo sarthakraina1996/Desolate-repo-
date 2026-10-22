@@ -38,6 +38,8 @@ import {
   geofencePolicy,
   fmtDistance,
 } from '../services/geofence.js';
+import { passkeysOf, useGrant } from '../services/passkeys.js';
+import { flagSharedDevice, markSharedDevices } from '../services/devices.js';
 import { destroySession } from '../auth.js';
 
 // Statuses that can be marked by hand: present, work from home, half day, absent.
@@ -226,10 +228,13 @@ export default function attendanceRoutes(r, { db }) {
     if (gapReason === 'Other' && !gapNote) fail(400, 'Add a short note for "Other"');
     const s = settings();
     const T = today(db);
+    const policy = geofencePolicy(s);
     // Location check when the sign-in location rule is on
-    if (geofencePolicy(s).mode !== 'off') {
-      const coords = readCoords(req.body.location);
-      const check = checkLocation(db, {
+    let check = { ok: true, method: 'exempt', exempt: 'Location check is off' };
+    let coords = null;
+    if (policy.mode !== 'off') {
+      coords = readCoords(req.body.location);
+      check = checkLocation(db, {
         user: req.user,
         coords,
         ip: req.ip,
@@ -263,7 +268,14 @@ export default function attendanceRoutes(r, { db }) {
       // Not at an office: log the refusal (unless no location was sent) and block
       if (!check.ok) {
         if (check.code !== 'location_required')
-          logLocation(db, { user: req.user, event: 'check-in blocked', coords, ip: req.ip, check });
+          logLocation(db, {
+            user: req.user,
+            event: 'check-in blocked',
+            coords,
+            ip: req.ip,
+            check,
+            device: req.device,
+          });
         res.status(403).json({
           error: check.message.replace('sign in', 'check in'),
           code: check.code,
@@ -272,8 +284,35 @@ export default function attendanceRoutes(r, { db }) {
         });
         return;
       }
-      logLocation(db, { user: req.user, event: 'check-in', coords, ip: req.ip, check });
     }
+    // Fingerprint check-in: the phone's fingerprint, face or screen lock confirms it's really them
+    if (policy.verifyCheckIn) {
+      if (!passkeysOf(db, req.user.id).length) {
+        res.status(403).json({
+          error: 'Set up fingerprint check-in on your own phone before you check in.',
+          code: 'verify_setup',
+        });
+        return;
+      }
+      if (!useGrant(req)) {
+        res.status(403).json({
+          error: "Confirm it's you with your fingerprint, face or screen lock.",
+          code: 'verify_required',
+        });
+        return;
+      }
+    }
+    // Every check-in is logged with its device, so one phone checking in two people stands out
+    logLocation(db, {
+      user: req.user,
+      event: 'check-in',
+      coords,
+      ip: req.ip,
+      check,
+      device: req.device,
+      verified: policy.verifyCheckIn,
+    });
+    flagSharedDevice(db, req, req.user.employeeId, T);
     // Start the session; a missing break reason is a 400, a clock already running a 409
     const out = startSession(db, {
       employeeId: req.user.employeeId,
@@ -378,9 +417,9 @@ export default function attendanceRoutes(r, { db }) {
       params.push(...ids);
     }
     // One day, measured in the company timezone
+    const tz = settings().timezone;
     const d = req.query.date ? date(req.query.date) : null;
     if (d) {
-      const tz = settings().timezone;
       where.push('l.at >= ? AND l.at < ?');
       params.push(D.zonedIso(d, '00:00', tz), D.zonedIso(D.addDays(d, 1), '00:00', tz));
     }
@@ -390,12 +429,20 @@ export default function attendanceRoutes(r, { db }) {
       params.push(Number(req.query.vertical));
     }
     const sql = `FROM location_log l LEFT JOIN employees e ON e.id = l.employee_id LEFT JOIN users u ON u.id = l.user_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`;
-    const items = db
+    const rows = db
       .all(
-        `SELECT l.*, e.first_name, e.last_name, e.code, e.designation, e.photo IS NOT NULL AS has_photo, u.email ${sql} ORDER BY l.at DESC, l.id DESC LIMIT 300`,
+        `SELECT l.*, e.first_name, e.last_name, e.code, e.designation, e.photo IS NOT NULL AS has_photo, u.email,
+           (SELECT label FROM user_devices ud WHERE ud.user_id = l.user_id AND ud.device = l.device) AS device_label
+         ${sql} ORDER BY l.at DESC, l.id DESC LIMIT 300`,
         ...params,
       )
       .map((x) => ({ ...x, name: x.first_name ? fullName(x) : x.email }));
+    // Flag check-ins from a phone that checked in someone else the same day; the raw device id stays here
+    const items = markSharedDevices(db, rows, tz).map((x) => {
+      const out = { ...x };
+      delete out.device;
+      return out;
+    });
     // Latest 300 readings with summary counts
     const policy = geofencePolicy(settings());
     res.json({
@@ -408,6 +455,7 @@ export default function attendanceRoutes(r, { db }) {
           .length,
         outside: items.filter((x) => x.result === 'outside').length,
         blocked: items.filter((x) => /blocked|signed out/.test(x.event)).length,
+        shared: items.filter((x) => x.shared).length,
       },
     });
   });
