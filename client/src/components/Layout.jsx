@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   CheckCheck,
   ChevronsLeft,
+  Fingerprint,
   Smartphone,
 } from 'lucide-react';
 import { useApp } from '../context.jsx';
@@ -42,6 +43,7 @@ import {
 } from './icons.jsx';
 import WorkClock, { SignInPrompts, SignOutModal, LocationGuard } from './WorkClock.jsx';
 import FloatingNav from './FloatingNav.jsx';
+import { PasskeyModal, PasskeyPrompts } from './Passkey.jsx';
 import { BottomBar, MoreSheet } from './MobileNav.jsx';
 import { GetAppModal, InstallBanner } from './InstallApp.jsx';
 import { canOfferApp, useInstall } from '../lib/pwa.js';
@@ -508,6 +510,7 @@ function UserMenu({ onGetApp }) {
   const workday = useWorkday();
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState(false);
+  const [passkey, setPasskey] = useState(false);
   const [leaving, setLeaving] = useState(false);
   // With the clock still running, ask about checking out before signing out.
   const signOut = () => {
@@ -578,6 +581,18 @@ function UserMenu({ onGetApp }) {
             <KeyRound size={16} />
             Change password
           </div>
+          {user.employeeId && (
+            <div
+              className="item"
+              onClick={() => {
+                setOpen(false);
+                setPasskey(true);
+              }}
+            >
+              <Fingerprint size={16} />
+              Fingerprint check-in
+            </div>
+          )}
           {onGetApp && (
             <div
               className="item"
@@ -598,6 +613,7 @@ function UserMenu({ onGetApp }) {
       )}
       {/* Change password and the check-out-before-sign-out dialog */}
       {pw && <ChangePassword onClose={() => setPw(false)} />}
+      {passkey && <PasskeyModal onClose={() => setPasskey(false)} />}
       {leaving && <SignOutModal onClose={() => setLeaving(false)} />}
     </div>
   );
@@ -722,6 +738,7 @@ export default function Layout({ children }) {
       {user.mustChangePassword && <ChangePassword forced onClose={() => {}} />}
       <SignInPrompts />
       <LocationGuard />
+      <PasskeyPrompts />
     </div>
   );
 }

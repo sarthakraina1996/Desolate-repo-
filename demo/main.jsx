@@ -38,6 +38,7 @@ function installFetch(server) {
     const u = new URL(url, 'https://demo.invalid');
     const headers = {};
     for (const [k, v] of Object.entries(init.headers || {})) headers[k.toLowerCase()] = v;
+    headers['user-agent'] = navigator.userAgent;
     headers.cookie = Object.entries(cookies)
       .map(([k, v]) => `${k}=${v}`)
       .join('; ');
@@ -57,14 +58,13 @@ function installFetch(server) {
       body,
       formData,
     });
-    // Keep or clear the session cookie, and drop the header before building the Response.
-    const setCookie = res.headers['set-cookie'];
-    if (setCookie) {
+    // Keep or clear each cookie (session, device), and drop the header before building the Response.
+    for (const setCookie of [].concat(res.headers['set-cookie'] || [])) {
       const [name, value] = setCookie.split(';')[0].split('=');
       if (/max-age=0/i.test(setCookie)) delete cookies[name.trim()];
       else cookies[name.trim()] = value;
-      delete res.headers['set-cookie'];
     }
+    delete res.headers['set-cookie'];
     return new Response(res.statusCode === 204 ? null : res.body, {
       status: res.statusCode,
       headers: res.headers,

@@ -4075,6 +4075,31 @@ table.table {
   background: var(--surface-2);
   color: var(--blue);
 }
+/* Fingerprint check-in dialog: round icon beside the status; green once set up */
+.pk-status {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.pk-ic {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.pk-ic.ok {
+  background: var(--green-soft);
+  color: var(--green);
+}
+/* HR's list of who has set up fingerprint check-in */
+.pk-list {
+  max-height: 380px;
+  overflow-y: auto;
+}
 /* QR code card with the Br logo over its centre; .app-qr-wait shimmers while loading */
 .app-qr {
   position: relative;

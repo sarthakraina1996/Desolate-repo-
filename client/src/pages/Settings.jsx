@@ -12,6 +12,8 @@ import {
   Database,
   MapPin,
   X,
+  Fingerprint,
+  RotateCcw,
 } from 'lucide-react';
 import { getPosition } from '../lib/location.js';
 import { useApp } from '../context.jsx';
@@ -35,8 +37,10 @@ import {
   useConfirm,
   Textarea,
   EmployeeSelect,
+  Person,
 } from '../components/ui.jsx';
 import { TempPasswordModal } from '../components/forms.jsx';
+import { resetPasskey } from '../components/Passkey.jsx';
 import { LEAVE_ICONS } from './Leave.jsx';
 
 // Settings page: one tab per area; the audit log and data tools are for administrators only.
@@ -1465,6 +1469,8 @@ function Offices() {
           </div>
         )}
       </Card>
+      {/* Fingerprint check-in: who has set it up, and the switch */}
+      <CheckInIdentity />
       {/* Add / edit office modal */}
       {modal && (
         <OfficeModal
@@ -1476,5 +1482,148 @@ function Offices() {
       )}
       {confirmEl}
     </div>
+  );
+}
+
+// Fingerprint check-in: when on, each check-in needs the fingerprint, face or screen lock of the
+// person's own phone. HR sees who has set it up and resets it when someone changes phone.
+function CheckInIdentity() {
+  const { toast } = useApp();
+  const { data, reload } = useApi('/passkeys');
+  const [run, busy] = useAction(toast);
+  const [confirm, confirmEl] = useConfirm();
+  const [q, setQ] = useState('');
+  if (!data)
+    return (
+      <Card className="span-12" title="Fingerprint check-in">
+        <Loading />
+      </Card>
+    );
+  // Turning it on or off
+  const setRequired = async (on) => {
+    if (
+      on &&
+      !(await confirm({
+        title: 'Require fingerprint check-in?',
+        text: `${data.items.length - data.registered} people haven't set it up yet. They will be asked to set it up on their own phone at their next check-in.`,
+        confirmLabel: 'Turn on',
+      }))
+    )
+      return;
+    if (
+      await run(
+        () => api.put('/settings', { geofence: { verifyCheckIn: on } }),
+        on ? 'Fingerprint check-in is on' : 'Fingerprint check-in is off',
+      )
+    )
+      reload();
+  };
+  // Removing someone's passkey so they can set it up on a new phone
+  const reset = async (x) => {
+    if (
+      await confirm({
+        title: `Reset ${x.name}'s fingerprint check-in?`,
+        text: `It was set up on ${x.label || 'a device'}. They will set it up again on their own phone before their next check-in.`,
+        danger: true,
+        confirmLabel: 'Reset',
+      })
+    ) {
+      if (await run(() => resetPasskey(x.user_id), `${x.name} can set it up again`)) reload();
+    }
+  };
+  const shown = data.items.filter((x) => x.name.toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <Card
+      className="span-12"
+      title="Fingerprint check-in"
+      action={
+        <span className="row small gap-6">
+          {data.required ? 'Required at check-in' : 'Off'}
+          <Toggle
+            on={data.required}
+            disabled={busy || Boolean(window.hrmsDemo)}
+            label="Require fingerprint check-in"
+            onChange={setRequired}
+          />
+        </span>
+      }
+    >
+      <div className="row wrap" style={{ gap: 16, alignItems: 'flex-start' }}>
+        <div className="grow" style={{ minWidth: 260, flexBasis: 320 }}>
+          <p className="small" style={{ marginTop: 0, lineHeight: 1.55 }}>
+            Stops people checking in for each other. Each person sets it up once on their own phone;
+            after that every check-in asks for that phone&apos;s fingerprint, face or screen lock.
+            Someone who knows a colleague&apos;s password still can&apos;t start their clock.
+          </p>
+          <ul className="small muted" style={{ paddingLeft: 18, lineHeight: 1.6, margin: 0 }}>
+            <li>One phone per person. When someone changes phone, reset it here.</li>
+            <li>Fingerprints stay on the phone; the HRMS only keeps a public key.</li>
+            <li>Needs the online https:// address of the HRMS.</li>
+            <li>
+              Every check-in is logged with its device. If one phone checks in two people on the
+              same day, HR is notified and the Location log marks it.
+            </li>
+          </ul>
+          {window.hrmsDemo && (
+            <div className="alert info mt-12">
+              <Fingerprint size={16} />
+              <span>
+                Fingerprint check-in works in the online HRMS; it can&apos;t be turned on in this
+                demo.
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="grow" style={{ minWidth: 280, flexBasis: 460 }}>
+          <div className="row between mb-8">
+            <b className="small">
+              {data.registered} of {data.items.length} set up
+            </b>
+            <Input
+              className="sm"
+              style={{ maxWidth: 200 }}
+              placeholder="Search people"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <div className="pk-list">
+            {shown.map((x) => (
+              <div key={x.user_id} className="list-item" style={{ padding: '7px 0' }}>
+                <Person
+                  name={x.name}
+                  sub={x.designation}
+                  id={x.employee_id}
+                  hasPhoto={x.has_photo}
+                  size={30}
+                />
+                <span className="grow" />
+                {x.registered ? (
+                  <>
+                    <span className="xs muted nowrap hide-sm">
+                      {x.label} · {fmtDateTime(x.last_used_at || x.created_at)}
+                    </span>
+                    <Badge tone="green">Set up</Badge>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      icon={RotateCcw}
+                      onClick={() => reset(x)}
+                      aria-label={`Reset ${x.name}`}
+                    >
+                      Reset
+                    </Button>
+                  </>
+                ) : (
+                  <Badge tone="gray">Not set up</Badge>
+                )}
+              </div>
+            ))}
+            {!shown.length && <Empty text="No one matches" />}
+          </div>
+        </div>
+      </div>
+      {confirmEl}
+    </Card>
   );
 }

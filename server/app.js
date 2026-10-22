@@ -19,6 +19,8 @@ import policyRoutes from './routes/policies.js';
 import payrollRoutes from './routes/payroll.js';
 import hiringRoutes from './routes/hiring.js';
 import screenerRoutes from './routes/screener.js';
+import passkeyRoutes from './routes/passkeys.js';
+import { deviceMiddleware } from './services/devices.js';
 import resignationRoutes from './routes/resignations.js';
 import performanceRoutes from './routes/performance.js';
 import reportRoutes from './routes/reports.js';
@@ -103,6 +105,8 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
   });
   app.use(express.json({ limit: '2mb' }));
   app.use(sessionMiddleware(db));
+  // Device cookie, to spot new sign-ins and one phone checking in two people.
+  app.use('/api', deviceMiddleware());
   // CSRF guard: state-changing API calls must carry a custom header, which a
   // cross-site form or image request cannot add.
   app.use('/api', (req, res, next) => {
@@ -138,6 +142,7 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
     performanceRoutes,
     reportRoutes,
     settingsRoutes,
+    passkeyRoutes,
   ]) {
     register(api, ctx);
   }

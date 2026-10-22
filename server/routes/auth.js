@@ -13,6 +13,7 @@ import { checkLocation, logLocation, readCoords, geofencePolicy } from '../servi
 import * as D from '../lib/dates.js';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../seed.js';
 import { aiEnabled } from '../services/ai.js';
+import { alertNewDevice, rememberDevice } from '../services/devices.js';
 
 // Sign-in, sign-out, current user and password change. Mounted without the sign-in guard.
 export default function authRoutes(r, { db }) {
@@ -48,7 +49,14 @@ export default function authRoutes(r, { db }) {
     // Refused: log it (unless the browser simply hasn't sent a location yet) and say why.
     if (!check.ok) {
       if (check.code !== 'location_required')
-        logLocation(db, { user: who, event: 'sign-in blocked', coords, ip: req.ip, check });
+        logLocation(db, {
+          user: who,
+          event: 'sign-in blocked',
+          coords,
+          ip: req.ip,
+          check,
+          device: req.device,
+        });
       return res.status(403).json({
         error: check.message,
         code: check.code,
@@ -57,8 +65,17 @@ export default function authRoutes(r, { db }) {
       });
     }
     if (geofencePolicy(settings).mode !== 'off')
-      logLocation(db, { user: who, event: 'sign-in', coords, ip: req.ip, check });
+      logLocation(db, {
+        user: who,
+        event: 'sign-in',
+        coords,
+        ip: req.ip,
+        check,
+        device: req.device,
+      });
     db.run('UPDATE users SET last_login = ? WHERE id = ?', new Date().toISOString(), user.id);
+    // A sign-in from a phone or browser this account hasn't used before: let the owner know.
+    if (req.device && rememberDevice(db, req, user.id)) alertNewDevice(db, req, user.id);
     // Office-only sign-ins last until midnight, so each workday starts in the office.
     createSession(
       db,

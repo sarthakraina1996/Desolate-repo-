@@ -162,10 +162,35 @@ CREATE TABLE IF NOT EXISTS location_log (
   site_id INTEGER REFERENCES office_sites(id) ON DELETE SET NULL,
   site_name TEXT,
   distance_m INTEGER, lat REAL, lng REAL, accuracy_m INTEGER,
-  ip TEXT, note TEXT
+  ip TEXT, note TEXT, device TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_loclog_at ON location_log(at);
 CREATE INDEX IF NOT EXISTS idx_loclog_emp ON location_log(employee_id, at);
+
+-- Passkeys: the fingerprint / face / screen-lock key on someone's own phone, used to confirm
+-- it's really them at check-in. Public keys only; the private key never leaves the phone.
+CREATE TABLE IF NOT EXISTS passkeys (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id TEXT NOT NULL UNIQUE,
+  public_key TEXT NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0,
+  transports TEXT,
+  label TEXT,
+  created_at TEXT NOT NULL,
+  last_used_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id);
+
+-- Browsers and phones each person has signed in from (a hashed device cookie), to spot new ones.
+CREATE TABLE IF NOT EXISTS user_devices (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device TEXT NOT NULL,
+  label TEXT,
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  PRIMARY KEY (user_id, device)
+);
 
 CREATE TABLE IF NOT EXISTS policies (
   id INTEGER PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'General',
@@ -394,12 +419,29 @@ function normalize(params) {
   return flat.map(bindable);
 }
 
+// Columns added after a release; databases created earlier get them when the server starts.
+const ADDED_COLUMNS = [['location_log', 'device', 'TEXT']];
+
+// Brings an older database up to the current schema.
+function migrate(raw) {
+  for (const [table, column, type] of ADDED_COLUMNS) {
+    const have = raw
+      .prepare(`PRAGMA table_info(${table})`)
+      .all()
+      .map((c) => c.name);
+    if (!have.includes(column)) raw.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+  // Indexes on added columns can only be made once the column exists.
+  raw.exec('CREATE INDEX IF NOT EXISTS idx_loclog_device ON location_log(device, at)');
+}
+
 // Opens (or creates) the database, applies the schema and returns a small query helper API.
 export function openDb(file) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const raw = new DatabaseSync(file);
   raw.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
   raw.exec(SCHEMA);
+  migrate(raw);
   // Prepared statements are cached by SQL text so repeated queries skip re-preparing.
   const cache = new Map();
   const stmt = (sql) => {

@@ -23,12 +23,16 @@ export async function boot({ serveClient = false } = {}) {
   return { base, db, close };
 }
 
-// API client that keeps the session cookie and sends the X-Requested-With header.
-export function client(base) {
-  let cookie = '';
+// API client that keeps its cookies (session and device) and sends the X-Requested-With header.
+// `device` pins the device cookie, to act as a particular phone.
+export function client(base, { device } = {}) {
+  const jar = device ? { hrms_device: device } : {};
   // Sends JSON or FormData and returns the status with a parsed body.
   const call = async (method, p, body, { form, headers = {} } = {}) => {
     const h = { 'X-Requested-With': 'hrms', ...headers };
+    const cookie = Object.entries(jar)
+      .map(([k, v]) => `${k}=${v}`)
+      .join('; ');
     if (cookie) h.Cookie = cookie;
     let payload;
     if (form) payload = form;
@@ -37,8 +41,14 @@ export function client(base) {
       payload = JSON.stringify(body);
     }
     const res = await fetch(base + p, { method, headers: h, body: payload });
-    const set = res.headers.get('set-cookie');
-    if (set) cookie = set.split(';')[0];
+    // Keep each cookie the server sets; Max-Age=0 removes it
+    for (const set of res.headers.getSetCookie()) {
+      const [pair] = set.split(';');
+      const i = pair.indexOf('=');
+      const name = pair.slice(0, i).trim();
+      if (/max-age=0/i.test(set)) delete jar[name];
+      else jar[name] = pair.slice(i + 1).trim();
+    }
     const type = res.headers.get('content-type') || '';
     return {
       status: res.status,
@@ -60,4 +70,4 @@ export function client(base) {
 }
 
 // A client already signed in as `email`.
-export const as = (base, email, password) => client(base).login(email, password);
+export const as = (base, email, password, opts) => client(base, opts).login(email, password);

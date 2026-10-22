@@ -39,6 +39,7 @@ import { NoticeBoard } from './Dashboard.jsx';
 import { ClockActions, AttentionBanner } from '../components/WorkClock.jsx';
 import { useWorkday, useNow, workedNow, clockText, useOnWorkdayChange } from '../lib/workday.js';
 import { EmployeeForm, Onboarding } from './Employees.jsx';
+import { PasskeyBanner } from '../components/Passkey.jsx';
 
 // Employee self-service home: overview, payslips and claims, and helpdesk requests.
 export default function MySpace() {
@@ -227,6 +228,7 @@ function Overview() {
           </span>
         </div>
       )}
+      <PasskeyBanner />
       {!data.poshTrained && (
         <div className="alert info mb-16">
           <CircleAlert size={18} />

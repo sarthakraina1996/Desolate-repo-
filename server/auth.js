@@ -35,10 +35,10 @@ export function tempPassword() {
 }
 
 // Session tokens are stored hashed so a leaked database can't be used to sign in.
-const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
+export const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 // Parses a Cookie header into a name -> value map.
-function parseCookies(header) {
+export function parseCookies(header) {
   const out = {};
   for (const part of String(header || '').split(';')) {
     const i = part.indexOf('=');
@@ -48,9 +48,15 @@ function parseCookies(header) {
 }
 
 // Cookie attributes; adds Secure on HTTPS or when COOKIE_SECURE=true.
-function cookieOptions(req) {
+export function cookieOptions(req) {
   const secure = process.env.COOKIE_SECURE === 'true' || req.secure;
   return `Path=/; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
+}
+
+// Adds a cookie to the response without replacing ones already set (session + device).
+export function addCookie(res, cookie) {
+  const prev = res.getHeader('Set-Cookie');
+  res.setHeader('Set-Cookie', prev ? [].concat(prev, cookie) : cookie);
 }
 
 // Starts a session, sets its cookie and prunes expired ones. expiresAt (ISO) shortens it,
@@ -66,8 +72,8 @@ export function createSession(db, req, res, userId, { expiresAt = null } = {}) {
     new Date(until).toISOString(),
   );
   db.run('DELETE FROM sessions WHERE expires_at < ?', new Date().toISOString());
-  res.setHeader(
-    'Set-Cookie',
+  addCookie(
+    res,
     `${COOKIE}=${token}; ${cookieOptions(req)}; Max-Age=${Math.max(60, Math.round((until - Date.now()) / 1000))}`,
   );
 }
@@ -76,7 +82,7 @@ export function createSession(db, req, res, userId, { expiresAt = null } = {}) {
 export function destroySession(db, req, res) {
   const token = parseCookies(req.headers.cookie)[COOKIE];
   if (token) db.run('DELETE FROM sessions WHERE token_hash = ?', sha256(token));
-  res.setHeader('Set-Cookie', `${COOKIE}=; ${cookieOptions(req)}; Max-Age=0`);
+  addCookie(res, `${COOKIE}=; ${cookieOptions(req)}; Max-Age=0`);
 }
 
 // Builds the req.user object for an active login, joined with its employee record.
@@ -105,16 +111,18 @@ export function loadUser(db, userId) {
   };
 }
 
-// Attaches req.user when a valid session cookie is present.
+// Attaches req.user when a valid session cookie is present, and req.sessionKey (the token's
+// hash) so short-lived approvals like a fingerprint check can be tied to this one sign-in.
 export function sessionMiddleware(db) {
   return (req, _res, next) => {
     const token = parseCookies(req.headers.cookie)[COOKIE];
     if (token) {
-      const s = db.get(
-        'SELECT user_id, expires_at FROM sessions WHERE token_hash = ?',
-        sha256(token),
-      );
-      if (s && s.expires_at > new Date().toISOString()) req.user = loadUser(db, s.user_id);
+      const key = sha256(token);
+      const s = db.get('SELECT user_id, expires_at FROM sessions WHERE token_hash = ?', key);
+      if (s && s.expires_at > new Date().toISOString()) {
+        req.user = loadUser(db, s.user_id);
+        if (req.user) req.sessionKey = key;
+      }
     }
     next();
   };

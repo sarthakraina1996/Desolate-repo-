@@ -142,6 +142,8 @@ export default function settingsRoutes(r, { db, saveFile }) {
                     .filter((x) => Number.isInteger(x) && x > 0),
                 ),
               ],
+        verifyCheckIn:
+          g.verifyCheckIn === undefined ? prev.verifyCheckIn : Boolean(g.verifyCheckIn),
         allowWfhAndLeave:
           g.allowWfhAndLeave === undefined ? prev.allowWfhAndLeave : Boolean(g.allowWfhAndLeave),
         maxAccuracyM:
