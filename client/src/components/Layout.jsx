@@ -308,7 +308,7 @@ function GlobalSearch() {
           if (e.key === 'Escape') setOpen(false);
         }}
       />
-      {/* Results; mousedown picks one before the input's blur can close the list */}
+      {/* Results list, from 2 characters */}
       {open && q.trim().length >= 2 && (
         <div className="dropdown" style={{ left: 0, right: 'auto', width: '100%', minWidth: 300 }}>
           {results.length === 0 ? (

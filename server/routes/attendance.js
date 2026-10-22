@@ -253,27 +253,23 @@ export default function attendanceRoutes(r, { db }) {
             T,
           ) === 'wfh');
       if (wantsWfh && !wfhDay) {
-        res
-          .status(403)
-          .json({
-            error:
-              'Working from home needs an approved work-from-home day. Apply for it in Leave & Policies, or check in at the office.',
-            code: 'wfh_not_approved',
-          });
+        res.status(403).json({
+          error:
+            'Working from home needs an approved work-from-home day. Apply for it in Leave & Policies, or check in at the office.',
+          code: 'wfh_not_approved',
+        });
         return;
       }
       // Not at an office: log the refusal (unless no location was sent) and block
       if (!check.ok) {
         if (check.code !== 'location_required')
           logLocation(db, { user: req.user, event: 'check-in blocked', coords, ip: req.ip, check });
-        res
-          .status(403)
-          .json({
-            error: check.message.replace('sign in', 'check in'),
-            code: check.code,
-            distance: check.distance ?? null,
-            office: check.site?.name ?? null,
-          });
+        res.status(403).json({
+          error: check.message.replace('sign in', 'check in'),
+          code: check.code,
+          distance: check.distance ?? null,
+          office: check.site?.name ?? null,
+        });
         return;
       }
       logLocation(db, { user: req.user, event: 'check-in', coords, ip: req.ip, check });

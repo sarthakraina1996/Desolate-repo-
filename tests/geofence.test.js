@@ -131,7 +131,7 @@ test('office check-in needs the office; work from home needs an approved WFH day
   let w = (await c.get('/attendance/workday')).body.workday;
   if (w.openSince) assert.equal((await c.post('/attendance/check-out')).status, 200);
   w = (await c.get('/attendance/workday')).body.workday;
-  const again =w.sessions.length ? { gap_reason: 'Lunch break' } : {};
+  const again = w.sessions.length ? { gap_reason: 'Lunch break' } : {};
   assert.equal(
     (await c.post('/attendance/check-in', { mode: 'wfh', ...again })).body.code,
     'wfh_not_approved',

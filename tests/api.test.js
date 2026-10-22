@@ -79,7 +79,7 @@ test('leave: employee applies, other manager cannot approve, own manager approve
   });
   assert.equal(applied.status, 200, JSON.stringify(applied.body));
   // Applying again for the same day overlaps and is refused.
-  const dup =await emp.post('/leave/requests', {
+  const dup = await emp.post('/leave/requests', {
     leave_type_id: cl.typeId,
     from_date: day,
     to_date: day,

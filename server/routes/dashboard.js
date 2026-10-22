@@ -242,15 +242,13 @@ export default function dashboardRoutes(r, { db }) {
         return y >= a && y < b;
       }).length,
     }));
-    const byVertical = db
-      .all('SELECT * FROM verticals ORDER BY id')
-      .map((v) => ({
-        id: v.id,
-        label: v.name,
-        short: v.short,
-        color: v.color,
-        value: current.filter((e) => e.vertical_id === v.id).length,
-      }));
+    const byVertical = db.all('SELECT * FROM verticals ORDER BY id').map((v) => ({
+      id: v.id,
+      label: v.name,
+      short: v.short,
+      color: v.color,
+      value: current.filter((e) => e.vertical_id === v.id).length,
+    }));
 
     // Compliance
     // An employee counts only after acknowledging the current version of every required policy.

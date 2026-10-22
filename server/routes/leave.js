@@ -439,18 +439,16 @@ export default function leaveRoutes(r, { db }) {
           has_photo: x.has_photo,
           leaves: [],
         });
-      byEmp
-        .get(x.employee_id)
-        .leaves.push({
-          id: x.id,
-          from: x.from_date,
-          to: x.to_date,
-          type: x.type,
-          code: x.code,
-          color: x.color,
-          status: x.status,
-          half_day: x.half_day,
-        });
+      byEmp.get(x.employee_id).leaves.push({
+        id: x.id,
+        from: x.from_date,
+        to: x.to_date,
+        type: x.type,
+        code: x.code,
+        color: x.color,
+        status: x.status,
+        half_day: x.half_day,
+      });
     }
     const holidays = db.all(
       'SELECT * FROM holidays WHERE date BETWEEN ? AND ? ORDER BY date',

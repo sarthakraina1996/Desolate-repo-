@@ -627,7 +627,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
       const name = `${first} ${last}`;
       usedNames.add(name);
       // Repeated names get a numbered email (first.last2@...).
-      let email =`${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, '') + '@brainadz.com';
+      let email = `${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, '') + '@brainadz.com';
       let n = 2;
       while (usedEmails.has(email))
         email = `${first}.${last}${n++}`.toLowerCase().replace(/[^a-z0-9.]/g, '') + '@brainadz.com';
@@ -1748,7 +1748,7 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
     });
     // Resignations for the exited employees, submitted about 30 days before they left.
     for (const { e, reason } of exited) {
-      const submitted =workday(D.addDays(e.exit_date, -30), -1);
+      const submitted = workday(D.addDays(e.exit_date, -30), -1);
       const at = isoAt(e.exit_date);
       db.insert('resignations', {
         employee_id: e.id,

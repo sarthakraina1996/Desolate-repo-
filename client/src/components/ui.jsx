@@ -65,7 +65,7 @@ export function Delta({ value, label = 'vs. last month', invert = false }) {
   );
 }
 
-// KPI card: tinted icon, label, value with unit and an optional change; clickable when given onClick.
+// KPI card: tinted icon, label, value with unit and an optional change; clickable with onClick.
 export function Kpi({
   icon: Icon,
   tone = 'blue',

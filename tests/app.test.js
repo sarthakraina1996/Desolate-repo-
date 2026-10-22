@@ -7,7 +7,7 @@ import { isLoopback } from '../server/lib/network.js';
 
 const root = path.join(import.meta.dirname, '..', 'client');
 // The caching test needs a built client and is skipped without one.
-const built =fs.existsSync(path.join(root, 'dist', 'index.html'));
+const built = fs.existsSync(path.join(root, 'dist', 'index.html'));
 
 let ctx;
 before(async () => {
@@ -61,7 +61,7 @@ test(
     assert.match(m.get('content-type'), /application\/manifest\+json/);
     // Hashed build assets never change, so they can be cached for good.
     const html = await (await fetch(`${site}/`)).text();
-    const asset =html.match(/\/assets\/[^"]+\.js/)[0];
+    const asset = html.match(/\/assets\/[^"]+\.js/)[0];
     assert.match((await head(asset)).get('cache-control'), /immutable/);
     assert.equal(
       (await head('/attendance')).get('cache-control'),

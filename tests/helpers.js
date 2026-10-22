@@ -60,4 +60,4 @@ export function client(base) {
 }
 
 // A client already signed in as `email`.
-export const as =(base, email, password) => client(base).login(email, password);
+export const as = (base, email, password) => client(base).login(email, password);

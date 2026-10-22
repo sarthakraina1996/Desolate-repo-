@@ -294,20 +294,18 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     // All cases for ICC members, with anonymous complainants masked; others see only their own.
     const canSeeCases = isIcc(db, req.user);
     const complaints = canSeeCases
-      ? db
-          .all('SELECT * FROM posh_complaints ORDER BY created_at DESC')
-          .map((c) => ({
-            ...c,
-            updates: json(c.updates, []),
-            complainant: c.anonymous
-              ? 'Anonymous'
-              : fullName(
-                  db.get(
-                    'SELECT first_name, last_name FROM employees WHERE id = ?',
-                    c.complainant_id,
-                  ),
+      ? db.all('SELECT * FROM posh_complaints ORDER BY created_at DESC').map((c) => ({
+          ...c,
+          updates: json(c.updates, []),
+          complainant: c.anonymous
+            ? 'Anonymous'
+            : fullName(
+                db.get(
+                  'SELECT first_name, last_name FROM employees WHERE id = ?',
+                  c.complainant_id,
                 ),
-          }))
+              ),
+        }))
       : [];
     const mine = req.user.employeeId
       ? db.all(

@@ -548,12 +548,10 @@ function AckByDepartment() {
       <div className="grow" style={{ minWidth: 220 }}>
         <div className="small muted mb-8">All required policies, by department</div>
         <HBars
-          items={data.byDepartment
-            .slice(0, 7)
-            .map((d) => ({
-              label: d.label,
-              value: d.total ? Math.round((d.acked / d.total) * 100) : 0,
-            }))}
+          items={data.byDepartment.slice(0, 7).map((d) => ({
+            label: d.label,
+            value: d.total ? Math.round((d.acked / d.total) * 100) : 0,
+          }))}
           max={100}
           format={(v) => `${v}%`}
           labelWidth={100}

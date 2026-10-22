@@ -38,9 +38,12 @@ function useClockToast() {
   return useCallback((text, kind) => toast(text, kind, { module: '/attendance' }), [toast]);
 }
 
+// Day statuses with no clock: holiday, weekly off, leave.
 const OFF_DAYS = ['H', 'WO', 'L'];
 const BASE_TITLE = 'BrainADZ HRMS';
+// Saved "pop out the clock when I check in" choice; on unless turned off.
 const POP_PREF = 'hrms.popOutOnCheckIn';
+// Pop-out needs Document Picture-in-Picture (Chrome or Edge on a computer) and a top-level page.
 const canPopOut = () =>
   typeof window !== 'undefined' && 'documentPictureInPicture' in window && window.top === window;
 const readPref = () => {
@@ -59,6 +62,7 @@ const writePref = (on) => {
 };
 
 // ---------- floating clock (Document Picture-in-Picture) ----------
+// The open pop-out window, shared by every component that shows the clock.
 let pipWindow = null;
 const pipListeners = new Set();
 const setPip = (w) => {
@@ -66,10 +70,12 @@ const setPip = (w) => {
   pipListeners.forEach((f) => f(w));
 };
 
+// Opens the always-on-top clock window; false when the browser can't.
 export async function openFloatingClock() {
   if (!canPopOut()) return false;
   if (pipWindow) return true;
   const win = await window.documentPictureInPicture.requestWindow({ width: 280, height: 168 });
+  // Copy the app's styles in; sheets whose rules can't be read (cross-origin) are linked instead.
   for (const sheet of [...document.styleSheets]) {
     try {
       const style = win.document.createElement('style');
@@ -86,11 +92,13 @@ export async function openFloatingClock() {
   }
   win.document.title = 'Work clock';
   win.document.body.className = 'pip-body';
+  // Forget the window once the user closes it.
   win.addEventListener('pagehide', () => setPip(null));
   setPip(win);
   return true;
 }
 
+// The pop-out window or null; re-renders when it opens or closes.
 function usePipWindow() {
   const [w, setW] = useState(pipWindow);
   useEffect(() => {
@@ -100,6 +108,7 @@ function usePipWindow() {
   return w;
 }
 
+// What the pop-out window shows: state, worked time, progress to target and a check-out button.
 function FloatingClock({ s }) {
   const now = useNow(1000);
   const toast = useClockToast();
@@ -108,6 +117,7 @@ function FloatingClock({ s }) {
   const running = Boolean(w.openSince);
   return (
     <div className="pip-clock">
+      {/* State and daily target */}
       <div className="row between">
         <span className={`pip-state ${running ? 'on' : ''}`}>{running ? 'Working' : 'Paused'}</span>
         <span className="xs muted">{clockText(w.requiredMinutes, false)} target</span>
@@ -118,6 +128,7 @@ function FloatingClock({ s }) {
         color={worked >= w.requiredMinutes ? 'var(--green)' : 'var(--blue)'}
         height={6}
       />
+      {/* Since when, and check out */}
       <div className="row between mt-8">
         <span className="xs muted">
           {running
@@ -145,6 +156,7 @@ function FloatingClock({ s }) {
 }
 
 // ---------- reason for the gap ----------
+// Asks why the clock was paused before resuming; `welcome` is the version shown after sign-in.
 export function GapReasonModal({ welcome, onClose }) {
   const toast = useClockToast();
   const s = useWorkday();
@@ -154,9 +166,11 @@ export function GapReasonModal({ welcome, onClose }) {
   const [run, busy] = useAction(toast);
   const w = s?.workday;
   if (!w) return null;
+  // Minutes paused so far, on the server's clock.
   const awayMin = w.awaySince
     ? Math.max(0, (now + (s.offset || 0) - Date.parse(w.awaySince)) / 60000)
     : 0;
+  // Checks in again with the reason, then pops out the clock if the user wants that.
   const resume = async () => {
     const out = await run(
       () => checkIn({ mode: w.mode || 'office', gap_reason: reason, gap_note: note }),
@@ -190,6 +204,7 @@ export function GapReasonModal({ welcome, onClose }) {
       }
     >
       <div className="col" style={{ gap: 14 }}>
+        {/* How long they were away and what they have worked today */}
         <div className="alert info">
           <Pause size={16} />
           <span>
@@ -198,6 +213,7 @@ export function GapReasonModal({ welcome, onClose }) {
             <b>{clockText(w.workedMinutes, false)}</b> today.
           </span>
         </div>
+        {/* Reason chips; "Other" needs details */}
         <Field label="Reason for the gap">
           <div className="pick-chips" role="radiogroup" aria-label="Reason for the gap">
             {(s.gapReasons || []).map((r) => (
@@ -238,7 +254,9 @@ export function ClockActions({ light }) {
   const [run, busy] = useAction(toast);
   const [ask, setAsk] = useState(false);
   const w = s?.workday;
+  // Nothing on a holiday, weekly off or leave day, unless they clocked in anyway.
   if (!w || (OFF_DAYS.includes(s.dayStatus) && !w.sessions.length)) return null;
+  // Checks in (office or WFH), then pops out the clock if the user wants that.
   const start = async (mode) => {
     if (
       await run(
@@ -251,6 +269,7 @@ export function ClockActions({ light }) {
   };
   return (
     <div className="row">
+      {/* Not started: check in at the office or from home */}
       {!w.sessions.length && (
         <>
           <Button variant="primary" icon={LogIn} loading={busy} onClick={() => start('office')}>
@@ -261,6 +280,7 @@ export function ClockActions({ light }) {
           </Button>
         </>
       )}
+      {/* Running: check out */}
       {w.openSince && (
         <Button
           icon={LogOut}
@@ -275,6 +295,7 @@ export function ClockActions({ light }) {
           Check out
         </Button>
       )}
+      {/* Paused: check in again, giving a reason for the gap */}
       {!w.openSince && w.sessions.length > 0 && (
         <Button variant={light ? '' : 'primary'} icon={LogIn} onClick={() => setAsk(true)}>
           Check in again
@@ -288,6 +309,7 @@ export function ClockActions({ light }) {
 // Today's sessions and the time away between them.
 export function SessionList({ w, compact }) {
   if (!w?.sessions.length) return null;
+  // Each session, preceded by the gap since the one before it.
   const rows = [];
   w.sessions.forEach((x, i) => {
     if (i > 0) {
@@ -320,6 +342,7 @@ export function SessionList({ w, compact }) {
 }
 
 // ---------- top-bar clock ----------
+// Top-bar timer with a panel to check in or out, see today's sessions and pop out the clock.
 export default function WorkClock() {
   const { user } = useApp();
   const toast = useClockToast();
@@ -345,6 +368,7 @@ export default function WorkClock() {
     document.title = `● ${clockText(worked, false)} · ${BASE_TITLE}`;
     return undefined;
   }, [running, Math.floor(worked)]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Restore the plain title when the clock goes away (e.g. on sign-out).
   useEffect(
     () => () => {
       document.title = BASE_TITLE;
@@ -352,16 +376,19 @@ export default function WorkClock() {
     [],
   );
 
+  // No clock for logins without an employee record, or on an off day with no sessions.
   if (!user.employeeId || !w) return null;
   if (OFF_DAYS.includes(s.dayStatus) && !w.sessions.length) return null;
   const pct = Math.min(100, (worked / w.requiredMinutes) * 100);
   const left = w.requiredMinutes - worked;
+  // Opens the pop-out clock, saying so when this browser can't.
   const popOut = () =>
     openFloatingClock()
       .then((ok) => {
         if (!ok) toast('Use Chrome or Edge on a computer to pop out the clock.', 'error');
       })
       .catch(() => toast('The floating clock could not open.', 'error'));
+  // Checks in, then pops out the clock if the user opted in.
   const start = async (mode) => {
     if ((await run(() => checkIn({ mode }), 'Checked in. Your clock is running.')) && pref)
       popOut();
@@ -369,6 +396,7 @@ export default function WorkClock() {
 
   return (
     <div ref={ref} className="clock-wrap">
+      {/* Timer button: running time, or "Check in" before the first session */}
       <button
         type="button"
         className={`work-clock ${running ? 'on' : w.sessions.length ? 'paused' : 'idle'}`}
@@ -383,8 +411,10 @@ export default function WorkClock() {
         <span className="t">{w.sessions.length ? clockText(worked) : 'Check in'}</span>
         {w.sessions.length > 0 && <span className="lbl">{running ? 'Working' : 'Paused'}</span>}
       </button>
+      {/* Clock panel */}
       {open && (
         <div className="dropdown clock-panel">
+          {/* Date and status */}
           <div className="head" style={{ display: 'block' }}>
             <div className="row between">
               <span>{fmtDay(s.today)}</span>
@@ -396,6 +426,7 @@ export default function WorkClock() {
             </div>
           </div>
           <div style={{ padding: 14 }}>
+            {/* Worked time, progress to target, sessions and location */}
             <div className="clock-big">{clockText(worked)}</div>
             <Progress value={pct} color={left <= 0 ? 'var(--green)' : 'var(--blue)'} />
             <div className="xs muted mt-8">
@@ -405,6 +436,7 @@ export default function WorkClock() {
             </div>
             <SessionList w={w} compact />
             <LocationLine />
+            {/* Check in / out, check in again, pop out */}
             <div className="row wrap mt-16" style={{ gap: 8 }}>
               {!w.sessions.length && (
                 <>
@@ -456,6 +488,7 @@ export default function WorkClock() {
                 </Button>
               )}
             </div>
+            {/* Pop-out preference */}
             {canPopOut() && (
               <label className="check xs mt-8">
                 <input
@@ -477,6 +510,7 @@ export default function WorkClock() {
           </div>
         </div>
       )}
+      {/* Gap reason dialog, and the clock drawn into the pop-out window */}
       {ask && <GapReasonModal onClose={() => setAsk(false)} />}
       {pip && createPortal(<FloatingClock s={s} />, pip.document.body)}
     </div>
@@ -489,6 +523,7 @@ export function AttentionBanner() {
   if (!s || (!s.toExplain && !s.toApprove)) return null;
   return (
     <div className="col mb-16" style={{ gap: 8 }}>
+      {/* The user's own short days */}
       {s.toExplain > 0 && (
         <div className="alert warn">
           <CircleAlert size={16} />
@@ -502,6 +537,7 @@ export function AttentionBanner() {
           </Link>
         </div>
       )}
+      {/* Explanations waiting for this manager */}
       {s.toApprove > 0 && (
         <div className="alert info">
           <CircleAlert size={16} />
@@ -541,6 +577,7 @@ export function LocationGuard() {
       return undefined;
     }
     let stop = false;
+    // Gets the position, reports it and acts on the server's answer.
     const ping = async () => {
       last.current = Date.now();
       let pos;
@@ -554,6 +591,7 @@ export function LocationGuard() {
         const r = await api.post('/attendance/location', pos);
         if (stop) return;
         setLocationStatus(r);
+        // Signed out for leaving the office (strict mode): keep the reason for the sign-in page.
         if (r.signedOut) {
           try {
             sessionStorage.setItem('hrms.flash', r.message);
@@ -563,6 +601,7 @@ export function LocationGuard() {
           await logout();
           return;
         }
+        // Warn once per spell outside the office, not on every check.
         if (!r.ok && r.message && !warned.current) {
           warned.current = true;
           toast(
@@ -577,6 +616,7 @@ export function LocationGuard() {
         /* offline: try again next time */
       }
     };
+    // Check now, every 10 minutes, when the tab returns after 2+ minutes, and on request.
     ping();
     const timer = setInterval(ping, 10 * 60000);
     const onVisible = () => {
@@ -594,11 +634,13 @@ export function LocationGuard() {
   return null;
 }
 
+// One-line office location status for the clock panel.
 function LocationLine() {
   const { meta } = useApp();
   const st = useLocationStatus();
   const geo = meta?.geofence;
   if (!geo || geo.mode === 'off') return null;
+  // Message and colour from the exemption or the latest check.
   let text;
   let tone = 'muted';
   if (geo.exempt) text = `Location check not needed: ${geo.exempt.toLowerCase()}`;
@@ -625,6 +667,7 @@ function LocationLine() {
 }
 
 // ---------- explain a short day ----------
+// Sends the manager a reason for a short day, prefilled from the gap reasons given that day.
 export function ExplainModal({ item, onClose, onDone }) {
   const toast = useClockToast();
   const prefill = item.gaps
@@ -662,6 +705,7 @@ export function ExplainModal({ item, onClose, onDone }) {
       }
     >
       <div className="col" style={{ gap: 14 }}>
+        {/* Hours worked, and what happens if the reason isn't approved */}
         <div className="alert warn">
           <TriangleAlert size={16} />
           <span>
@@ -670,6 +714,7 @@ export function ExplainModal({ item, onClose, onDone }) {
             approves the reason; if they don't, the day is marked as a half day.
           </span>
         </div>
+        {/* That day's sessions and gaps */}
         <SessionList w={{ sessions: item.sessions.map((x) => ({ ...x })), gaps: item.gaps }} />
         <Field label="Why were your hours short?">
           <Textarea
@@ -693,6 +738,7 @@ export function SignInPrompts() {
   const [welcome, setWelcome] = useState(false);
   const [short, setShort] = useState(null);
   const shown = useRef({ welcome: false, short: false });
+  // Remembered per user and day in sessionStorage, or just in memory if storage is blocked.
   const key = (k) => `hrms.prompt.${k}.${user.id}.${s?.today}`;
   const seen = (k) => {
     try {
@@ -709,6 +755,7 @@ export function SignInPrompts() {
       /* storage blocked */
     }
   };
+  // Welcome back first; otherwise fetch the first short day still awaiting an explanation.
   useEffect(() => {
     if (!s?.workday || user.mustChangePassword) return;
     if (s.workday.signedOutAway && !shown.current.welcome && !seen('welcome')) {
@@ -758,6 +805,7 @@ export function SignOutModal({ onClose }) {
   const { logout } = useApp();
   const s = useWorkday();
   const [busy, setBusy] = useState(false);
+  // Signs out, pausing the clock or leaving it running.
   const go = async (pause) => {
     setBusy(true);
     await logout({ pause });

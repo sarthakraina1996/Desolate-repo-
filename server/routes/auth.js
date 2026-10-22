@@ -49,14 +49,12 @@ export default function authRoutes(r, { db }) {
     if (!check.ok) {
       if (check.code !== 'location_required')
         logLocation(db, { user: who, event: 'sign-in blocked', coords, ip: req.ip, check });
-      return res
-        .status(403)
-        .json({
-          error: check.message,
-          code: check.code,
-          distance: check.distance ?? null,
-          office: check.site?.name ?? null,
-        });
+      return res.status(403).json({
+        error: check.message,
+        code: check.code,
+        distance: check.distance ?? null,
+        office: check.site?.name ?? null,
+      });
     }
     if (geofencePolicy(settings).mode !== 'off')
       logLocation(db, { user: who, event: 'sign-in', coords, ip: req.ip, check });
