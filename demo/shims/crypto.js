@@ -43,8 +43,14 @@ function sha256(bytes) {
 
 const toBytes = (v) => (typeof v === 'string' ? Buffer.from(v, 'utf8') : Buffer.from(v));
 
+// The browser Buffer has no 'base64url' encoding, which the server uses for one-time passwords.
+const base64url = (b) => b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
 export function randomBytes(n) {
-  return Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(n)));
+  const bytes = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(n)));
+  const toString = bytes.toString.bind(bytes);
+  bytes.toString = (enc, ...rest) => (enc === 'base64url' ? base64url(bytes) : toString(enc, ...rest));
+  return bytes;
 }
 
 export function createHash() {
