@@ -11,6 +11,7 @@ export async function boot({ serveClient = false } = {}) {
     const s = app.listen(0, () => resolve(s));
   });
   const base = `http://127.0.0.1:${server.address().port}/api`;
+  // Stops the server, closes the database and deletes the temp dir.
   const close = () =>
     new Promise((resolve) =>
       server.close(() => {
@@ -22,8 +23,10 @@ export async function boot({ serveClient = false } = {}) {
   return { base, db, close };
 }
 
+// API client that keeps the session cookie and sends the X-Requested-With header.
 export function client(base) {
   let cookie = '';
+  // Sends JSON or FormData and returns the status with a parsed body.
   const call = async (method, p, body, { form, headers = {} } = {}) => {
     const h = { 'X-Requested-With': 'hrms', ...headers };
     if (cookie) h.Cookie = cookie;
@@ -56,4 +59,5 @@ export function client(base) {
   };
 }
 
-export const as = (base, email, password) => client(base).login(email, password);
+// A client already signed in as `email`.
+export const as =(base, email, password) => client(base).login(email, password);

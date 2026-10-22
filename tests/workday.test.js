@@ -20,6 +20,7 @@ const CEO = 'rajiv.malhotra@brainadz.com';
 
 test('stepping out and coming back asks the reason for the gap', async () => {
   const emp = await as(ctx.base, EMP);
+  // Make sure there is a finished session today, so the next check-in follows a gap.
   let w = (await emp.get('/attendance/workday')).body.workday;
   if (!w.sessions.length)
     assert.equal((await emp.post('/attendance/check-in', { mode: 'office' })).status, 200);

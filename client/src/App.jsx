@@ -6,6 +6,7 @@ import { Loading } from './components/ui.jsx';
 import Login from './pages/Login.jsx';
 import { OfflineBanner } from './components/InstallApp.jsx';
 
+// Pages are split into their own chunks and loaded on first visit.
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const MySpace = lazy(() => import('./pages/MySpace.jsx'));
 const Hiring = lazy(() => import('./pages/Hiring.jsx'));
@@ -23,6 +24,7 @@ const Print = lazy(() => import('./pages/Print.jsx'));
 const Documents = lazy(() => import('./pages/Documents.jsx'));
 const HolidayCalendar = lazy(() => import('./pages/HolidayCalendar.jsx'));
 
+// Redirects users whose role is not allowed back to their own home page.
 function Guard({ roles, children }) {
   const { user } = useApp();
   if (roles && !roles.includes(user.role))
@@ -47,6 +49,7 @@ class PageBoundary extends Component {
     if (prev.path !== this.props.path && this.state.failed) this.setState({ failed: false });
   }
 
+  // Renders the page, or a retry card worded for offline vs. a broken page.
   render() {
     if (!this.state.failed) return this.props.children;
     const offline = navigator.onLine === false;
@@ -71,6 +74,7 @@ class PageBoundary extends Component {
   }
 }
 
+// Root component: the offline banner above the app's routes.
 export default function App() {
   return (
     <>
@@ -80,16 +84,20 @@ export default function App() {
   );
 }
 
+// All app routes; shows the login page when signed out and role-guards HR-only pages.
 function AppRoutes() {
   const { user, meta } = useApp();
   const { pathname } = useLocation();
+  // Wait for the sign-in check and the shared lookup data before rendering any page
   if (user === undefined || (user && !meta)) return <Loading text="Loading BrainADZ HRMS…" />;
   if (!user) return <Login />;
   const HR = ['admin', 'hr'];
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
+        {/* Printable documents open without the sidebar layout */}
         <Route path="/print/:kind/:id" element={<Print />} />
+        {/* Every other page renders inside the layout */}
         <Route
           path="*"
           element={
@@ -97,6 +105,7 @@ function AppRoutes() {
               <PageBoundary path={pathname}>
                 <Suspense fallback={<Loading />}>
                   <Routes>
+                    {/* Employees land on My Space; everyone else on the dashboard */}
                     <Route
                       path="/"
                       element={
@@ -153,6 +162,7 @@ function AppRoutes() {
                         </Guard>
                       }
                     />
+                    {/* Unknown paths go back home */}
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Suspense>

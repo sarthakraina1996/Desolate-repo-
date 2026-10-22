@@ -2,6 +2,7 @@
 // rules can be unit tested and reused by the seed script and the API.
 import { daysInMonth } from './dates.js';
 
+// Statutory and structure rules used unless HR overrides them in settings.
 export const DEFAULT_PAYROLL_RULES = {
   basicPct: 40, // Basic as % of monthly CTC
   hraPct: 40, // HRA as % of Basic (50 for metro is also common)
@@ -21,6 +22,7 @@ export const DEFAULT_PAYROLL_RULES = {
 
 const r = Math.round;
 
+// Splits annual CTC into monthly Basic, HRA, employer PF and a balancing Special allowance.
 export function salaryStructure(ctcAnnual, rules = DEFAULT_PAYROLL_RULES) {
   const monthlyCtc = r((Number(ctcAnnual) || 0) / 12);
   const basic = r((monthlyCtc * rules.basicPct) / 100);
@@ -32,10 +34,8 @@ export function salaryStructure(ctcAnnual, rules = DEFAULT_PAYROLL_RULES) {
   return { monthlyCtc, basic, hra, special, employerPf, gross: basic + hra + special };
 }
 
-// Rough monthly TDS under the new tax regime (FY 2025-26 slabs, Rs 75,000
-// standard deduction, Section 87A rebate up to Rs 12 lakh with marginal
-// relief, 4% cess). A planning estimate only: it ignores other income and
-// exemptions, so HR should still confirm each employee's declaration.
+// Rough monthly TDS, new regime (FY 2025-26 slabs, Rs 75k std deduction, 87A rebate to Rs 12L
+// with marginal relief, 4% cess). Estimate only: ignores other income and exemptions.
 export function estimateMonthlyTds(ctcAnnual, rules = DEFAULT_PAYROLL_RULES) {
   const s = salaryStructure(ctcAnnual, rules);
   const taxable = Math.max(0, s.gross * 12 - 75000);
@@ -54,11 +54,13 @@ export function estimateMonthlyTds(ctcAnnual, rules = DEFAULT_PAYROLL_RULES) {
     if (taxable > lower) tax += (Math.min(taxable, upper) - lower) * rate;
     lower = upper;
   }
+  // 87A rebate, and marginal relief: tax above Rs 12L can't exceed the income above it.
   if (taxable <= 1200000) tax = 0;
   else tax = Math.min(tax, taxable - 1200000);
   return r((tax * 1.04) / 12);
 }
 
+// Computes one month's payslip: pro-rated earnings, statutory deductions and employer cost.
 // adjustments: [{ kind: 'Bonus'|'Arrears'|'Reimbursement'|'Deduction', amount }]
 export function computePayslip({
   ctc,
@@ -69,6 +71,7 @@ export function computePayslip({
   adjustments = [],
   rules = DEFAULT_PAYROLL_RULES,
 }) {
+  // Pay factor: days employed this month minus loss-of-pay days, over calendar days.
   const dim = daysInMonth(month);
   const employed = employedDays ?? dim;
   const lop = Math.min(Math.max(0, lopDays), employed);
@@ -76,6 +79,7 @@ export function computePayslip({
   const factor = paidDays / dim;
   const s = salaryStructure(ctc, rules);
 
+  // One-off adjustments; reimbursements are paid but not part of gross.
   const sum = (kinds) =>
     adjustments
       .filter((a) => kinds.includes(a.kind))
@@ -94,6 +98,8 @@ export function computePayslip({
   const gross = earnings.basic + earnings.hra + earnings.special + bonus;
   const totalEarnings = gross + reimbursement;
 
+  // Statutory deductions. ESI eligibility uses fixed gross, but is charged on actual gross;
+  // PT, LWF and TDS are skipped in a month with no paid days.
   const pfWages = Math.min(earnings.basic, rules.pfWageCeiling);
   const pf = rules.pfEnabled ? r((pfWages * rules.pfRate) / 100) : 0;
   const employerPf = pf;
@@ -111,6 +117,7 @@ export function computePayslip({
   const deductions = { pf, esi, pt, tds, lwf, other: otherDeduction };
   const totalDeductions = pf + esi + pt + tds + lwf + otherDeduction;
   const net = Math.max(0, totalEarnings - totalDeductions);
+  // Pay lost to unpaid days and partial employment, for display on the payslip.
   const lopAmount = s.gross - r(s.basic * factor) - r(s.hra * factor) - r(s.special * factor);
 
   return {

@@ -1,3 +1,4 @@
+/* Design tokens: colours, radii, shadows, sidebar widths and the base font */
 :root {
   --bg: #f3f6fb;
   --bg-grad:
@@ -35,6 +36,7 @@
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Base reset and element defaults */
 * {
   box-sizing: border-box;
 }
@@ -85,10 +87,12 @@ textarea {
 }
 
 /* ---------- layout ---------- */
+/* App shell: sidebar beside the main column */
 .app {
   display: flex;
   min-height: 100%;
 }
+/* Sidebar rail; z-index 30 keeps it above the sticky topbar (25) */
 .sidebar {
   width: var(--sidebar);
   flex-shrink: 0;
@@ -103,6 +107,7 @@ textarea {
   z-index: 30;
   transition: width 0.34s var(--ease-out);
 }
+/* Sidebar brand block: full logo, swapped for the Br monogram when collapsed */
 .sidebar .brand {
   padding: 18px 20px 10px;
   position: relative;
@@ -134,6 +139,7 @@ textarea {
     transform 0.2s ease;
   pointer-events: none;
 }
+/* Sidebar collapse button (round chevron straddling the sidebar's right edge) */
 .collapse-btn {
   position: absolute;
   top: 44px;
@@ -163,6 +169,7 @@ textarea {
 .collapse-btn svg {
   transition: transform 0.34s var(--ease-out);
 }
+/* Sidebar menu list */
 .nav {
   flex: 1;
   min-height: 0;
@@ -199,9 +206,11 @@ textarea {
   -webkit-mask-image: linear-gradient(transparent, #000 32px, #000 calc(100% - 32px), transparent);
   mask-image: linear-gradient(transparent, #000 32px, #000 calc(100% - 32px), transparent);
 }
+/* Labels fade back in just after the sidebar widens */
 .nav .lbl {
   transition: opacity 0.2s ease 0.12s;
 }
+/* Tooltip naming a menu item while the sidebar is collapsed */
 .nav-tip {
   position: fixed;
   left: calc(var(--sidebar-mini) + 10px);
@@ -235,6 +244,7 @@ textarea {
     transform: translate(-4px, -50%);
   }
 }
+/* Sidebar menu rows; the active page gets a red left border and tint */
 .nav a {
   display: flex;
   align-items: center;
@@ -266,6 +276,7 @@ textarea {
   font-weight: 600;
   --icon-cut: var(--red-soft);
 }
+/* Red count badge at the end of a menu row */
 .nav .count {
   margin-left: auto;
   background: var(--red);
@@ -275,6 +286,7 @@ textarea {
   border-radius: 10px;
   padding: 1px 7px;
 }
+/* Green leaf card at the sidebar foot; bottom padding leaves room for its illustration */
 .leaf-card {
   margin: 12px 14px 16px;
   border-radius: 16px;
@@ -330,6 +342,7 @@ textarea {
       visibility 0s 0.1s;
   }
 }
+/* Reduced motion: the sidebar collapses without animating */
 @media (prefers-reduced-motion: reduce) {
   .sidebar,
   .sidebar .brand .logo,
@@ -382,6 +395,7 @@ textarea {
   outline: 2px solid var(--blue);
   outline-offset: -2px;
 }
+/* Navy round icon on the floating-menu switch */
 .nav-act-ic {
   width: 26px;
   height: 26px;
@@ -392,6 +406,7 @@ textarea {
   background: radial-gradient(circle at 30% 25%, #33489a, #1a2466 72%);
   box-shadow: 0 2px 6px rgba(26, 36, 102, 0.3);
 }
+/* Desktop, collapsed sidebar: the switch narrows like the menu rows */
 @media (min-width: 1101px) {
   .sidebar.collapsed .nav .nav-act {
     width: calc(100% - 8px);
@@ -411,6 +426,7 @@ textarea {
       visibility 0s 0.34s;
   }
 }
+/* Tablets and phones: floating mode drops the drawer, its scrim and the burger */
 @media (max-width: 1100px) {
   .app.nav-floating .sidebar,
   .app.nav-floating .scrim,
@@ -420,6 +436,7 @@ textarea {
 }
 
 /* ---------- floating navigation (as in BrainADZ Projects) ---------- */
+/* Fixed wrapper for the draggable Br button, positioned by transform */
 .fnav-float {
   position: fixed;
   left: 0;
@@ -427,12 +444,14 @@ textarea {
   z-index: 92;
   will-change: transform;
 } /* above its own panels, so it can always close them */
+/* No text selection and a grabbing cursor everywhere while dragging */
 body.fnav-dragging,
 body.fnav-dragging * {
   user-select: none !important;
   -webkit-user-select: none !important;
   cursor: grabbing !important;
 }
+/* The round navy Br button; ::after is the ring shown when open or focused */
 .fnav-btn {
   position: relative;
   display: grid;
@@ -500,6 +519,7 @@ body.fnav-dragging * {
   }
 }
 
+/* Panel shell shared by the menu and Quick Access; from-left/right sets the grow side */
 .fnav-panel {
   position: fixed;
   z-index: 91;
@@ -548,6 +568,7 @@ body.fnav-dragging * {
 .fnav-menu.wide {
   width: 252px;
 }
+/* Menu header: Br mark, two-line wordmark and the expand toggle */
 .fnav-head {
   position: relative;
   display: flex;
@@ -584,6 +605,7 @@ body.fnav-dragging * {
   opacity: 1;
   transition: opacity 0.2s ease 0.1s;
 }
+/* Expand/narrow toggle; drops below the mark when the menu is narrow */
 .fnav-expand {
   position: absolute;
   top: 19px;
@@ -623,6 +645,7 @@ body.fnav-dragging * {
   top: 50px;
   right: 23px;
 }
+/* Scrolling list of menu items */
 .fnav-items {
   flex: 1;
   min-height: 0;
@@ -636,6 +659,7 @@ body.fnav-dragging * {
 .fnav-menu:not(.wide) .fnav-items {
   padding-top: 22px;
 }
+/* Menu rows; the active row's red bar sits on the panel edge (-10px = list padding) */
 .fnav-item {
   position: relative;
   display: flex;
@@ -692,6 +716,7 @@ body.fnav-dragging * {
   border-radius: 0 4px 4px 0;
   background: var(--red);
 }
+/* Labels hide when the menu is narrow */
 .fnav-item .lbl {
   opacity: 1;
   transition: opacity 0.2s ease 0.08s;
@@ -700,6 +725,7 @@ body.fnav-dragging * {
   opacity: 0;
   transition: opacity 0.08s;
 }
+/* Footer actions below a divider */
 .fnav-foot {
   display: flex;
   flex-direction: column;
@@ -723,6 +749,7 @@ body.fnav-dragging * {
   background: var(--surface-2);
   color: var(--text-2);
 }
+/* Menu item tooltip; z-index 95 clears the Br button, .left/.right sets its side */
 .fnav-tip {
   position: fixed;
   z-index: 95;
@@ -793,6 +820,7 @@ body.fnav-dragging * {
     transform: scale(0.94);
   }
 }
+/* Quick Access header, which is also the drag handle */
 .fq-head {
   display: flex;
   align-items: center;
@@ -820,6 +848,7 @@ body.fnav-dragging * {
   color: var(--faint);
   flex-shrink: 0;
 }
+/* Quick Access close button */
 .fq-x {
   margin-left: auto;
   width: 30px;
@@ -840,6 +869,7 @@ body.fnav-dragging * {
   background: var(--surface-2);
   color: var(--text);
 }
+/* Search box that filters the tiles */
 .fq-search {
   position: relative;
   margin: 0 14px 12px;
@@ -866,6 +896,7 @@ body.fnav-dragging * {
   background: #fff;
   box-shadow: 0 0 0 3px var(--blue-soft);
 }
+/* Three-column grid of shortcut tiles; --tint sets each icon's colour */
 .fq-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -925,10 +956,12 @@ body.fnav-dragging * {
 .fq-tile.active .fq-lbl {
   color: var(--red);
 }
+/* Shown when the search matches nothing */
 .fq-none {
   padding: 6px 18px 18px;
   line-height: 1.5;
 }
+/* Footer links */
 .fq-foot {
   display: flex;
   justify-content: space-between;
@@ -957,11 +990,13 @@ body.fnav-dragging * {
   outline: 2px solid var(--blue);
   outline-offset: 1px;
 }
+/* Phones: a slightly narrower wide menu */
 @media (max-width: 760px) {
   .fnav-menu.wide {
     width: 240px;
   }
 }
+/* Reduced motion: the floating nav opens, closes and resizes without animating */
 @media (prefers-reduced-motion: reduce) {
   .fnav-btn,
   .fnav-panel,
@@ -972,6 +1007,7 @@ body.fnav-dragging * {
     transition: none !important;
   }
 }
+/* Sidebar leaf card text, green rule and corner illustration */
 .leaf-card b {
   display: block;
   font-size: 16px;
@@ -994,12 +1030,14 @@ body.fnav-dragging * {
   bottom: -4px;
 }
 
+/* Main column: topbar above the page content */
 .main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
+/* Sticky frosted topbar */
 .topbar {
   position: sticky;
   top: 0;
@@ -1013,6 +1051,7 @@ body.fnav-dragging * {
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(230, 235, 242, 0.7);
 }
+/* Topbar switcher with one logo button per vertical */
 .topbar .verticals {
   display: flex;
   align-items: center;
@@ -1071,6 +1110,7 @@ body.fnav-dragging * {
 .topbar .spacer {
   flex: 1;
 }
+/* Topbar search box */
 .search {
   position: relative;
   flex: 0 1 330px;
@@ -1095,6 +1135,7 @@ body.fnav-dragging * {
   top: 11.5px;
   pointer-events: none;
 }
+/* Dropdown panel anchored under a topbar control */
 .dropdown {
   position: absolute;
   right: 0;
@@ -1129,6 +1170,7 @@ body.fnav-dragging * {
   justify-content: space-between;
   align-items: center;
 }
+/* Square icon buttons; .badge-dot is the red count in the corner */
 .icon-btn {
   position: relative;
   width: 42px;
@@ -1162,6 +1204,7 @@ body.fnav-dragging * {
   padding: 0 4px;
   border: 2px solid var(--bg);
 }
+/* Signed-in user's name and role in the topbar */
 .user-chip {
   display: flex;
   align-items: center;
@@ -1186,16 +1229,19 @@ body.fnav-dragging * {
   color: var(--muted);
   white-space: nowrap;
 }
+/* Page content area */
 .content {
   padding: 22px 28px 40px;
   max-width: 1760px;
   width: 100%;
 }
+/* Drawer toggle; hidden on desktop, shown by the tablet query */
 .burger {
   display: none;
 }
 
 /* ---------- brand ---------- */
+/* Text logo: navy and red halves plus tagline; .sm is the compact size */
 .logo {
   line-height: 0.95;
   user-select: none;
@@ -1222,6 +1268,7 @@ body.fnav-dragging * {
 .logo.sm .h {
   font-size: 22px;
 }
+/* Large logo banner with a subtitle */
 .brand-banner {
   display: flex;
   align-items: center;
@@ -1244,6 +1291,7 @@ body.fnav-dragging * {
   font-size: 13px;
   margin-top: 6px;
 }
+/* Tilted handwritten accent text with a yellow underline stroke */
 .script {
   font-family: 'Caveat', cursive;
   font-size: 26px;
@@ -1265,6 +1313,7 @@ body.fnav-dragging * {
 }
 
 /* ---------- page header ---------- */
+/* Title and subtitle on the left, action buttons on the right; wraps when narrow */
 .page-head {
   display: flex;
   align-items: flex-start;
@@ -1294,6 +1343,7 @@ body.fnav-dragging * {
 }
 
 /* ---------- grid ---------- */
+/* 12-column page grid; .span-N sets how many columns a card takes */
 .grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -1327,12 +1377,14 @@ body.fnav-dragging * {
 .span-12 {
   grid-column: span 12;
 }
+/* KPI card row: as many 220px-min columns as fit */
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
   margin-bottom: 16px;
 }
+/* Flex layout and spacing helpers */
 .row {
   display: flex;
   align-items: center;
@@ -1383,6 +1435,7 @@ body.fnav-dragging * {
 .mb-16 {
   margin-bottom: 16px;
 }
+/* Text colour, size, weight and alignment helpers */
 .muted {
   color: var(--muted);
 }
@@ -1427,10 +1480,12 @@ body.fnav-dragging * {
 .amber {
   color: var(--amber);
 }
+/* Empty on purpose: the phone query hides it */
 .hide-sm {
 }
 
 /* ---------- card ---------- */
+/* Card panel; .flush drops the padding, .tight reduces it */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1445,6 +1500,7 @@ body.fnav-dragging * {
 .card.tight {
   padding: 14px;
 }
+/* Card title row with an optional action on the right */
 .card-head {
   display: flex;
   align-items: center;
@@ -1464,6 +1520,7 @@ body.fnav-dragging * {
   font-size: 13px;
   color: var(--muted);
 }
+/* Text-style link button */
 .link {
   color: var(--blue);
   font-weight: 600;
@@ -1480,6 +1537,7 @@ body.fnav-dragging * {
 .link:hover {
   text-decoration: underline;
 }
+/* Thin horizontal rule */
 .divider {
   height: 1px;
   background: var(--border);
@@ -1487,6 +1545,7 @@ body.fnav-dragging * {
 }
 
 /* ---------- KPI ---------- */
+/* KPI tile: coloured icon square, label and big value */
 .kpi {
   display: flex;
   align-items: center;
@@ -1521,6 +1580,7 @@ body.fnav-dragging * {
   color: var(--muted);
   font-weight: 500;
 }
+/* Trend under a value; .bad flips the colours for metrics where up is worse */
 .delta {
   font-size: 13px;
   font-weight: 600;
@@ -1550,6 +1610,7 @@ body.fnav-dragging * {
   font-weight: 500;
   font-size: 11.5px;
 }
+/* Soft background plus matching text colour, used for icon squares */
 .tone-blue {
   background: var(--blue-soft);
   color: var(--blue);
@@ -1580,6 +1641,7 @@ body.fnav-dragging * {
 }
 
 /* ---------- buttons ---------- */
+/* Base button: white with a border */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -1613,6 +1675,7 @@ body.fnav-dragging * {
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* Colour variants */
 .btn.primary {
   background: var(--blue);
   border-color: var(--blue);
@@ -1667,6 +1730,7 @@ body.fnav-dragging * {
 .btn.ghost:hover {
   background: var(--surface-2);
 }
+/* Sizes and full width */
 .btn.sm {
   height: 32px;
   padding: 0 12px;
@@ -1688,6 +1752,7 @@ body.fnav-dragging * {
 .btn.block {
   width: 100%;
 }
+/* Spinning icon while a button is busy */
 .btn .spin {
   animation: spin 0.8s linear infinite;
 }
@@ -1698,6 +1763,7 @@ body.fnav-dragging * {
 }
 
 /* ---------- badges & chips ---------- */
+/* Status badges; .b-* picks the colour */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1741,6 +1807,7 @@ body.fnav-dragging * {
   background: var(--pink-soft);
   color: var(--pink);
 }
+/* Coloured status dot, alone or with a label */
 .dot {
   width: 8px;
   height: 8px;
@@ -1756,6 +1823,7 @@ body.fnav-dragging * {
   font-weight: 500;
   white-space: nowrap;
 }
+/* Pill chips with an optional remove button */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -1787,6 +1855,7 @@ body.fnav-dragging * {
   padding: 0;
   display: inline-flex;
 }
+/* Vertical/department tag; colours are set inline from the vertical's colour */
 .vchip {
   display: inline-flex;
   padding: 4px 10px;
@@ -1797,6 +1866,7 @@ body.fnav-dragging * {
 }
 
 /* ---------- avatar ---------- */
+/* Round avatar showing a photo or initials */
 .avatar {
   border-radius: 50%;
   display: inline-flex;
@@ -1826,6 +1896,7 @@ body.fnav-dragging * {
   border: 2px solid #fff;
   box-sizing: content-box;
 }
+/* Avatar with a name and subtitle beside it */
 .person {
   display: flex;
   align-items: center;
@@ -1846,6 +1917,7 @@ body.fnav-dragging * {
 }
 
 /* ---------- forms ---------- */
+/* Labelled form field with an optional hint */
 .field {
   display: flex;
   flex-direction: column;
@@ -1861,6 +1933,7 @@ body.fnav-dragging * {
   font-size: 12px;
   color: var(--muted);
 }
+/* Text inputs, selects and textareas; .select draws its own chevron */
 .input,
 .select,
 .textarea {
@@ -1899,6 +1972,7 @@ body.fnav-dragging * {
   font-size: 13px;
   border-radius: 8px;
 }
+/* Two-column form layout; .full spans the row, .three makes three columns */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1910,6 +1984,7 @@ body.fnav-dragging * {
 .form-grid.three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+/* Uppercase section label spanning the whole form grid */
 .form-section {
   font-size: 12px;
   font-weight: 700;
@@ -1919,6 +1994,7 @@ body.fnav-dragging * {
   margin: 6px 0 -2px;
   grid-column: 1 / -1;
 }
+/* Checkbox with its label */
 .check {
   display: inline-flex;
   align-items: center;
@@ -1932,6 +2008,7 @@ body.fnav-dragging * {
   height: 16px;
   accent-color: var(--blue);
 }
+/* On/off switch; the knob slides 16px and the track turns green when on */
 .toggle {
   position: relative;
   width: 38px;
@@ -1961,6 +2038,7 @@ body.fnav-dragging * {
 .toggle.on::after {
   transform: translateX(16px);
 }
+/* Filter bar above lists; its selects and inputs keep their natural width */
 .filters {
   display: flex;
   gap: 10px;
@@ -1973,10 +2051,12 @@ body.fnav-dragging * {
   min-width: 150px;
   height: 40px;
 }
+/* Inline validation message */
 .error-text {
   color: var(--red);
   font-size: 13px;
 }
+/* Inline message banners: info, warn, error, success */
 .alert {
   padding: 10px 14px;
   border-radius: 10px;
@@ -2004,9 +2084,11 @@ body.fnav-dragging * {
 }
 
 /* ---------- tables ---------- */
+/* Lets wide tables scroll sideways instead of stretching the page */
 .table-wrap {
   overflow-x: auto;
 }
+/* Data tables; .click rows are clickable, .sel marks the selected row */
 table.table {
   width: 100%;
   border-collapse: collapse;
@@ -2045,6 +2127,7 @@ table.table {
 .table.compact th {
   padding: 8px 10px;
 }
+/* Right-aligned numbers with equal-width digits */
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -2052,6 +2135,7 @@ table.table {
 }
 
 /* ---------- tabs ---------- */
+/* Underlined tab strip; scrolls sideways when it overflows */
 .tabs {
   display: flex;
   gap: 4px;
@@ -2079,6 +2163,7 @@ table.table {
   color: var(--blue);
   border-bottom-color: var(--blue);
 }
+/* Pill-style tabs that wrap instead of scrolling */
 .tabs.pills {
   border: 0;
   gap: 4px;
@@ -2098,6 +2183,7 @@ table.table {
   background: var(--blue-soft);
   color: var(--blue);
 }
+/* Segmented control: grey track, selected option raised in white */
 .seg {
   display: inline-flex;
   background: #eef2f8;
@@ -2122,6 +2208,7 @@ table.table {
 }
 
 /* ---------- modal & toast ---------- */
+/* Dimmed modal backdrop; z-index 100 puts it above the floating nav (91-95) */
 .overlay {
   position: fixed;
   inset: 0;
@@ -2134,6 +2221,7 @@ table.table {
   overflow-y: auto;
   animation: fade 0.12s ease-out;
 }
+/* Modal dialog; .wide, .xwide and .narrow set the max width */
 .modal {
   background: #fff;
   border-radius: 18px;
@@ -2151,6 +2239,7 @@ table.table {
 .modal.narrow {
   max-width: 420px;
 }
+/* Modal header, body and grey footer holding the action buttons */
 .modal-head {
   display: flex;
   align-items: center;
@@ -2242,6 +2331,7 @@ table.table {
 .toast.leaving {
   animation: toast-out 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
+/* Section icon tile with the status mark badged on its corner */
 .toast-tile {
   position: relative;
   flex-shrink: 0;
@@ -2281,6 +2371,7 @@ table.table {
   stroke-dashoffset: 16;
   animation: toast-draw 0.3s ease-out 0.45s forwards;
 }
+/* Section name above the message text */
 .toast-body {
   flex: 1;
   min-width: 0;
@@ -2303,6 +2394,7 @@ table.table {
 .toast.error .toast-msg {
   color: #8f1026;
 }
+/* Dismiss button */
 .toast-close {
   align-self: flex-start;
   flex-shrink: 0;
@@ -2325,6 +2417,7 @@ table.table {
   outline: 2px solid var(--blue);
   outline-offset: 1px;
 }
+/* Countdown bar along the bottom, shrinking over --toast-ms */
 .toast-bar {
   position: absolute;
   left: 4px;
@@ -2345,9 +2438,11 @@ table.table {
     animation-play-state: paused;
   }
 }
+/* Keyboard focus inside a toast pauses it too */
 .toast:focus-within .toast-bar {
   animation-play-state: paused;
 }
+/* Toast slide in/out, icon pop, tick draw and countdown */
 @keyframes toast-in {
   0% {
     transform: translateX(calc(100% + 28px));
@@ -2396,6 +2491,7 @@ table.table {
     transform: scaleX(0);
   }
 }
+/* Reduced motion: toasts fade instead of sliding, and the icon and tick don't animate */
 @media (prefers-reduced-motion: reduce) {
   .toast {
     animation: fade 0.2s ease-out both;
@@ -2417,6 +2513,7 @@ table.table {
     opacity: 0;
   }
 }
+/* Visually hidden but still read by screen readers */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -2430,6 +2527,7 @@ table.table {
 }
 
 /* ---------- misc ---------- */
+/* Empty-state message with a faint icon */
 .empty {
   text-align: center;
   padding: 28px 12px;
@@ -2439,6 +2537,7 @@ table.table {
   color: var(--faint);
   margin-bottom: 8px;
 }
+/* Centred loading message */
 .loading {
   display: flex;
   align-items: center;
@@ -2447,6 +2546,7 @@ table.table {
   padding: 40px;
   color: var(--muted);
 }
+/* Shimmering placeholder block while data loads */
 .skeleton {
   background: linear-gradient(90deg, #eef2f7 0%, #f6f8fb 50%, #eef2f7 100%);
   background-size: 200% 100%;
@@ -2458,6 +2558,7 @@ table.table {
     background-position: -200% 0;
   }
 }
+/* Thin progress bar; the inner <i> width is the value */
 .progress {
   height: 8px;
   border-radius: 6px;
@@ -2470,6 +2571,7 @@ table.table {
   border-radius: 6px;
   background: var(--blue);
 }
+/* Simple list rows split by hairlines */
 .list-item {
   display: flex;
   align-items: center;
@@ -2480,6 +2582,7 @@ table.table {
 .list-item:last-child {
   border-bottom: 0;
 }
+/* Small date tile: big day number with a small label under it */
 .date-box {
   width: 44px;
   height: 48px;
@@ -2499,6 +2602,7 @@ table.table {
   font-size: 11px;
   color: var(--muted);
 }
+/* Label/value pairs in two columns (dt/dd) */
 .kv {
   display: grid;
   grid-template-columns: 150px 1fr;
@@ -2515,6 +2619,7 @@ table.table {
   margin: 0;
   font-weight: 500;
 }
+/* Chart legend rows with the value pushed to the right */
 .legend {
   display: flex;
   flex-direction: column;
@@ -2535,6 +2640,7 @@ table.table {
   font-weight: 500;
   color: var(--muted);
 }
+/* Grey pill for a small count */
 .pill-num {
   display: inline-flex;
   padding: 2px 8px;
@@ -2544,6 +2650,7 @@ table.table {
   font-size: 12px;
   font-weight: 600;
 }
+/* Monospace block for raw text; scrolls past 420px */
 .code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12.5px;
@@ -2555,6 +2662,7 @@ table.table {
   overflow: auto;
   border: 1px solid var(--border);
 }
+/* Long-form text: headings, lists and paragraphs */
 .prose {
   line-height: 1.65;
   color: var(--text-2);
@@ -2571,6 +2679,7 @@ table.table {
 .prose p {
   margin: 6px 0;
 }
+/* Hiring pipeline board: seven stage columns, scrolls sideways when narrow */
 .kanban {
   display: grid;
   grid-template-columns: repeat(7, minmax(126px, 1fr));
@@ -2578,6 +2687,7 @@ table.table {
   overflow-x: auto;
   padding-bottom: 4px;
 }
+/* Stage column; its hidden dashed outline shows when it's a drop target */
 .kcol {
   border-radius: 12px;
   padding: 9px;
@@ -2596,6 +2706,7 @@ table.table {
   justify-content: space-between;
   margin-bottom: 10px;
 }
+/* Kanban cards in the hiring pipeline; draggable ones get a grab cursor */
 .kcard {
   background: #fff;
   border-radius: 10px;
@@ -2634,6 +2745,7 @@ table.table {
 .kcol.drop-no {
   opacity: 0.6;
 }
+/* "Move here" slot in the column under the pointer */
 .kdrop {
   border: 1.5px dashed var(--fg);
   border-radius: 10px;
@@ -2647,6 +2759,7 @@ table.table {
   color: var(--fg);
   background: rgba(255, 255, 255, 0.6);
 }
+/* Note in the Hired column explaining hires go through "Convert to employee" */
 .drop-hint {
   font-size: 11.5px;
   line-height: 1.35;
@@ -2656,6 +2769,7 @@ table.table {
   padding: 6px 8px;
   margin-bottom: 8px;
 }
+/* "+ N more" link at the foot of a stage column */
 .more {
   text-align: center;
   font-size: 12.5px;
@@ -2663,6 +2777,7 @@ table.table {
   cursor: pointer;
   padding: 4px;
 }
+/* Horizontal stepper: numbered circles joined by a line that turns green as steps finish */
 .stepper {
   display: flex;
   align-items: flex-start;
@@ -2730,6 +2845,7 @@ table.table {
   color: var(--blue);
   font-weight: 600;
 }
+/* Vertical timeline: status circles joined by a grey line */
 .timeline {
   position: relative;
 }
@@ -2771,6 +2887,7 @@ table.table {
   color: var(--blue);
   border: 3px solid var(--blue);
 }
+/* Small month calendar; .company and .restricted mark the two holiday types */
 .calendar {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -2809,6 +2926,7 @@ table.table {
 .calendar .d.off {
   color: var(--faint);
 }
+/* Team leave chart: names down the side, days across, leave drawn as bars */
 .gantt {
   display: grid;
   font-size: 12.5px;
@@ -2850,6 +2968,7 @@ table.table {
   padding: 0 6px;
   z-index: 1;
 }
+/* Monthly attendance register; sticky header row and name column (z 3 so it covers the header) */
 .reg {
   border-collapse: separate;
   border-spacing: 0;
@@ -2882,6 +3001,7 @@ table.table {
   min-width: 190px;
   border-right: 1px solid var(--border);
 }
+/* Day cells; .can ones are clickable to change the mark */
 .reg .cell {
   width: 28px;
   height: 26px;
@@ -2902,10 +3022,12 @@ table.table {
 .reg .cell.can:hover {
   outline: 2px solid var(--blue);
 }
+/* Weekly-off columns */
 .reg th.we,
 .reg td.we {
   background: #fafbfd;
 }
+/* Attendance code colours: P, WFH, HD, A, L, H; weekly off, unmarked and n/a are muted */
 .c-P {
   background: #e3f5e9;
   color: #188a45;
@@ -2946,6 +3068,7 @@ table.table {
   background: transparent;
   color: #e3e7ee;
 }
+/* White sheet for printable payslips and letters */
 .print-page {
   background: #fff;
   max-width: 820px;
@@ -2954,11 +3077,13 @@ table.table {
   border-radius: 12px;
   box-shadow: var(--shadow);
 }
+/* Ring chart with its label */
 .ring-label {
   text-align: center;
 }
 
 /* ---------- login ---------- */
+/* Split login screen: brand gradient panel left, sign-in form right */
 .login {
   min-height: 100vh;
   display: grid;
@@ -2992,6 +3117,7 @@ table.table {
   margin-top: 14px;
   line-height: 1.55;
 }
+/* Sign-in form column */
 .login .right {
   display: flex;
   align-items: center;
@@ -3003,6 +3129,7 @@ table.table {
   width: 100%;
   max-width: 410px;
 }
+/* Demo account buttons that sign in with one click */
 .demo-acc {
   display: flex;
   align-items: center;
@@ -3022,12 +3149,14 @@ table.table {
 
 /* ---------- responsive ---------- */
 /* ---------- holiday calendar ---------- */
+/* Year calendar beside a 330px side panel */
 .cal-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
   gap: 20px;
   align-items: start;
 }
+/* Summary figures above the calendar */
 .cal-summary {
   display: flex;
   flex-wrap: wrap;
@@ -3039,6 +3168,7 @@ table.table {
 .cal-summary b {
   color: var(--text);
 }
+/* Legend swatches: holiday, restricted holiday, off day, leave dot, today */
 .cal-legend {
   display: flex;
   flex-wrap: wrap;
@@ -3078,17 +3208,20 @@ table.table {
   border: 2px solid var(--navy);
   border-radius: 50%;
 }
+/* Grid of month blocks, at least 208px wide each */
 .cal-year {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
   gap: 18px 22px;
   padding: 16px 20px 22px;
 }
+/* Month name above each month grid */
 .cal-title {
   font-weight: 700;
   color: var(--navy);
   margin-bottom: 6px;
 }
+/* One month's days; tabular digits keep the columns even */
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -3103,6 +3236,7 @@ table.table {
   font-weight: 600;
   padding-bottom: 2px;
 }
+/* Day cells: .off, .hol (holiday), .rh (restricted holiday), .past and .today */
 .cal-day {
   position: relative;
   height: 28px;
@@ -3141,6 +3275,7 @@ table.table {
     inset 0 0 0 2px var(--navy),
     inset 0 0 0 4px #fff;
 }
+/* Leave dot under the day number; faded while the leave is pending */
 .cal-day .lv {
   position: absolute;
   bottom: 2px;
@@ -3153,6 +3288,7 @@ table.table {
 .cal-day .lv.pending {
   opacity: 0.45;
 }
+/* Holiday list by month in the side panel; .next highlights the upcoming one */
 .hol-group {
   margin-bottom: 12px;
 }
@@ -3178,6 +3314,7 @@ table.table {
   border-radius: 10px;
   border-bottom-color: transparent;
 }
+/* Day number over a short label, left of each holiday */
 .hol-date {
   width: 38px;
   display: flex;
@@ -3194,6 +3331,7 @@ table.table {
   color: var(--muted);
   text-transform: uppercase;
 }
+/* Tablets and phones: the holiday list drops below the calendar */
 @media (max-width: 1100px) {
   .cal-layout {
     grid-template-columns: 1fr;
@@ -3201,11 +3339,13 @@ table.table {
 }
 
 /* ---------- documents ---------- */
+/* Team documents matrix: narrower padding on the per-type columns */
 .doc-matrix th.center,
 .doc-matrix td.center {
   padding-left: 6px;
   padding-right: 6px;
 }
+/* Matrix cell buttons: green tick downloads the file, dashed Add uploads one */
 .doc-ok {
   border: 0;
   background: none;
@@ -3239,6 +3379,7 @@ table.table {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
+/* Rows in the employee's required documents list */
 .doc-req {
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
@@ -3248,6 +3389,7 @@ table.table {
 }
 
 /* ---------- work clock ---------- */
+/* Topbar clock button: .on while running, .paused between sessions, .idle before the first */
 .clock-wrap {
   position: relative;
 }
@@ -3295,6 +3437,7 @@ table.table {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
+/* Pulsing halo on the status dot */
 .status-halo {
   transform-box: fill-box;
   transform-origin: center;
@@ -3311,11 +3454,13 @@ table.table {
     opacity: 0.6;
   }
 }
+/* Reduced motion: the halo stays still */
 @media (prefers-reduced-motion: reduce) {
   .status-halo {
     animation: none;
   }
 }
+/* Clock dropdown: big timer and the list of today's sessions */
 .clock-panel {
   width: 320px;
   max-width: calc(100vw - 24px);
@@ -3328,6 +3473,7 @@ table.table {
   margin-bottom: 8px;
   color: var(--navy);
 }
+/* Session rows; the running one has a green dot, gaps between them are muted */
 .sess-list {
   display: flex;
   flex-direction: column;
@@ -3356,6 +3502,7 @@ table.table {
   padding-left: 1px;
   font-size: 12.5px;
 }
+/* Radio-style chips for picking the reason for a gap */
 .pick-chips {
   display: flex;
   flex-wrap: wrap;
@@ -3382,6 +3529,7 @@ table.table {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
+/* Pop-out (picture-in-picture) clock window */
 .pip-body {
   margin: 0;
   background: #fff;
@@ -3426,21 +3574,25 @@ table.table {
     display: none;
   }
 }
+/* Under 1366px: drop the clock's label */
 @media (max-width: 1366px) {
   .work-clock .lbl {
     display: none;
   }
 }
+/* Under 1280px: drop the user's name and role, leaving the avatar */
 @media (max-width: 1280px) {
   .user-chip .who {
     display: none;
   }
 }
+/* Under 1200px: vertical logos lose their icons */
 @media (max-width: 1200px) {
   .vlogo .vi {
     display: none;
   }
 }
+/* Small laptops: narrow grid cards widen to half or full width */
 @media (max-width: 1280px) {
   .span-3 {
     grid-column: span 6;
@@ -3456,6 +3608,7 @@ table.table {
     font-size: 26px;
   }
 }
+/* Tablets: the sidebar becomes a slide-out drawer over a scrim (z 29, just below it) */
 @media (max-width: 1100px) {
   .sidebar {
     position: fixed;
@@ -3491,6 +3644,7 @@ table.table {
     z-index: 29;
   }
 }
+/* Phones: full-width toasts, tighter spacing, one-column grid and forms, stacked login */
 @media (max-width: 760px) {
   .toasts {
     left: 12px;
@@ -3572,6 +3726,7 @@ table.table {
     flex-basis: 100%;
   }
 }
+/* Printing: white page, .no-print hidden, the print sheet fills the paper */
 @media print {
   body {
     background: #fff;
@@ -3592,6 +3747,7 @@ table.table {
 .bnav {
   display: none;
 }
+/* Tabs: icon pill over a label; the active tab takes the section's accent colour */
 .bnav-tab {
   display: flex;
   flex-direction: column;

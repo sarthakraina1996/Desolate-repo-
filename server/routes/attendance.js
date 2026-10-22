@@ -40,8 +40,10 @@ import {
 } from '../services/geofence.js';
 import { destroySession } from '../auth.js';
 
+// Statuses that can be marked by hand: present, work from home, half day, absent.
 const MARKS = ['P', 'WFH', 'HD', 'A'];
 
+// Employees on the rolls during [from, to] whom the user may see, with optional filters.
 function scopedEmployees(db, user, { vertical, department, search, from, to }) {
   const scope = scopeIds(db, user);
   const where = ['e.join_date <= ?', '(e.exit_date IS NULL OR e.exit_date >= ?)'];
@@ -71,12 +73,14 @@ function scopedEmployees(db, user, { vertical, department, search, from, to }) {
   );
 }
 
+// HR can mark anyone; managers can mark their team but not themselves.
 function canMark(db, user, employeeId) {
   if (isHR(user)) return true;
   const scope = scopeIds(db, user);
   return user.role === 'manager' && scope.includes(employeeId) && employeeId !== user.employeeId;
 }
 
+// Counts each day code, LOP days and late arrivals across a set of day statuses.
 function summarize(days) {
   const s = { P: 0, WFH: 0, HD: 0, A: 0, L: 0, U: 0, H: 0, WO: 0, lop: 0, late: 0 };
   for (const d of days.values()) {
@@ -87,8 +91,10 @@ function summarize(days) {
   return s;
 }
 
+// Attendance, work clock, location tracking and short-hours routes.
 export default function attendanceRoutes(r, { db }) {
   const settings = () => getSettings(db);
+  // HH:MM of an ISO timestamp in the company timezone.
   const timeLocal = (iso) =>
     new Intl.DateTimeFormat('en-GB', {
       timeZone: settings().timezone,
@@ -97,10 +103,12 @@ export default function attendanceRoutes(r, { db }) {
       hour12: false,
     }).format(new Date(iso));
 
+  // Today's status for the user, plus a team board for HR and managers.
   r.get('/attendance/today', (req, res) => {
     const T = today(db);
     const out = { today: T, me: null, team: null };
     const s = settings();
+    // The user's own status and check-in
     if (req.user.employeeId) {
       const e = db.get('SELECT * FROM employees WHERE id = ?', req.user.employeeId);
       const st = dayStatuses(db, [e], T, T, T, s).get(e.id).get(T);
@@ -112,6 +120,7 @@ export default function attendanceRoutes(r, { db }) {
         late: rec?.check_in ? timeLocal(rec.check_in) > s.lateAfter : false,
       };
     }
+    // Team board with headline counts, for HR and managers
     if (isHR(req.user) || req.user.role === 'manager') {
       const emps = scopedEmployees(db, req.user, {
         from: T,
@@ -172,6 +181,7 @@ export default function attendanceRoutes(r, { db }) {
       toApprove: 0,
       workdayEnd: s.workdayEnd,
     };
+    // Create any missing short-hours rows first so the counts are current
     if (req.user.employeeId) {
       generateShortfalls(db, { today: T, employeeIds: [req.user.employeeId], settings: s });
       out.workday = workdaySummary(db, req.user.employeeId, T, s);
@@ -190,6 +200,7 @@ export default function attendanceRoutes(r, { db }) {
         req.user.employeeId,
       );
     }
+    // Admins approve everyone else's short days; managers their direct reports'
     if (isAdmin(req.user))
       out.toApprove = db.value(
         "SELECT COUNT(*) FROM hour_shortfalls WHERE status = 'Pending approval' AND employee_id != ?",
@@ -203,8 +214,10 @@ export default function attendanceRoutes(r, { db }) {
     res.json(out);
   });
 
+  // Starts the work clock; enforces the office location rule and WFH approval when on.
   r.post('/attendance/check-in', (req, res) => {
     if (!req.user.employeeId) fail(400, 'Your login is not linked to an employee record');
+    // Office or WFH, plus the reason for the break when resuming the clock
     const mode = oneOf(req.body.mode || 'office', ['office', 'wfh'], { name: 'Mode' });
     const gapReason = req.body.gap_reason
       ? oneOf(req.body.gap_reason, GAP_REASONS, { name: 'Reason' })
@@ -213,6 +226,7 @@ export default function attendanceRoutes(r, { db }) {
     if (gapReason === 'Other' && !gapNote) fail(400, 'Add a short note for "Other"');
     const s = settings();
     const T = today(db);
+    // Location check when the sign-in location rule is on
     if (geofencePolicy(s).mode !== 'off') {
       const coords = readCoords(req.body.location);
       const check = checkLocation(db, {
@@ -222,6 +236,7 @@ export default function attendanceRoutes(r, { db }) {
         today: T,
         settings: s,
       });
+      // WFH, or resuming a day that started as WFH, needs an exemption (e.g. approved WFH)
       const wfhDay = check.method === 'exempt';
       const resuming =
         db.value(
@@ -247,6 +262,7 @@ export default function attendanceRoutes(r, { db }) {
           });
         return;
       }
+      // Not at an office: log the refusal (unless no location was sent) and block
       if (!check.ok) {
         if (check.code !== 'location_required')
           logLocation(db, { user: req.user, event: 'check-in blocked', coords, ip: req.ip, check });
@@ -262,6 +278,7 @@ export default function attendanceRoutes(r, { db }) {
       }
       logLocation(db, { user: req.user, event: 'check-in', coords, ip: req.ip, check });
     }
+    // Start the session; a missing break reason is a 400, a clock already running a 409
     const out = startSession(db, {
       employeeId: req.user.employeeId,
       date: T,
@@ -274,6 +291,7 @@ export default function attendanceRoutes(r, { db }) {
     res.json(out);
   });
 
+  // Stops the running work clock and returns the time worked today.
   r.post('/attendance/check-out', (req, res) => {
     if (!req.user.employeeId) fail(400, 'Your login is not linked to an employee record');
     const out = endSession(db, {
@@ -303,6 +321,7 @@ export default function attendanceRoutes(r, { db }) {
     const T = today(db);
     const coords = readCoords(req.body);
     const check = checkLocation(db, { user: req.user, coords, ip: req.ip, today: T, settings: s });
+    // Exempt users and readings without a location are not logged
     if (check.method === 'exempt')
       return res.json({ ok: true, tracking: false, exempt: check.exempt });
     if (check.code === 'location_required')
@@ -323,6 +342,7 @@ export default function attendanceRoutes(r, { db }) {
         ? null
         : check.message.replace(' You can only sign in from the office.', ''),
     };
+    // Strict mode: a second outside reading within 30 minutes pauses the clock and signs out
     if (!check.ok && policy.mode === 'strict' && check.code === 'outside_office') {
       const prev = db.get(
         "SELECT * FROM location_log WHERE user_id = ? AND event = 'while working' AND id < ? ORDER BY id DESC LIMIT 1",
@@ -356,10 +376,12 @@ export default function attendanceRoutes(r, { db }) {
       where.push('l.user_id = ?');
       params.push(req.user.id);
     } else if (!isHR(req.user)) {
+      // Managers see their team, not themselves
       const ids = scopeIds(db, req.user).filter((x) => x !== req.user.employeeId);
       where.push(ids.length ? `l.employee_id IN (${ids.map(() => '?').join(',')})` : '0=1');
       params.push(...ids);
     }
+    // One day, measured in the company timezone
     const d = req.query.date ? date(req.query.date) : null;
     if (d) {
       const tz = settings().timezone;
@@ -378,6 +400,7 @@ export default function attendanceRoutes(r, { db }) {
         ...params,
       )
       .map((x) => ({ ...x, name: x.first_name ? fullName(x) : x.email }));
+    // Latest 300 readings with summary counts
     const policy = geofencePolicy(settings());
     res.json({
       view,
@@ -412,6 +435,7 @@ export default function attendanceRoutes(r, { db }) {
       where.push('s.employee_id != ?');
       params.push(req.user.employeeId);
     }
+    // status=open means not yet decided
     if (req.query.status === 'open')
       where.push("s.status IN ('Awaiting explanation','Pending approval')");
     else if (req.query.status) {
@@ -422,6 +446,7 @@ export default function attendanceRoutes(r, { db }) {
       where.push('e.vertical_id = ?');
       params.push(Number(req.query.vertical));
     }
+    // Pending approval first, then awaiting explanation, then newest
     const rows = db.all(
       `SELECT s.* FROM hour_shortfalls s JOIN employees e ON e.id = s.employee_id
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
@@ -435,6 +460,7 @@ export default function attendanceRoutes(r, { db }) {
     });
   });
 
+  // Employee explains their own short day; it goes to their approver.
   r.post('/attendance/short-hours/:id/explain', (req, res) => {
     const s =
       db.get('SELECT * FROM hour_shortfalls WHERE id = ?', id(req.params.id)) ||
@@ -457,6 +483,7 @@ export default function attendanceRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Approves or rejects a short day (reporting manager or admin, never your own).
   r.post('/attendance/short-hours/:id/decide', (req, res) => {
     const s =
       db.get('SELECT * FROM hour_shortfalls WHERE id = ?', id(req.params.id)) ||
@@ -475,6 +502,7 @@ export default function attendanceRoutes(r, { db }) {
       s.employee_id,
       s.date,
     );
+    // Record the decision and update that day's attendance
     db.tx(() => {
       db.update('hour_shortfalls', s.id, {
         status: action === 'approve' ? 'Approved' : 'Rejected',
@@ -482,6 +510,7 @@ export default function attendanceRoutes(r, { db }) {
         decided_at: new Date().toISOString(),
         decision_note: note,
       });
+      // Approved half days go back to P (or WFH); rejected days become half days
       if (att) {
         const base =
           db.value(
@@ -502,6 +531,7 @@ export default function attendanceRoutes(r, { db }) {
         );
       }
     });
+    // Audit and tell the employee
     audit(db, req.user, `shortfall.${action}`, 'employee', s.employee_id, { date: s.date, note });
     notifyUsers(
       db,
@@ -514,6 +544,7 @@ export default function attendanceRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Monthly attendance register for employees in scope, day by day with totals.
   r.get('/attendance/register', (req, res) => {
     const T = today(db);
     const month = D.isValidMonth(req.query.month) ? req.query.month : D.monthOf(T);
@@ -523,6 +554,7 @@ export default function attendanceRoutes(r, { db }) {
     const emps = scopedEmployees(db, req.user, { ...req.query, from, to });
     const st = dayStatuses(db, emps, from, to, T, s);
     const holidays = db.all('SELECT * FROM holidays WHERE date BETWEEN ? AND ?', from, to);
+    // Flag late check-ins, then shape each day for the grid
     const rows = emps.map((e) => {
       const days = st.get(e.id);
       for (const d of days.values())
@@ -562,6 +594,7 @@ export default function attendanceRoutes(r, { db }) {
     });
   });
 
+  // Marks or clears one employee's attendance for a day up to today (HR or their manager).
   r.put('/attendance', (req, res) => {
     const eid = id(req.body.employee_id);
     if (!canMark(db, req.user, eid)) fail(403, 'You cannot change attendance for this employee');
@@ -584,6 +617,7 @@ export default function attendanceRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Marks several employees for one day; anyone already marked is left unchanged.
   r.post('/attendance/bulk', (req, res) => {
     const d = date(req.body.date, { required: true });
     if (d > today(db)) fail(400, 'Attendance cannot be marked for a future date');
@@ -607,6 +641,7 @@ export default function attendanceRoutes(r, { db }) {
     res.json({ ok: true, count: ids.length });
   });
 
+  // Downloads a month's attendance register as CSV (HR only).
   r.get('/attendance/export.csv', (req, res) => {
     requireHR(req);
     const T = today(db);

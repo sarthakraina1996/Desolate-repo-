@@ -3,6 +3,7 @@
 // viewer's browser, and scrypt in plain JavaScript would make seeding slow.
 import { Buffer } from 'buffer';
 
+// SHA-256 round constants.
 const K = new Uint32Array([
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
   0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -14,8 +15,10 @@ const K = new Uint32Array([
   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]);
 
+// Synchronous SHA-256 in plain JS; the browser's SubtleCrypto digest is async only.
 function sha256(bytes) {
   const len = bytes.length;
+  // Pad to a multiple of 64 bytes with the bit length at the end.
   const padded = new Uint8Array(((len + 9 + 63) >> 6) << 6);
   padded.set(bytes);
   padded[len] = 0x80;
@@ -27,6 +30,7 @@ function sha256(bytes) {
   ]);
   const w = new Uint32Array(64);
   const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  // Compress each 64-byte chunk into the running hash.
   for (let off = 0; off < padded.length; off += 64) {
     for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4);
     for (let i = 16; i < 64; i++) {
@@ -68,6 +72,7 @@ const toBytes = (v) => (typeof v === 'string' ? Buffer.from(v, 'utf8') : Buffer.
 const base64url = (b) =>
   b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
+// Stands in for crypto.randomBytes via getRandomValues, with toString('base64url') patched in.
 export function randomBytes(n) {
   const bytes = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(n)));
   const toString = bytes.toString.bind(bytes);
@@ -76,6 +81,7 @@ export function randomBytes(n) {
   return bytes;
 }
 
+// Stands in for crypto.createHash; always SHA-256, whatever algorithm is asked for.
 export function createHash() {
   const parts = [];
   return {
@@ -90,6 +96,7 @@ export function createHash() {
   };
 }
 
+// Stands in for crypto.scryptSync with 1,000 rounds of salted SHA-256, not real scrypt.
 export function scryptSync(password, salt, keylen) {
   let block = sha256(Buffer.concat([toBytes(salt), toBytes(password)]));
   for (let i = 0; i < 1000; i++) block = sha256(Buffer.concat([block, toBytes(salt)]));
@@ -99,6 +106,7 @@ export function scryptSync(password, salt, keylen) {
   return Buffer.concat(out).subarray(0, keylen);
 }
 
+// Stands in for crypto.timingSafeEqual; returns false on a length mismatch instead of throwing.
 export function timingSafeEqual(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;

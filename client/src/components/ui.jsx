@@ -1,3 +1,4 @@
+// Shared UI pieces: cards, KPIs, badges, avatars, form controls, modals, menus and pagination.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';

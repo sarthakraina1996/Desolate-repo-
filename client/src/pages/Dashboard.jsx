@@ -52,6 +52,7 @@ import {
 import { BrandBanner } from '../components/Layout.jsx';
 import { AttentionBanner } from '../components/WorkClock.jsx';
 
+// Icon and colour for each notice type on the notice board.
 const NOTICE_ICON = {
   health: HeartPulse,
   policy: FileText,
@@ -67,6 +68,7 @@ const NOTICE_TONE = {
   general: 'var(--amber)',
 };
 
+// Chip naming the vertical the page is filtered to, with a button to clear it.
 export function VerticalFilterNote() {
   const { vertical, setVertical, verticalById } = useApp();
   const v = vertical && verticalById(vertical);
@@ -81,6 +83,7 @@ export function VerticalFilterNote() {
   );
 }
 
+// Latest notices with a full list view; HR can post and delete notices.
 export function NoticeBoard({ notices, onChange, compact }) {
   const { isHR, toast } = useApp();
   const [all, setAll] = useState(false);
@@ -88,6 +91,7 @@ export function NoticeBoard({ notices, onChange, compact }) {
   const [f, setF] = useState({ title: '', body: '', kind: 'general' });
   const [run, busy] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
+  // Renders notice rows; the full list view adds the body and HR's delete button.
   const list = (items) =>
     items.map((n) => {
       const Icon = NOTICE_ICON[n.kind] || Megaphone;
@@ -147,8 +151,10 @@ export function NoticeBoard({ notices, onChange, compact }) {
           </button>
         </div>
       </div>
+      {/* Three most recent notices */}
       {notices.length ? list(notices.slice(0, 3)) : <Empty text="No notices yet" />}
       {all && <NoticeList onClose={() => setAll(false)} render={list} />}
+      {/* Post a notice (HR) */}
       {adding && (
         <Modal
           title="Post a notice"
@@ -205,6 +211,7 @@ export function NoticeBoard({ notices, onChange, compact }) {
   );
 }
 
+// Modal with every notice, loaded when opened.
 function NoticeList({ onClose, render }) {
   const { data } = useApi('/notices');
   return (
@@ -214,6 +221,8 @@ function NoticeList({ onClose, render }) {
   );
 }
 
+// Home dashboard for HR and managers: KPIs, hiring, leave, payroll, analytics and notices.
+// Managers see their team's numbers; HR sees the company (or the selected vertical).
 export default function Dashboard() {
   const { user, vertical, toast, info } = useApp();
   const nav = useNavigate();
@@ -223,6 +232,7 @@ export default function Dashboard() {
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
   const k = data.kpis;
+  // Approves or rejects a pending leave right from the dashboard, then refreshes it.
   const decide = async (id, action) => {
     if (
       await run(
@@ -232,6 +242,7 @@ export default function Dashboard() {
     )
       reload();
   };
+  // Breakdown shown in the People Analytics card for the selected tab.
   const analyticsItems = {
     departments: data.analytics.departments,
     tenure: data.analytics.tenure,
@@ -241,6 +252,7 @@ export default function Dashboard() {
   const p = data.payroll;
   return (
     <div>
+      {/* Greeting and brand banner */}
       <div className="page-head">
         <div>
           <h1>
@@ -256,6 +268,7 @@ export default function Dashboard() {
       </div>
       <AttentionBanner />
 
+      {/* KPI cards */}
       <div className="kpis">
         <Kpi
           icon={Users}
@@ -297,6 +310,7 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Headcount by vertical, lifecycle funnel and hiring pipeline */}
       <div className="grid">
         <Card className="span-4" title="Employee Distribution by Vertical">
           <div className="row donut-row" style={{ gap: 22 }}>
@@ -344,6 +358,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Interviews, pending leave and payroll (or the manager's team) */}
       <div className="grid">
         <Card
           className="span-4"
@@ -444,6 +459,7 @@ export default function Dashboard() {
             <Empty text="No leave requests waiting for you" />
           )}
         </Card>
+        {/* Latest payroll run for HR; otherwise (managers, or no run yet) direct reports */}
         {p ? (
           <Card
             className="span-4"
@@ -499,6 +515,7 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* Trends, people analytics, compliance, org summary and notices */}
       <div className="grid">
         <Card className="span-3" title="Attrition vs Hiring Trend">
           <div className="row small mb-8" style={{ gap: 14 }}>
@@ -586,6 +603,7 @@ export default function Dashboard() {
   );
 }
 
+// A manager's first few direct reports with their status.
 function TeamQuick() {
   const { data } = useApi('/employees?team=1&pageSize=8');
   if (!data) return <Loading />;

@@ -16,6 +16,7 @@ import {
   reportIds,
 } from '../core.js';
 
+// Review rows with employee details and weighted goal progress for that cycle.
 const SELECT = `
   SELECT rv.*, e.first_name, e.last_name, e.code, e.designation, e.manager_id, e.photo IS NOT NULL AS has_photo,
          d.name AS department, v.short AS vertical, v.color AS vertical_color,
@@ -24,6 +25,7 @@ const SELECT = `
   FROM reviews rv JOIN employees e ON e.id = rv.employee_id
   LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN verticals v ON v.id = e.vertical_id`;
 
+// Names for the 1-5 rating scale.
 const RATING_LABELS = {
   5: 'Outstanding',
   4: 'Exceeds Expectations',
@@ -32,17 +34,21 @@ const RATING_LABELS = {
   1: 'Unsatisfactory',
 };
 
+// Review cycles, goals, self reviews and manager reviews.
 export default function performanceRoutes(r, { db }) {
+  // HR, or a manager the employee reports to directly or indirectly.
   const isManagerOf = (user, employeeId) =>
     user.role === 'manager' && reportIds(db, user.employeeId).includes(employeeId);
   const canManage = (user, employeeId) => isHR(user) || isManagerOf(user, employeeId);
 
+  // Reviews in a cycle (default: the active one) visible to the caller, with team stats.
   r.get('/performance', (req, res) => {
     const cycles = db.all('SELECT * FROM review_cycles ORDER BY start_date DESC');
     const cycle = req.query.cycle
       ? cycles.find((c) => c.id === Number(req.query.cycle))
       : cycles.find((c) => c.status === 'Active') || cycles[0];
     if (!cycle) return res.json({ cycles, cycle: null, reviews: [] });
+    // Limit to the caller's scope plus optional vertical/department filters.
     const scope = scopeIds(db, req.user);
     const where = ['rv.cycle_id = ?'];
     const params = [cycle.id];
@@ -61,6 +67,7 @@ export default function performanceRoutes(r, { db }) {
     const reviews = db
       .all(`${SELECT} WHERE ${where.join(' AND ')} ORDER BY e.first_name`, ...params)
       .map((x) => ({ ...x, name: fullName(x), mine: x.employee_id === req.user.employeeId }));
+    // Stats cover the team only, never the caller's own review.
     const team = reviews.filter((x) => !x.mine);
     const statusCounts = ['Not Started', 'Self Review', 'Manager Review', 'Completed'].map((s) => ({
       label: s,
@@ -72,6 +79,7 @@ export default function performanceRoutes(r, { db }) {
       rating: n,
       value: rated.filter((x) => Math.round(x.final_rating) === n).length,
     }));
+    // Average final rating per department.
     const deptMap = new Map();
     for (const x of rated) {
       const d = deptMap.get(x.department) || { label: x.department, total: 0, n: 0 };
@@ -110,6 +118,7 @@ export default function performanceRoutes(r, { db }) {
     });
   });
 
+  // One review with its goals and what the caller may do; the employee, their managers or HR.
   r.get('/performance/reviews/:id', (req, res) => {
     const rv = db.get(`${SELECT} WHERE rv.id = ?`, id(req.params.id)) || notFound('Review');
     const self = rv.employee_id === req.user.employeeId;
@@ -138,6 +147,7 @@ export default function performanceRoutes(r, { db }) {
     });
   });
 
+  // Starts a review cycle with a review for each eligible employee (CXOs excluded). HR only.
   r.post('/performance/cycles', (req, res) => {
     requireHR(req);
     const start = date(req.body.start_date, { required: true, name: 'Start date' });
@@ -167,6 +177,7 @@ export default function performanceRoutes(r, { db }) {
     res.json({ id: cid });
   });
 
+  // Changes a cycle's status (Planned, Active, Closed). HR only.
   r.put('/performance/cycles/:id', (req, res) => {
     requireHR(req);
     const c =
@@ -182,6 +193,8 @@ export default function performanceRoutes(r, { db }) {
 
   const reviewFor = (cycleId, employeeId) =>
     db.get('SELECT * FROM reviews WHERE cycle_id = ? AND employee_id = ?', cycleId, employeeId);
+  // Goals can change only in an active cycle, before the review is completed, by the
+  // employee, their manager or HR.
   const assertGoalAccess = (user, cycleId, employeeId) => {
     const cycle = db.get('SELECT * FROM review_cycles WHERE id = ?', cycleId) || notFound('Cycle');
     if (cycle.status !== 'Active') fail(409, 'This cycle is closed');
@@ -191,6 +204,7 @@ export default function performanceRoutes(r, { db }) {
     if (rv?.status === 'Completed') fail(409, 'This review is completed');
   };
 
+  // Adds a goal (max 8 per review) for the caller or a report; creates the review if missing.
   r.post('/performance/goals', (req, res) => {
     const cycleId = id(req.body.cycle_id);
     const employeeId = req.body.employee_id ? id(req.body.employee_id) : req.user.employeeId;
@@ -217,6 +231,7 @@ export default function performanceRoutes(r, { db }) {
     res.json({ id: gid });
   });
 
+  // Updates only the goal fields that were sent.
   r.put('/performance/goals/:id', (req, res) => {
     const g = db.get('SELECT * FROM goals WHERE id = ?', id(req.params.id)) || notFound('Goal');
     assertGoalAccess(req.user, g.cycle_id, g.employee_id);
@@ -232,6 +247,7 @@ export default function performanceRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Deletes a goal, subject to the same access rules.
   r.delete('/performance/goals/:id', (req, res) => {
     const g = db.get('SELECT * FROM goals WHERE id = ?', id(req.params.id)) || notFound('Goal');
     assertGoalAccess(req.user, g.cycle_id, g.employee_id);
@@ -239,6 +255,7 @@ export default function performanceRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Saves or submits the employee's own self review; submitting hands it to the manager.
   r.post('/performance/reviews/:id/self', (req, res) => {
     const rv =
       db.get('SELECT * FROM reviews WHERE id = ?', id(req.params.id)) || notFound('Review');
@@ -262,6 +279,7 @@ export default function performanceRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Completes a review with the final rating. Manager or HR only, never on one's own review.
   r.post('/performance/reviews/:id/manager', (req, res) => {
     const rv =
       db.get('SELECT * FROM reviews WHERE id = ?', id(req.params.id)) || notFound('Review');

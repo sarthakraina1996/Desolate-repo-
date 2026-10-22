@@ -6,7 +6,8 @@ import { boot, client, as } from './helpers.js';
 import { isLoopback } from '../server/lib/network.js';
 
 const root = path.join(import.meta.dirname, '..', 'client');
-const built = fs.existsSync(path.join(root, 'dist', 'index.html'));
+// The caching test needs a built client and is skipped without one.
+const built =fs.existsSync(path.join(root, 'dist', 'index.html'));
 
 let ctx;
 before(async () => {
@@ -43,6 +44,7 @@ test('office Wi-Fi addresses for the phone QR code: signed-in people on the serv
   assert.equal(r.status, 200);
   assert.ok(Array.isArray(r.body.urls));
   for (const u of r.body.urls) assert.match(u, /^http:\/\/\d+\.\d+\.\d+\.\d+:\d+$/);
+  // Loopback check that decides who counts as "on the server computer".
   assert.ok(isLoopback('127.0.0.1') && isLoopback('::1') && isLoopback('::ffff:127.0.0.1'));
   assert.ok(!isLoopback('192.168.1.20') && !isLoopback(''));
 });
@@ -57,8 +59,9 @@ test(
     const m = await head('/manifest.webmanifest');
     assert.equal(m.get('cache-control'), 'no-cache');
     assert.match(m.get('content-type'), /application\/manifest\+json/);
+    // Hashed build assets never change, so they can be cached for good.
     const html = await (await fetch(`${site}/`)).text();
-    const asset = html.match(/\/assets\/[^"]+\.js/)[0];
+    const asset =html.match(/\/assets\/[^"]+\.js/)[0];
     assert.match((await head(asset)).get('cache-control'), /immutable/);
     assert.equal(
       (await head('/attendance')).get('cache-control'),

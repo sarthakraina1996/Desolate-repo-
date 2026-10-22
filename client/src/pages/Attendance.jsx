@@ -46,6 +46,7 @@ import {
   refreshWorkday,
 } from '../lib/workday.js';
 
+// Labels for attendance codes; U = past day never marked, F = today or later, not marked yet.
 const LABEL = {
   P: 'Present',
   WFH: 'WFH',
@@ -58,6 +59,7 @@ const LABEL = {
   F: 'Not marked yet',
   NA: '—',
 };
+// Badge colour for each attendance code.
 const TONE = {
   P: 'green',
   WFH: 'amber',
@@ -70,12 +72,15 @@ const TONE = {
   F: 'gray',
 };
 
+// Attendance page: tabs for today, the monthly register, short hours and the location log.
 export default function Attendance() {
   const [sp, setSp] = useSearchParams();
   const { isHR, isManager, isAdmin } = useApp();
   const s = useWorkday();
   const team = isHR || isManager;
+  // Tab lives in the URL; HR and managers start on Today, others on their own month
   const tab = sp.get('tab') || (team ? 'today' : 'month');
+  // Short days waiting on the user, either to explain or to approve
   const shortCount = (s?.toExplain || 0) + (s?.toApprove || 0);
   return (
     <div>
@@ -98,6 +103,7 @@ export default function Attendance() {
           { value: 'locations', label: 'Location log' },
         ]}
       />
+      {/* Active tab */}
       {tab === 'today' && <Today />}
       {tab === 'month' && <Register />}
       {tab === 'short' && <ShortHours team={team || isAdmin} />}
@@ -106,6 +112,7 @@ export default function Attendance() {
   );
 }
 
+// Today tab: my check-in card, plus the team's status today with KPI filters and marking.
 function Today() {
   const { toast, vertical, isHR, isManager } = useApp();
   const { data, error, reload } = useApi(
@@ -115,11 +122,13 @@ function Today() {
   const [filter, setFilter] = useState('');
   const clock = useWorkday();
   const now = useNow(1000);
+  // Reload when the work clock is started or stopped
   useOnWorkdayChange(reload);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
   const me = data.me;
   const s = data.team?.summary;
+  // Team rows narrowed by the clicked KPI; NM covers both not-marked codes
   const rows = (data.team?.rows || []).filter(
     (r) =>
       !filter ||
@@ -129,6 +138,7 @@ function Today() {
           ? ['F', 'U'].includes(r.code_today)
           : r.code_today === filter),
   );
+  // Sets or clears one employee's status for today.
   const mark = async (r, status) => {
     if (
       await run(
@@ -138,9 +148,11 @@ function Today() {
     )
       reload();
   };
+  // Not-yet-marked people the viewer may mark, for the bulk "mark present" button
   const unmarked = (data.team?.rows || []).filter((r) => r.code_today === 'F' && r.canMark);
   return (
     <div>
+      {/* My status today and clock actions */}
       {me && (
         <div className="card mb-16 row between wrap" style={{ gap: 14 }}>
           <div>
@@ -165,6 +177,7 @@ function Today() {
                 'You have not checked in'
               )}
             </div>
+            {/* Time worked so far and today's sessions */}
             {clock?.workday?.sessions.length > 0 && (
               <>
                 <div className="small muted mt-8">
@@ -179,8 +192,10 @@ function Today() {
           <ClockActions />
         </div>
       )}
+      {/* Team view, for HR and managers */}
       {s && (
         <>
+          {/* KPI cards; clicking one filters the table, clicking again clears it */}
           <div
             className="kpis"
             style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}
@@ -228,6 +243,7 @@ function Today() {
               onClick={() => setFilter(filter === 'late' ? '' : 'late')}
             />
           </div>
+          {/* Team table, with the active filter chip and bulk mark button */}
           <Card
             flush
             title={
@@ -318,6 +334,7 @@ function Today() {
                       </td>
                       <td className="small">{r.checkOut ? fmtTime(r.checkOut) : '—'}</td>
                       <td className="right" style={{ paddingRight: 18 }}>
+                        {/* Leave, holidays and weekly offs can't be marked over */}
                         {r.canMark && !['L', 'H', 'WO'].includes(r.code_today) && (
                           <select
                             className="select sm"
@@ -349,6 +366,7 @@ function Today() {
   );
 }
 
+// Monthly register: a day-by-day grid per employee; past days can be changed by those allowed.
 function Register() {
   const { meta, toast, vertical, isHR, isManager } = useApp();
   const [month, setMonth] = useState(meta.today.slice(0, 7));
@@ -357,20 +375,25 @@ function Register() {
   const { data, error, reload, setData } = useApi(
     `/attendance/register?month=${month}${vertical ? `&vertical=${vertical}` : ''}${dept ? `&department=${dept}` : ''}`,
   );
+  // The day cell whose status picker is open
   const [pick, setPick] = useState(null);
   const [run] = useAction(toast);
+  // Name search runs on the loaded rows, no refetch
   const rows = useMemo(
     () => (data?.rows || []).filter((r) => !q || r.name.toLowerCase().includes(q.toLowerCase())),
     [data, q],
   );
+  // Close the status picker on a click outside it
   const close = useCallback(() => setPick(null), []);
   const ref = useClickOutside(close);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   const team = isHR || isManager;
+  // Saves a day's status, updates the cell at once, then reloads for fresh totals.
   const setMark = async (row, date, status) => {
     setPick(null);
     const ok = await run(() => api.put('/attendance', { employee_id: row.id, date, status }));
     if (ok) {
+      // A cleared past day shows as never marked (U); today or later as not marked yet (F)
       setData((d) => ({
         ...d,
         rows: d.rows.map((r) =>
@@ -389,6 +412,7 @@ function Register() {
   };
   return (
     <div>
+      {/* Month switcher, filters and CSV export */}
       <div className="row wrap mb-16" style={{ gap: 10 }}>
         <Button
           size="sm"
@@ -431,6 +455,7 @@ function Register() {
           </Button>
         )}
       </div>
+      {/* Legend */}
       <div className="row wrap small mb-12" style={{ gap: 10 }}>
         {['P', 'WFH', 'HD', 'A', 'L', 'H', 'U'].map((c) => (
           <span key={c} className="row gap-4">
@@ -459,6 +484,7 @@ function Register() {
           </span>
         )}
       </div>
+      {/* Register grid */}
       {!data ? (
         <Loading />
       ) : (
@@ -470,6 +496,7 @@ function Register() {
                   <th className="name" style={{ paddingLeft: 14 }}>
                     Employee
                   </th>
+                  {/* Day columns with weekday initials; weekly offs shaded */}
                   {data.days.map((d) => (
                     <th key={d} className={data.weeklyOffs.includes(dowOf(d)) ? 'we' : ''}>
                       {Number(d.slice(8))}
@@ -481,6 +508,7 @@ function Register() {
                       </div>
                     </th>
                   ))}
+                  {/* Monthly totals */}
                   {['P', 'WFH', 'L', 'A', 'LOP'].map((h) => (
                     <th key={h} style={{ minWidth: 40, padding: '6px 6px' }}>
                       {h}
@@ -501,6 +529,7 @@ function Register() {
                       />
                     </td>
                     {r.days.map((d) => {
+                      // Only markable people, up to today, and not holidays, offs or leave
                       const can =
                         r.canMark &&
                         d.date <= data.today &&
@@ -520,6 +549,7 @@ function Register() {
                             onClick={() => can && setPick({ row: r, date: d.date })}
                             style={d.late ? { boxShadow: 'inset 0 -2px 0 #f2a600' } : undefined}
                           >
+                            {/* Leave type, a dot for unmarked, W for WFH, else the code */}
                             {d.code === 'L'
                               ? d.leave
                               : d.code === 'WO' || d.code === 'F' || d.code === 'NA'
@@ -530,6 +560,7 @@ function Register() {
                                     ? 'W'
                                     : d.code}
                           </button>
+                          {/* Status picker for the clicked day */}
                           {pick && pick.row.id === r.id && pick.date === d.date && (
                             <div
                               ref={ref}
@@ -558,6 +589,7 @@ function Register() {
                         </td>
                       );
                     })}
+                    {/* Totals for the month */}
                     <td className="b6">{r.summary.P}</td>
                     <td>{r.summary.WFH}</td>
                     <td>{r.summary.L}</td>
@@ -580,6 +612,7 @@ function Register() {
 }
 
 // ---------- short hours ----------
+// Badge colour for each short-day status.
 const SHORT_TONE = {
   'Awaiting explanation': 'amber',
   'Pending approval': 'blue',
@@ -587,6 +620,7 @@ const SHORT_TONE = {
   Rejected: 'red',
 };
 
+// Time worked against time required, with a progress bar.
 function Worked({ x }) {
   return (
     <div style={{ minWidth: 120 }}>
@@ -605,6 +639,7 @@ function Worked({ x }) {
   );
 }
 
+// Time away as text: each gap with its reason, or when a single session ended.
 const awaySummary = (x) =>
   x.gaps.length
     ? x.gaps
@@ -614,6 +649,7 @@ const awaySummary = (x) =>
       ? `Left at ${fmtTime(x.sessions[0].end)}`
       : '—';
 
+// Approves or rejects a short day; rejecting needs a reason and makes it a half day.
 function DecideModal({ item, action, onClose, onDone }) {
   const { toast } = useApp();
   const [note, setNote] = useState('');
@@ -651,14 +687,17 @@ function DecideModal({ item, action, onClose, onDone }) {
       }
     >
       <div className="col" style={{ gap: 12 }}>
+        {/* The day: hours worked and the sessions behind them */}
         <div>
           <b>{item.name}</b> · {fmtDay(item.date)} · worked {clockText(item.worked_minutes, false)}{' '}
           of {clockText(item.required_minutes, false)}
         </div>
         <SessionList w={{ sessions: item.sessions, gaps: item.gaps }} />
+        {/* Employee's explanation */}
         <div className="alert info">
           <span>{item.reason ? <>“{item.reason}”</> : 'No explanation yet.'}</span>
         </div>
+        {/* What the decision does to the day */}
         <div className="small muted">
           {approve
             ? 'The day will count as a full working day.'
@@ -672,24 +711,30 @@ function DecideModal({ item, action, onClose, onDone }) {
   );
 }
 
+// Short hours tab: my short days to explain, and the team's short days to approve or reject.
 function ShortHours({ team }) {
   const { user, isHR, isAdmin } = useApp();
   const [status, setStatus] = useState('open');
+  // Own list only when the login is linked to an employee record
   const mine = useApi(user.employeeId ? '/attendance/short-hours?view=mine' : null);
+  // Team list, open items only unless "All" is picked
   const others = useApi(
     team ? `/attendance/short-hours?view=team${status === 'open' ? '&status=open' : ''}` : null,
   );
   const [explain, setExplain] = useState(null);
   const [decide, setDecide] = useState(null);
+  // Refreshes both lists and the work clock's pending counts after a change.
   const reloadAll = () => {
     mine.reload();
     others.reload();
     refreshWorkday().catch(() => {});
   };
   const required = mine.data?.required || others.data?.required || '8h 00m';
+  // HR can see every short day, but only reporting managers and the CEO decide them
   const readOnly = isHR && !isAdmin;
   return (
     <div>
+      {/* How the short-hours rule works */}
       <div className="alert info mb-16">
         <Clock size={16} />
         <span>
@@ -698,6 +743,7 @@ function ShortHours({ team }) {
           rejects it (the day becomes a half day).
         </span>
       </div>
+      {/* My short days */}
       {user.employeeId && (
         <Card title="My short days" className="mb-16" flush>
           {!mine.data ? (
@@ -763,6 +809,7 @@ function ShortHours({ team }) {
           )}
         </Card>
       )}
+      {/* Team short days, with approve and reject for the decider */}
       {team && (
         <Card
           title={
@@ -865,6 +912,7 @@ function ShortHours({ team }) {
           )}
         </Card>
       )}
+      {/* Explain and decide modals */}
       {explain && (
         <ExplainModal item={explain} onClose={() => setExplain(null)} onDone={reloadAll} />
       )}
@@ -881,6 +929,7 @@ function ShortHours({ team }) {
 }
 
 // ---------- location log ----------
+// Label and badge colour for each location check result.
 const LOC_RESULT = {
   'in-office': ['In office', 'green'],
   'office-network': ['Office network', 'green'],
@@ -889,6 +938,7 @@ const LOC_RESULT = {
   'no-location': ['No location', 'amber'],
   exempt: ['Exempt', 'gray'],
 };
+// Display names for the events that record a location.
 const EVENT_LABEL = {
   'sign-in': 'Signed in',
   'check-in': 'Checked in',
@@ -898,11 +948,13 @@ const EVENT_LABEL = {
   'signed out (left office)': 'Signed out: left office',
 };
 
+// Location log tab: where sign-ins, check-ins and work-clock pings came from on a given day.
 function LocationLog({ team }) {
   const { meta } = useApp();
   const [view, setView] = useState(team ? 'team' : 'mine');
   const [day, setDay] = useState(meta.today);
   const [issues, setIssues] = useState(false);
+  // Query from the view, the date and the problems-only filter
   const qs = new URLSearchParams({
     view,
     ...(day ? { date: day } : {}),
@@ -913,6 +965,7 @@ function LocationLog({ team }) {
   const mapUrl = (x) => `https://www.google.com/maps?q=${x.lat},${x.lng}`;
   return (
     <div>
+      {/* Explains the office-only rule in its current mode */}
       <div className={`alert ${data?.mode === 'off' ? 'warn' : 'info'} mb-16`}>
         <MapPin size={16} />
         <span>
@@ -952,6 +1005,7 @@ function LocationLog({ team }) {
           )
         }
       >
+        {/* Date and problems-only filters */}
         <div className="filters" style={{ padding: '0 18px 14px' }}>
           <Input
             type="date"
@@ -965,6 +1019,7 @@ function LocationLog({ team }) {
             Only problems
           </label>
         </div>
+        {/* Log table */}
         {!data ? (
           <Loading />
         ) : !data.items.length ? (
@@ -1011,6 +1066,7 @@ function LocationLog({ team }) {
                         <Badge tone={tone}>{label}</Badge>
                       </td>
                       <td className="small">
+                        {/* Exemption note, or the office with distance from it */}
                         {x.result === 'exempt'
                           ? x.note
                           : x.site_name

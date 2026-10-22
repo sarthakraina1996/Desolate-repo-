@@ -54,8 +54,10 @@ import {
 import { BrandBanner } from '../components/Layout.jsx';
 import { JobForm } from './Hiring.jsx';
 
+// Match score colour: green from 75, amber from 55, red below.
 const scoreColor = (s) => (s >= 75 ? '#1FA855' : s >= 55 ? '#F2A600' : '#E5243B');
 
+// Circular gauge for a match score; shows a dash when the candidate isn't scored yet.
 function MatchRing({ score, size = 64 }) {
   if (score == null)
     return (
@@ -99,6 +101,7 @@ function MatchRing({ score, size = 64 }) {
   );
 }
 
+// Resume screener: pick a job, upload resumes, review match scores and act on candidates.
 export default function Screener() {
   const { toast } = useApp();
   const [sp, setSp] = useSearchParams();
@@ -111,13 +114,16 @@ export default function Screener() {
   const [run, busy] = useAction(toast);
   const fileRef = useRef(null);
   const processing = data?.totals?.processing || 0;
+  // Poll while resumes are still being screened in the background.
   useEffect(() => {
     if (!processing) return undefined;
     const t = setInterval(reload, 2500);
     return () => clearInterval(t);
   }, [processing, reload]);
+  // Candidates after the search, filters and sort order.
   const list = useMemo(() => {
     let items = data?.candidates || [];
+    // Free-text search over name, location, company and skills
     if (f.q)
       items = items.filter((c) =>
         `${c.name} ${c.location} ${c.current_company} ${c.skills.join(' ')}`
@@ -126,10 +132,12 @@ export default function Screener() {
       );
     if (f.stage) items = items.filter((c) => c.stage === f.stage);
     if (f.loc) items = items.filter((c) => (c.location || '').includes(f.loc));
+    // Experience band like "2-5": lower bound inclusive, upper exclusive
     if (f.exp) {
       const [a, b] = f.exp.split('-').map(Number);
       items = items.filter((c) => c.experience != null && c.experience >= a && c.experience < b);
     }
+    // Sort; unscored candidates go last when sorting by match
     const sorters = {
       match: (a, b) => (b.ai_score ?? -1) - (a.ai_score ?? -1),
       recent: (a, b) => b.applied_on.localeCompare(a.applied_on),
@@ -140,8 +148,11 @@ export default function Screener() {
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
   const job = data.job;
+  // The detail panel shows the clicked candidate, else the top of the list.
   const current = list.find((c) => c.id === sel) || list[0];
+  // Candidates in any duplicate group, flagged in the list.
   const dupIds = new Set(data.duplicates.flatMap((g) => g.candidates.map((c) => c.id)));
+  // Uploads resumes to the current job; scoring then runs on the server in the background.
   const upload = async (files) => {
     if (!job) return;
     const form = new FormData();
@@ -153,6 +164,7 @@ export default function Screener() {
     );
     if (out) reload();
   };
+  // Shortlists, holds, rejects or moves a candidate to interview, then refreshes.
   const action = async (c, a) => {
     if (
       await run(
@@ -167,10 +179,12 @@ export default function Screener() {
     )
       reload();
   };
+  // Ticks a candidate for comparison; at most three, so a fourth drops the oldest.
   const toggle = (id) =>
     setChecked((x) =>
       x.includes(id) ? x.filter((y) => y !== id) : x.length >= 3 ? [...x.slice(1), id] : [...x, id],
     );
+  // City options for the location filter (text before the first comma).
   const locs = [
     ...new Set(
       (data.candidates || []).map((c) => (c.location || '').split(',')[0]).filter(Boolean),
@@ -190,6 +204,7 @@ export default function Screener() {
         <BrandBanner />
       </div>
 
+      {/* Job requirements, with a picker to switch jobs */}
       <div className="grid">
         <Card
           className="span-9"
@@ -282,6 +297,7 @@ export default function Screener() {
             <Empty text="Create a job in Hiring first" />
           )}
         </Card>
+        {/* Resume count, upload and which scoring engine is active */}
         <Card className="span-3">
           <div className="row" style={{ gap: 14 }}>
             <div
@@ -356,8 +372,10 @@ export default function Screener() {
         </Card>
       </div>
 
+      {/* Candidate list and detail panel */}
       <div className="grid" style={{ alignItems: 'start' }}>
         <div className="span-9">
+          {/* Search, filters, sort and bulk actions */}
           <div className="card" style={{ marginBottom: 12 }}>
             <div className="row wrap" style={{ gap: 10 }}>
               <div className="search" style={{ width: 280 }}>
@@ -422,6 +440,7 @@ export default function Screener() {
                 <option value="exp">Most Experienced</option>
               </select>
               <span className="grow" />
+              {/* Duplicates, compare and screen-all */}
               <Button icon={Users} onClick={() => setModal({ type: 'dups' })}>
                 Detect Duplicates
               </Button>
@@ -450,6 +469,7 @@ export default function Screener() {
                 ]}
               />
             </div>
+            {/* Result count, duplicate and screening-in-progress badges */}
             <div className="row mt-12 small" style={{ gap: 10 }}>
               <b>{list.length} candidates found</b>
               {data.duplicates.length > 0 && (
@@ -471,6 +491,7 @@ export default function Screener() {
               )}
             </div>
           </div>
+          {/* Ranked candidate rows */}
           {list.length ? (
             list.map((c, i) => (
               <CandidateRow
@@ -502,6 +523,7 @@ export default function Screener() {
             </Card>
           )}
         </div>
+        {/* Selected candidate, sticky beside the list */}
         <div className="span-3" style={{ position: 'sticky', top: 92 }}>
           {current ? (
             <Detail
@@ -520,6 +542,7 @@ export default function Screener() {
         </div>
       </div>
 
+      {/* Modals: edit job, compare, duplicates */}
       {modal?.type === 'job' && (
         <JobForm job={job} onClose={() => setModal(null)} onSaved={reload} />
       )}
@@ -551,6 +574,7 @@ export default function Screener() {
   );
 }
 
+// One labelled requirement in the job summary card.
 function Req({ icon: Icon, color, label, value }) {
   return (
     <div className="row" style={{ alignItems: 'flex-start', gap: 12 }}>
@@ -565,6 +589,7 @@ function Req({ icon: Icon, color, label, value }) {
   );
 }
 
+// A candidate card in the ranked list: match score, top skills, background and quick actions.
 function CandidateRow({
   c,
   rank,
@@ -577,10 +602,12 @@ function CandidateRow({
   onAction,
   onRescreen,
 }) {
+  // Scored skills once screened, otherwise the job's must-haves with no score yet
   const skills = c.ai?.skills?.length
     ? c.ai.skills
     : (job?.must_have || []).map((s) => ({ skill: s, score: null }));
   const s = c.ai_score;
+  // Suggested quick actions for the score band; none until the candidate is scored
   const primary =
     s == null
       ? []
@@ -589,6 +616,7 @@ function CandidateRow({
         : s >= 55
           ? ['shortlist', 'hold']
           : ['interview', 'reject'];
+  // Once a decision is made, show the stage badge instead of quick actions
   const decided = [
     'Shortlisted',
     'Interview 1',
@@ -598,6 +626,7 @@ function CandidateRow({
     'Rejected',
     'On Hold',
   ].includes(c.stage);
+  // Quick action buttons; clicking one must not also select the row
   const btn = {
     shortlist: (
       <Button
@@ -669,6 +698,7 @@ function CandidateRow({
       }}
     >
       <div className="row wrap" style={{ gap: 14, alignItems: 'center' }}>
+        {/* Compare checkbox, rank and candidate basics */}
         <label className="check" onClick={(e) => e.stopPropagation()}>
           <input
             type="checkbox"
@@ -696,6 +726,7 @@ function CandidateRow({
             <span>{c.expected_ctc ? `₹ ${c.expected_ctc} LPA` : '—'}</span>
           </div>
         </div>
+        {/* Match ring, or a spinner while screening */}
         {c.screen_status === 'queued' || c.screen_status === 'processing' ? (
           <div className="row gap-6 small blue" style={{ width: 64 }}>
             <LoaderCircle size={18} className="spin" />
@@ -703,6 +734,7 @@ function CandidateRow({
         ) : (
           <MatchRing score={s} />
         )}
+        {/* Top four skill scores */}
         <div className="grow" style={{ minWidth: 200 }}>
           <div className="xs b6 mb-8" style={{ marginBottom: 4 }}>
             Key Skills Match
@@ -729,6 +761,7 @@ function CandidateRow({
           ))}
           {c.screen_status === 'error' && <div className="xs red">{c.screen_error}</div>}
         </div>
+        {/* Education and current company, hidden on small screens */}
         <div style={{ width: 170, minWidth: 0 }} className="hide-sm">
           <div className="row gap-6 xs" style={{ alignItems: 'flex-start' }}>
             <GraduationCap size={14} className="blue" />
@@ -747,6 +780,7 @@ function CandidateRow({
             </span>
           </div>
         </div>
+        {/* Quick actions or stage badge, plus the full actions menu */}
         <div className="row" style={{ gap: 4, width: 196, alignItems: 'center' }}>
           <div className="col grow" style={{ gap: 6 }}>
             {decided ? <Badge lg>{c.stage}</Badge> : primary.map((a) => btn[a])}
@@ -773,14 +807,17 @@ function CandidateRow({
   );
 }
 
+// Side panel for the selected candidate: overview, resume text, AI analysis and similar profiles.
 function Detail({ c, all, onClose, onAction, onPick }) {
   const { toast } = useApp();
   const [tab, setTab] = useState('Overview');
+  // Resume text is fetched only once its tab is opened
   const { data } = useApi(tab === 'Parsed Resume' ? `/candidates/${c.id}` : null);
   const [q, setQ] = useState('');
   const [answers, setAnswers] = useState([]);
   const [run, busy] = useAction(toast);
   const ai = c.ai;
+  // Top five other candidates by shared skills, ties broken by match score
   const similar = useMemo(() => {
     const mine = new Set(c.skills);
     return all
@@ -789,6 +826,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
       .sort((a, b) => b.overlap - a.overlap || (b.ai_score ?? 0) - (a.ai_score ?? 0))
       .slice(0, 5);
   }, [all, c]);
+  // Asks the AI a free-form question about this candidate; newest answer shows first
   const ask = async () => {
     if (!q.trim()) return;
     const out = await run(() => api.post(`/screener/candidates/${c.id}/ask`, { question: q }));
@@ -799,6 +837,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
   };
   return (
     <div className="card">
+      {/* Name, score and close button */}
       <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
         <Avatar name={c.name} size={56} />
         <div className="grow" style={{ minWidth: 0 }}>
@@ -826,6 +865,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
           <X size={16} />
         </button>
       </div>
+      {/* Contact details */}
       <div className="col xs mt-12" style={{ gap: 4, color: 'var(--text-2)' }}>
         {c.email && (
           <span className="row gap-6">
@@ -854,10 +894,12 @@ function Detail({ c, all, onClose, onAction, onPick }) {
           tabs={['Overview', 'Parsed Resume', 'AI Analysis', 'Similar Profiles']}
         />
       </div>
+      {/* Overview tab */}
       {tab === 'Overview' && (
         <div>
           {ai ? (
             <>
+              {/* Verdict banner */}
               <div
                 className={`alert ${ai.score >= 75 ? 'success' : ai.score >= 55 ? 'warn' : 'error'}`}
               >
@@ -867,6 +909,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
                   <div>{ai.headline}</div>
                 </div>
               </div>
+              {/* Key highlights */}
               <h4 className="mt-12 mb-8" style={{ fontSize: 14 }}>
                 Key Highlights
               </h4>
@@ -895,6 +938,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
                   </div>
                 ))}
               </div>
+              {/* Matched and missing criteria */}
               <h4 className="mt-12 mb-8 row gap-6" style={{ fontSize: 14 }}>
                 <Sparkles size={14} className="blue" />
                 AI Match Analysis
@@ -929,6 +973,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
                   </div>
                 </div>
               )}
+              {/* Summary and which engine scored it */}
               <h4 className="mt-12 mb-8" style={{ fontSize: 14 }}>
                 AI Summary
               </h4>
@@ -943,6 +988,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
           ) : (
             <Empty text={c.screen_status ? 'Screening in progress…' : 'Not screened yet'} />
           )}
+          {/* Ask AI about the candidate */}
           <div className="divider" />
           <div className="row gap-6">
             <Bot size={16} className="blue" />
@@ -973,6 +1019,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
               <div className="xs muted mt-8">{a.engine}</div>
             </div>
           ))}
+          {/* Quick decisions until the candidate is shortlisted or further along */}
           {!['Shortlisted', 'Interview 1', 'Interview 2', 'Offer', 'Hired'].includes(c.stage) && (
             <div className="row mt-16" style={{ gap: 8 }}>
               <Button
@@ -997,6 +1044,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
           )}
         </div>
       )}
+      {/* Parsed resume tab */}
       {tab === 'Parsed Resume' &&
         (data ? (
           <div className="code">
@@ -1005,6 +1053,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
         ) : (
           <Loading />
         ))}
+      {/* AI analysis tab: per-skill evidence and knockout answers */}
       {tab === 'AI Analysis' &&
         (ai ? (
           <div>
@@ -1053,6 +1102,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
         ) : (
           <Empty text="Not screened yet" />
         ))}
+      {/* Similar profiles tab; clicking one selects it */}
       {tab === 'Similar Profiles' &&
         (similar.length ? (
           similar.map((x) => (
@@ -1079,7 +1129,9 @@ function Detail({ c, all, onClose, onAction, onPick }) {
   );
 }
 
+// Modal comparing the ticked candidates side by side.
 function Compare({ items, job, onClose }) {
+  // Rows as [label, cell renderer], with one row per must-have skill of the job
   const rows = [
     ['Match', (c) => <b style={{ color: scoreColor(c.ai_score ?? 0) }}>{c.ai_score ?? '—'}%</b>],
     ['Verdict', (c) => c.ai?.verdict || '—'],
@@ -1132,6 +1184,7 @@ function Compare({ items, job, onClose }) {
   );
 }
 
+// Modal listing likely duplicate applications, each rejectable as a duplicate.
 function Duplicates({ groups, onClose, onReject }) {
   return (
     <Modal title="Possible duplicate applications" size="wide" onClose={onClose}>

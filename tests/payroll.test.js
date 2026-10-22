@@ -50,6 +50,7 @@ test('loss of pay reduces earnings pro rata on calendar days', () => {
     rules: R,
   });
   assert.equal(lop.paidDays, 27);
+  // 3 of 30 days unpaid is 10% less, allowing for rounding.
   assert.ok(Math.abs(lop.gross - full.gross * 0.9) <= 3);
   assert.ok(lop.lopAmount > 0);
 });
@@ -57,12 +58,14 @@ test('loss of pay reduces earnings pro rata on calendar days', () => {
 test('ESI applies when fixed gross is within the threshold', () => {
   const p = computePayslip({ ctc: 250000, month: '2026-10', rules: R });
   assert.ok(p.structure.gross <= R.esiThreshold);
+  // Employee 0.75% and employer 3.25%, rounded up.
   assert.equal(p.deductions.esi, Math.ceil(p.gross * 0.0075));
   assert.equal(p.employer.esi, Math.ceil(p.gross * 0.0325));
   assert.equal(p.deductions.pt, 0); // below the PT threshold
 });
 
 test('mid-month joiner is paid only for employed days', () => {
+  // 11 of October's 31 days.
   const p = computePayslip({ ctc: 600000, month: '2026-10', employedDays: 11, rules: R });
   assert.equal(p.paidDays, 11);
   assert.ok(p.gross < p.structure.gross / 2);

@@ -14,6 +14,7 @@ import {
   STAGES,
 } from './hiring.js';
 
+// Match keys for duplicate detection: lowercase alphanumerics, and the last 10 phone digits.
 const norm = (s) =>
   String(s || '')
     .toLowerCase()
@@ -23,11 +24,13 @@ const phoneKey = (s) =>
     .replace(/\D/g, '')
     .slice(-10);
 
+// Resume Screener: bulk resume upload, background scoring and Q&A on a resume.
 export default function screenerRoutes(r, { db, uploads, upload }) {
   // ---------- background screening queue ----------
   const queue = [];
   let running = 0;
   const CONCURRENCY = 3;
+  // Starts queued screenings until CONCURRENCY are running; each finish pulls the next one.
   const pump = () => {
     while (running < CONCURRENCY && queue.length) {
       const cid = queue.shift();
@@ -40,6 +43,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
         });
     }
   };
+  // Marks a candidate queued and schedules it for screening.
   const enqueue = (cid) => {
     db.run("UPDATE candidates SET screen_status = 'queued', screen_error = NULL WHERE id = ?", cid);
     queue.push(cid);
@@ -53,6 +57,8 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
   }
   setImmediate(pump);
 
+  // Scores one candidate's resume against their job (Claude if configured, else rules)
+  // and fills in any profile fields that are still blank.
   async function screenCandidate(cid) {
     const c = db.get('SELECT * FROM candidates WHERE id = ?', cid);
     if (!c) return;
@@ -67,6 +73,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     db.update('candidates', cid, { screen_status: 'processing' });
     const job = shapeJob(jobRow);
     const jobInfo = { ...job, location: job.location };
+    // Get resume text, extracting it from the file if it wasn't stored at upload.
     let text = c.resume_text || '';
     const file = c.resume_file ? path.join(uploads, 'resumes', path.basename(c.resume_file)) : null;
     try {
@@ -82,6 +89,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     let analysis;
     let engine = 'rules';
     let note = null;
+    // Claude gets the original PDF when there is one; any failure falls back to rules.
     if (aiEnabled()) {
       try {
         const isPdf = file && path.extname(file).toLowerCase() === '.pdf';
@@ -95,6 +103,8 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
       }
     }
     if (!analysis) analysis = heuristicScreen(jobInfo, text, fields);
+    // Save the result. Values HR already entered win over AI or parsed ones, and a placeholder
+    // name (file name or "Candidate N") is replaced. Re-read the row since screening is async.
     const x = analysis.extracted || {};
     const pickVal = (cur, ...vals) =>
       cur != null && cur !== '' ? cur : (vals.find((v) => v != null && v !== '') ?? null);
@@ -132,6 +142,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     );
   }
 
+  // Groups of candidates sharing an email, phone or name where at least one applied to this job.
   function duplicatesFor(jobId) {
     const all = db.all(
       'SELECT c.id, c.name, c.email, c.phone, c.job_id, c.stage, j.title FROM candidates c LEFT JOIN jobs j ON j.id = c.job_id',
@@ -147,6 +158,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
       add(phoneKey(c.phone).length === 10 ? `p:${phoneKey(c.phone)}` : null, c);
       add(norm(c.name).length > 5 ? `n:${norm(c.name)}` : null, c);
     }
+    // Report each distinct set of candidates once, even if they match on several keys.
     const seen = new Set();
     const out = [];
     for (const [key, m] of groups) {
@@ -171,6 +183,8 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     return out;
   }
 
+  // Screener page: open jobs, ranked candidates for the chosen job (default: busiest active
+  // job), duplicates and queue totals. HR only.
   r.get('/screener', (req, res) => {
     requireHR(req);
     const jobs = db
@@ -206,7 +220,10 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     });
   });
 
+  // Up to 25 resumes per upload, 10 MB each.
   const resumeUpload = upload('resumes', { maxMb: 10, exts: RESUME_EXTS }).array('files', 25);
+  // Creates a candidate per uploaded resume (fields parsed from the text) and queues
+  // screening. HR only.
   r.post('/screener/jobs/:id/upload', resumeUpload, async (req, res) => {
     requireHR(req);
     const job = db.get('SELECT * FROM jobs WHERE id = ?', id(req.params.id)) || notFound('Job');
@@ -245,6 +262,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     res.json({ created, ai: aiEnabled() });
   });
 
+  // Re-screens one candidate. HR only.
   r.post('/screener/candidates/:id/screen', (req, res) => {
     requireHR(req);
     const c =
@@ -253,6 +271,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     res.json({ ok: true });
   });
 
+  // Queues every unscreened or failed candidate with a resume for this job. HR only.
   r.post('/screener/jobs/:id/screen-all', (req, res) => {
     requireHR(req);
     const ids = db
@@ -265,6 +284,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     res.json({ queued: ids.length });
   });
 
+  // Shortlist, hold, reject or move to interview straight from the screener. HR only.
   r.post('/screener/candidates/:id/action', (req, res) => {
     requireHR(req);
     const c =
@@ -273,6 +293,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
       required: true,
       name: 'Action',
     });
+    // action -> [pipeline stage, screening decision]
     const map = {
       shortlist: ['Shortlisted', 'Shortlist'],
       hold: ['On Hold', 'Hold'],
@@ -300,6 +321,8 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     res.json({ ok: true, stage });
   });
 
+  // Answers a question about a candidate's resume with Claude, or keyword search without AI.
+  // Anyone with access to the candidate may ask.
   r.post('/screener/candidates/:id/ask', async (req, res) => {
     const c =
       db.get('SELECT * FROM candidates WHERE id = ?', id(req.params.id)) || notFound('Candidate');
@@ -332,6 +355,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     }
   });
 
+  // Downloads the original resume, or its stored text as a .txt when there is no file.
   r.get('/candidates/:id/resume', (req, res) => {
     const c =
       db.get('SELECT * FROM candidates WHERE id = ?', id(req.params.id)) || notFound('Candidate');
@@ -349,6 +373,7 @@ export default function screenerRoutes(r, { db, uploads, upload }) {
     res.send(c.resume_text);
   });
 
+  // Screening queue length and jobs in progress. HR only.
   r.get('/screener/status', (req, res) => {
     if (!isHR(req.user)) fail(403, 'Not allowed');
     res.json({ queued: queue.length, running });

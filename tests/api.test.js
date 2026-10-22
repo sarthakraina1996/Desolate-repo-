@@ -10,6 +10,7 @@ after(async () => {
   await ctx.close();
 });
 
+// Seeded logins; MGR_OF_EMP is Aarav's own manager.
 const HR = 'priya.sharma@brainadz.com';
 const ADMIN = 'rajiv.malhotra@brainadz.com';
 const EMP = 'aarav.mehta@brainadz.com';
@@ -28,6 +29,7 @@ test('unauthenticated and cross-site requests are blocked', async () => {
   const anon = client(ctx.base);
   assert.equal((await anon.get('/employees')).status, 401);
   const c = await as(ctx.base, EMP);
+  // Signed in, but with the wrong X-Requested-With value a cross-site request would carry.
   const r = await c.raw(
     'POST',
     '/attendance/check-in',
@@ -47,6 +49,7 @@ test("employees cannot open payroll or other people's HR records", async () => {
   assert.equal(other.body.compensation, undefined);
 });
 
+// First day 20-80 days out that the leave preview accepts for this leave type.
 async function findFreeDay(c, typeId) {
   const T = (await c.get('/meta')).body.today;
   for (let i = 20; i < 80; i++) {
@@ -75,7 +78,8 @@ test('leave: employee applies, other manager cannot approve, own manager approve
     reason: 'test',
   });
   assert.equal(applied.status, 200, JSON.stringify(applied.body));
-  const dup = await emp.post('/leave/requests', {
+  // Applying again for the same day overlaps and is refused.
+  const dup =await emp.post('/leave/requests', {
     leave_type_id: cl.typeId,
     from_date: day,
     to_date: day,
@@ -121,6 +125,7 @@ test('payroll: run, finance review, management approval by admin only, transfer,
     (await admin.post(`/payroll/runs/${run.body.id}/approve`, { stage: 'management' })).body.status,
     'Approved',
   );
+  // Only one run per month.
   assert.equal((await hr.post('/payroll/runs', { month })).status, 409);
   const t = await hr.post(`/payroll/runs/${run.body.id}/transfer`);
   assert.equal(t.body.status, 'Transfer Scheduled');
@@ -195,6 +200,7 @@ test('resume upload is screened in the background', async () => {
   );
   const up = await hr.post(`/screener/jobs/${job.id}/upload`, undefined, { form });
   assert.equal(up.status, 200, JSON.stringify(up.body));
+  // Screening runs after the upload returns; poll for up to 4 seconds.
   let cand;
   for (let i = 0; i < 40; i++) {
     cand = (await hr.get(`/candidates/${up.body.created[0]}`)).body.candidate;
@@ -265,6 +271,7 @@ test('every main read endpoint answers for HR', async () => {
 });
 
 test('removing demo data requires the administrator to set their own login', async () => {
+  // Own server, since starting fresh wipes the shared demo data.
   const { base, close } = await boot();
   try {
     const admin = await as(base, ADMIN);
@@ -288,6 +295,7 @@ test('removing demo data requires the administrator to set their own login', asy
       password: 'RealPass2026',
     });
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    // The new email is stored lowercased and the old demo login stops working.
     assert.equal((await admin.get('/auth/me')).body.user.email, 'owner@brainadz.com');
     assert.equal(
       (await client(base).post('/auth/login', { email: ADMIN, password: 'Brainadz@2026' })).status,

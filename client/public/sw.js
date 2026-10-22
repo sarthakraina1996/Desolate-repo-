@@ -1,8 +1,10 @@
 // BrainADZ HRMS service worker. It keeps the app itself (page, scripts, styles, icons) on the
 // device so the installed app opens fast and still opens without a connection. People's data
 // under /api is never stored here: it always comes straight from the server.
+// Cache names; bumping a version makes activate delete the old cache.
 const SHELL = 'hrms-shell-v1';
 const ASSETS = 'hrms-assets-v1';
+// Files saved at install so the app can open offline.
 const CORE = [
   '/',
   '/manifest.webmanifest',
@@ -10,9 +12,12 @@ const CORE = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
 ];
+// Most scripts and styles kept; older ones are dropped first.
 const MAX_ASSETS = 80;
+// How long a page load waits for the server before using the saved copy.
 const NETWORK_WAIT_MS = 4000;
 
+// Install: save the app shell and every page's scripts and styles.
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
@@ -37,6 +42,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
+// Activate: delete caches from older versions and take over open tabs.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
@@ -47,6 +53,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Drops the oldest saved assets beyond MAX_ASSETS.
 async function trim(cache) {
   const keys = await cache.keys();
   for (const key of keys.slice(0, Math.max(0, keys.length - MAX_ASSETS))) await cache.delete(key);
@@ -99,6 +106,7 @@ async function staticFile(request) {
   return hit || fresh;
 }
 
+// Sends each same-origin GET to the matching cache strategy.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;

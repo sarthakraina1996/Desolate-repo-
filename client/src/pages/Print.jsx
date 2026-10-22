@@ -12,6 +12,7 @@ export default function Print() {
   const path = kind === 'payslip' ? `/payroll/payslips/${id}` : `/resignations/${id}`;
   const { data, error } = useApi(path);
   const navigate = useNavigate();
+  // Tab title doubles as the default file name when saving as PDF.
   useEffect(() => {
     if (data)
       document.title =
@@ -28,6 +29,7 @@ export default function Print() {
   if (!data) return <Loading />;
   return (
     <div>
+      {/* Toolbar, hidden on paper; the demo can't print so it only offers Back */}
       <div className="no-print row" style={{ justifyContent: 'center', gap: 10, padding: 16 }}>
         {window.hrmsDemo ? (
           <>
@@ -45,6 +47,7 @@ export default function Print() {
           </>
         )}
       </div>
+      {/* Printable document */}
       <div className="print-page">
         {kind === 'payslip' ? (
           <PayslipView data={data.data} label={data.label} company={data.company.name} />
@@ -56,10 +59,12 @@ export default function Print() {
   );
 }
 
+// Experience or relieving letter on BrainADZ letterhead for a resignation record.
 function Letter({ kind, r }) {
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div style={{ lineHeight: 1.75, fontSize: 15 }}>
+      {/* Letterhead with date and reference number */}
       <div
         className="row between"
         style={{ borderBottom: '2px solid var(--navy)', paddingBottom: 12, marginBottom: 28 }}
@@ -79,6 +84,7 @@ function Letter({ kind, r }) {
       >
         {kind === 'experience' ? 'TO WHOMSOEVER IT MAY CONCERN' : 'RELIEVING LETTER'}
       </h2>
+      {/* Letter body */}
       {kind === 'experience' ? (
         <p>
           This is to certify that <b>{r.name}</b> (Employee ID {r.code}) was employed with BrainADZ
@@ -107,6 +113,7 @@ function Letter({ kind, r }) {
           We thank you for your contributions and wish you the very best.
         </p>
       )}
+      {/* Signature block */}
       <div style={{ marginTop: 60 }}>
         For <b>BrainADZ</b>
         <br />

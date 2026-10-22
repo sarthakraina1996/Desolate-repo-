@@ -6,10 +6,12 @@ export function useApi(path) {
   const [state, setState] = useState({ data: null, loading: Boolean(path), error: null });
   const [tick, setTick] = useState(0);
   useEffect(() => {
+    // No path yet (e.g. waiting on a selection): nothing to load.
     if (!path) {
       setState({ data: null, loading: false, error: null });
       return undefined;
     }
+    // Ignore a response that lands after unmount or after the path changed.
     let alive = true;
     setState((s) => ({ ...s, loading: true }));
     api(path)
@@ -20,6 +22,7 @@ export function useApi(path) {
     };
   }, [path, tick]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
+  // Patches the loaded data locally (value or updater fn) without refetching.
   const setData = useCallback(
     (fn) => setState((s) => ({ ...s, data: typeof fn === 'function' ? fn(s.data) : fn })),
     [],
@@ -40,6 +43,7 @@ export function useScrollEdges() {
     const down = n.scrollTop + n.clientHeight < n.scrollHeight - 1;
     setEdges([up && 'more-above', down && 'more-below'].filter(Boolean).join(' '));
   }, []);
+  // Callback ref: re-checks the edges whenever the list or one of its items changes size.
   const ref = useCallback(
     (node) => {
       watcher.current?.disconnect();
@@ -56,6 +60,7 @@ export function useScrollEdges() {
   return { ref, edges, onScroll };
 }
 
+// Returns `value` only once it has stopped changing for `ms` (e.g. search boxes).
 export function useDebounced(value, ms = 300) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -65,6 +70,7 @@ export function useDebounced(value, ms = 300) {
   return v;
 }
 
+// Returns a ref; calls `onOutside` when the user presses the mouse outside that element.
 export function useClickOutside(onOutside) {
   const ref = useRef(null);
   useEffect(() => {
@@ -98,6 +104,7 @@ export function useForm(initial) {
 export function useAction(toast) {
   const [busy, setBusy] = useState(false);
   const run = useCallback(
+    // `success` is a toast message, or a function that builds one from the result.
     async (fn, success) => {
       setBusy(true);
       try {

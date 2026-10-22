@@ -6,20 +6,25 @@ import { Search, Smartphone, X } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { Monogram, moduleFor } from './icons.jsx';
 
+// Bottom-bar tabs per role; every other module is under More.
 const TABS = {
   admin: ['/', '/employees', '/attendance', '/leave'],
   hr: ['/', '/employees', '/attendance', '/leave'],
   manager: ['/', '/my', '/attendance', '/leave'],
   employee: ['/my', '/attendance', '/leave', '/documents'],
 };
+// Shorter tab labels for module names that don't fit under an icon.
 const SHORT = { '/leave': 'Leave', '/calendar': 'Holidays', '/screener': 'Screener' };
+// Whether nav item `n` is the current page or one of its sub-pages.
 const isActive = (n, path) =>
   n.end ? path === n.to : path === n.to || path.startsWith(`${n.to}/`);
+// CSS variables that tint a tab in its module's colours.
 const theme = (to) => {
   const m = moduleFor(to);
   return { '--accent-soft': m.soft, '--accent-ink': m.ink };
 };
 
+// Four-square grid icon for the More tab.
 function MoreIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -44,12 +49,15 @@ function MoreIcon() {
   );
 }
 
+// Phone tab bar: the role's main pages plus More.
 export function BottomBar({ items, moreOpen, onMore }) {
   const { user } = useApp();
   const { pathname } = useLocation();
+  // Keep only the tabs this user can actually open.
   const tabs = (TABS[user.role] || TABS.employee)
     .map((to) => items.find((n) => n.to === to))
     .filter(Boolean);
+  // On a page with no tab of its own, More is shown as the active tab.
   const elsewhere = !tabs.some((n) => isActive(n, pathname));
   return (
     <nav className="bnav no-print" aria-label="Main">
@@ -67,6 +75,7 @@ export function BottomBar({ items, moreOpen, onMore }) {
           <span className="bnav-lbl">{SHORT[n.to] || n.label}</span>
         </NavLink>
       ))}
+      {/* More: opens the sheet with every module */}
       <button
         type="button"
         className={`bnav-tab ${moreOpen || elsewhere ? 'on' : ''}`}
@@ -84,6 +93,7 @@ export function BottomBar({ items, moreOpen, onMore }) {
   );
 }
 
+// Case-insensitive module search on the label; an empty query matches everything.
 const matches = (n, q) => {
   const t = q.trim().toLowerCase();
   return (
@@ -96,6 +106,7 @@ const matches = (n, q) => {
   );
 };
 
+// Slide-up sheet with every module, a module search and the install link.
 export function MoreSheet({ items, onClose, onGetApp }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -103,12 +114,14 @@ export function MoreSheet({ items, onClose, onGetApp }) {
   const [closing, setClosing] = useState(false);
   const [pull, setPull] = useState(0); // how far it has been pulled down
   const drag = useRef(null);
+  // Closing plays the slide-down first; onClose unmounts the sheet once it has finished.
   const close = () => setClosing(true);
   useEffect(() => {
     if (!closing) return undefined;
     const t = setTimeout(onClose, 220);
     return () => clearTimeout(t);
   }, [closing, onClose]);
+  // Escape closes it, and the page behind stops scrolling while it is open.
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && setClosing(true);
     document.addEventListener('keydown', onKey);
@@ -154,6 +167,7 @@ export function MoreSheet({ items, onClose, onGetApp }) {
         aria-label="All modules"
         style={pull ? { transform: `translateY(${pull}px)` } : undefined}
       >
+        {/* Drag handle and title */}
         <div className="sheet-top" {...grip}>
           <span className="sheet-grip" aria-hidden="true" />
           <div className="sheet-head">
@@ -170,6 +184,7 @@ export function MoreSheet({ items, onClose, onGetApp }) {
             </button>
           </div>
         </div>
+        {/* Module search; Enter opens the first match */}
         <div className="sheet-search">
           <Search size={16} aria-hidden="true" />
           <input
@@ -181,6 +196,7 @@ export function MoreSheet({ items, onClose, onGetApp }) {
           />
         </div>
         <div className="sheet-body">
+          {/* Module grid */}
           {shown.length ? (
             <div className="sheet-grid">
               {shown.map((n) => (
@@ -200,6 +216,7 @@ export function MoreSheet({ items, onClose, onGetApp }) {
           ) : (
             <div className="fq-none small muted">No module matches “{q}”.</div>
           )}
+          {/* Install the app */}
           {onGetApp && (
             <button
               type="button"

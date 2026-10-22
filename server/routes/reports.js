@@ -5,12 +5,16 @@ import { calendarCtx } from '../services/calendar.js';
 import { balances } from '../services/leave.js';
 import { headcountOn } from './dashboard.js';
 
+// HR reports: the summary page data and CSV downloads. All HR only.
 export default function reportRoutes(r, { db }) {
+  // 12-month headcount, joins, exits, attrition and payroll cost, plus leave use and CTC
+  // by vertical. HR only.
   r.get('/reports/summary', (req, res) => {
     requireHR(req);
     const T = today(db);
     const month = D.monthOf(T);
     const all = { sql: '1=1', params: [] };
+    // Monthly attrition = exits / average of opening and closing headcount.
     const months = [];
     for (let i = 11; i >= 0; i--) {
       const m = D.addMonths(month, -i);
@@ -41,6 +45,7 @@ export default function reportRoutes(r, { db }) {
         payrollCost: cost,
       });
     }
+    // Approved leave days per type this calendar year.
     const year = D.yearOf(T);
     const leaveUse = db.all(
       `SELECT t.code, t.name, t.color, COALESCE(SUM(r.days),0) AS days, COUNT(r.id) AS requests FROM leave_types t
@@ -53,6 +58,7 @@ export default function reportRoutes(r, { db }) {
       LEFT JOIN employees e ON e.vertical_id = v.id AND e.status != 'Exited' AND e.join_date <= ? GROUP BY v.id ORDER BY v.id`,
       T,
     );
+    // Annual attrition: trailing-12-month exits over average headcount.
     const ttm = months.reduce((t, m) => t + m.exits, 0);
     const avgHc = months.reduce((t, m) => t + m.headcount, 0) / months.length;
     res.json({
@@ -65,6 +71,8 @@ export default function reportRoutes(r, { db }) {
     });
   });
 
+  // Leave balances (entitled, used, available) per type for current staff, for a year.
+  // Past years are taken as of 31 Dec. HR only.
   r.get('/reports/leave-register.csv', (req, res) => {
     requireHR(req);
     const T = today(db);
@@ -99,6 +107,7 @@ export default function reportRoutes(r, { db }) {
     ]);
   });
 
+  // Every leave request, newest first. HR only.
   r.get('/reports/leave-requests.csv', (req, res) => {
     requireHR(req);
     const rows =
@@ -117,6 +126,7 @@ export default function reportRoutes(r, { db }) {
     ]);
   });
 
+  // All candidates with job, stage and match score. HR only.
   r.get('/reports/hiring.csv', (req, res) => {
     requireHR(req);
     const rows = db.all(
@@ -138,6 +148,7 @@ export default function reportRoutes(r, { db }) {
     ]);
   });
 
+  // All resignations with reason, rehire eligibility and F&F amount. HR only.
   r.get('/reports/attrition.csv', (req, res) => {
     requireHR(req);
     const rows =
@@ -160,6 +171,7 @@ export default function reportRoutes(r, { db }) {
     ]);
   });
 
+  // Review ratings for every cycle. HR only.
   r.get('/reports/performance.csv', (req, res) => {
     requireHR(req);
     const rows =
@@ -177,6 +189,8 @@ export default function reportRoutes(r, { db }) {
     ]);
   });
 
+  // Current headcount by vertical, department and location, with gender split and
+  // average CTC. HR only.
   r.get('/reports/headcount.csv', (req, res) => {
     requireHR(req);
     const T = today(db);

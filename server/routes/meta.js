@@ -19,7 +19,9 @@ import { aiEnabled } from '../services/ai.js';
 import { lanAddresses, isLoopback } from '../lib/network.js';
 import { geofencePolicy, exemption } from '../services/geofence.js';
 
+// App-wide data: lookups, photos, global search, notifications, notices and helpdesk.
 export default function metaRoutes(r, { db, uploads }) {
+  // Reference data the client loads once: settings, org lists, leave types, active staff.
   r.get('/meta', (req, res) => {
     const s = getSettings(db);
     res.json({
@@ -65,6 +67,7 @@ export default function metaRoutes(r, { db, uploads }) {
     });
   });
 
+  // Serves an employee's profile photo to any signed-in user.
   r.get('/files/photo/:employeeId', (req, res) => {
     const photo = db.value('SELECT photo FROM employees WHERE id = ?', id(req.params.employeeId));
     if (!photo) notFound('Photo');
@@ -74,11 +77,14 @@ export default function metaRoutes(r, { db, uploads }) {
     res.sendFile(file);
   });
 
+  // Global search over employees and policies; HR also gets candidates and jobs.
   r.get('/search', (req, res) => {
     const q = String(req.query.q || '').trim();
     if (q.length < 2) return res.json({ results: [] });
+    // Strip LIKE wildcards so user input matches literally.
     const like = `%${q.replace(/[%_]/g, '')}%`;
     const results = [];
+    // Employees, with current staff listed before exited ones.
     for (const e of db.all(
       `
       SELECT e.id, e.first_name, e.last_name, e.code, e.designation, e.status FROM employees e
@@ -97,6 +103,7 @@ export default function metaRoutes(r, { db, uploads }) {
         link: `/employees/${e.id}`,
       });
     }
+    // Candidates and jobs (HR only).
     if (isHR(req.user)) {
       for (const c of db.all(
         `SELECT c.id, c.name, c.stage, j.title FROM candidates c LEFT JOIN jobs j ON j.id = c.job_id
@@ -126,6 +133,7 @@ export default function metaRoutes(r, { db, uploads }) {
         });
       }
     }
+    // Policies by title or text.
     for (const p of db.all(
       'SELECT id, title, version FROM policies WHERE title LIKE ? OR content LIKE ? LIMIT 4',
       like,
@@ -143,6 +151,7 @@ export default function metaRoutes(r, { db, uploads }) {
   });
 
   // ---------- notifications ----------
+  // The caller's latest 30 notifications and unread count.
   r.get('/notifications', (req, res) => {
     res.json({
       items: db.all(
@@ -155,6 +164,7 @@ export default function metaRoutes(r, { db, uploads }) {
       ),
     });
   });
+  // Marks one of the caller's notifications as read.
   r.post('/notifications/:id/read', (req, res) => {
     db.run(
       'UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?',
@@ -163,15 +173,18 @@ export default function metaRoutes(r, { db, uploads }) {
     );
     res.json({ ok: true });
   });
+  // Marks all of the caller's notifications as read.
   r.post('/notifications/read-all', (req, res) => {
     db.run('UPDATE notifications SET read = 1 WHERE user_id = ?', req.user.id);
     res.json({ ok: true });
   });
 
   // ---------- notice board ----------
+  // Latest 50 notices.
   r.get('/notices', (_req, res) => {
     res.json({ items: db.all('SELECT * FROM notices ORDER BY created_at DESC, id DESC LIMIT 50') });
   });
+  // Posts a notice and notifies everyone else. HR only.
   r.post('/notices', (req, res) => {
     requireHR(req);
     const title = str(req.body.title, { required: true, max: 120, name: 'Title' });
@@ -190,6 +203,7 @@ export default function metaRoutes(r, { db, uploads }) {
     );
     res.json({ id: nid });
   });
+  // Removes a notice. HR only.
   r.delete('/notices/:id', (req, res) => {
     requireHR(req);
     db.run('DELETE FROM notices WHERE id = ?', id(req.params.id));
@@ -197,6 +211,7 @@ export default function metaRoutes(r, { db, uploads }) {
   });
 
   // ---------- helpdesk requests ----------
+  // Helpdesk requests: HR sees all (unless mine=1), everyone else only their own.
   r.get('/requests', (req, res) => {
     const scope = scopeIds(db, req.user);
     const mine = req.query.mine === '1' || !isHR(req.user);
@@ -211,6 +226,7 @@ export default function metaRoutes(r, { db, uploads }) {
       scope: scope === null ? 'all' : 'mine',
     });
   });
+  // Raises a helpdesk request for the caller and alerts HR.
   r.post('/requests', (req, res) => {
     if (!req.user.employeeId) fail(400, 'Your login is not linked to an employee record');
     const category = oneOf(req.body.category, ['HR', 'IT', 'Payroll', 'Admin', 'Other'], {
@@ -233,6 +249,7 @@ export default function metaRoutes(r, { db, uploads }) {
     );
     res.json({ id: rid });
   });
+  // Updates a request's status and response, and tells the requester. HR only.
   r.put('/requests/:id', (req, res) => {
     requireHR(req);
     const rid = id(req.params.id);
@@ -254,6 +271,7 @@ export default function metaRoutes(r, { db, uploads }) {
   });
 }
 
+// True for admins and members of the POSH Internal Complaints Committee.
 export function isIcc(db, user) {
   if (!user) return false;
   if (user.role === 'admin') return true;

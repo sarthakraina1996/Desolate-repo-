@@ -7,6 +7,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// Absolute path of a file in demo/shims.
 const shim = (f) => path.join(here, 'shims', f);
 
 export default defineConfig({
@@ -24,9 +25,11 @@ export default defineConfig({
       { find: /^(node:)?path$/, replacement: shim('path.js') },
       { find: /^(node:)?crypto$/, replacement: shim('crypto.js') },
       { find: /^@anthropic-ai\/sdk$/, replacement: shim('anthropic.js') },
+      // Matches the import in server/routes/screener.js.
       { find: /^\.\.\/services\/resume\.js$/, replacement: shim('resume.js') },
     ],
   },
+  // One script and one stylesheet with every asset inlined, ready for demo/inline.js.
   build: {
     outDir: path.join(here, 'dist'),
     emptyOutDir: true,

@@ -34,7 +34,9 @@ import { IFSC_RE, ACCOUNT_RE } from '../services/payroll.js';
 const TYPES = ['Full-time', 'Part-time', 'Contract', 'Intern'];
 const STATUSES = ['Active', 'Notice', 'Exited'];
 const GRADES = ['Executive', 'Senior', 'Manager', 'Head', 'CXO'];
+// Indian PAN format, e.g. ABCDE1234F.
 const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+// Default onboarding checklist for recent joiners.
 const ONBOARDING = [
   'Offer letter signed',
   'Documents & KYC collected',
@@ -43,6 +45,7 @@ const ONBOARDING = [
   'Orientation and buddy assigned',
 ];
 
+// Employee row joined with department, vertical, location and manager details.
 const BASE_SELECT = `
   SELECT e.*, d.name AS department, v.name AS vertical, v.short AS vertical_short, v.color AS vertical_color, l.name AS location,
          m.first_name AS m_first, m.last_name AS m_last, m.designation AS m_designation, m.photo AS m_photo
@@ -52,6 +55,7 @@ const BASE_SELECT = `
   LEFT JOIN locations l ON l.id = e.location_id
   LEFT JOIN employees m ON m.id = e.manager_id`;
 
+// IDs of employees on approved leave (not WFH) on date T.
 export function onLeaveToday(db, T) {
   return new Set(
     db
@@ -65,6 +69,7 @@ export function onLeaveToday(db, T) {
   );
 }
 
+// Shapes an employee for lists; Active people on leave today show as "On Leave".
 function listRow(e, leaveSet) {
   return {
     id: e.id,
@@ -92,6 +97,7 @@ function listRow(e, leaveSet) {
   };
 }
 
+// Next employee code: the settings prefix plus the highest existing number + 1 (e.g. BZ042).
 function nextCode(db) {
   const prefix = getSettings(db).employeeCodePrefix || 'BZ';
   const max = db
@@ -101,12 +107,14 @@ function nextCode(db) {
   return `${prefix}${String(max + 1).padStart(3, '0')}`;
 }
 
+// Validates an employee form; with `partial`, only fields present in the body are read.
 function readEmployeeBody(db, b, { partial = false } = {}) {
   const out = {};
   const has = (k) => Object.prototype.hasOwnProperty.call(b, k);
   const set = (k, v) => {
     if (!partial || has(k)) out[k] = v;
   };
+  // Name, contact and personal details
   set(
     'first_name',
     str(b.first_name, { required: !partial || has('first_name'), max: 60, name: 'First name' }),
@@ -116,6 +124,7 @@ function readEmployeeBody(db, b, { partial = false } = {}) {
   set('phone', str(b.phone, { max: 20 }));
   set('gender', oneOf(b.gender || null, ['M', 'F', 'O'], { name: 'Gender' }));
   set('dob', date(b.dob, { name: 'Date of birth' }));
+  // Org references must point at existing rows
   for (const [k, table] of [
     ['vertical_id', 'verticals'],
     ['department_id', 'departments'],
@@ -128,6 +137,7 @@ function readEmployeeBody(db, b, { partial = false } = {}) {
       out[k] = v;
     }
   }
+  // Role, manager and employment
   set('designation', str(b.designation, { max: 80 }));
   set('grade', oneOf(b.grade || null, GRADES, { name: 'Grade' }));
   if (!partial || has('manager_id')) out.manager_id = b.manager_id ? id(b.manager_id) : null;
@@ -148,6 +158,7 @@ function readEmployeeBody(db, b, { partial = false } = {}) {
         issued: date(c.issued),
       }));
   }
+  // Pay; TDS is estimated from CTC when left blank
   if (!partial || has('ctc')) out.ctc = num(b.ctc, { min: 0, max: 100000000, name: 'CTC' }) ?? 0;
   if (!partial || has('monthly_tds')) {
     out.monthly_tds =
@@ -155,6 +166,7 @@ function readEmployeeBody(db, b, { partial = false } = {}) {
         ? estimateMonthlyTds(out.ctc ?? 0, getSettings(db).payroll)
         : num(b.monthly_tds, { min: 0, max: 10000000, name: 'Monthly TDS' });
   }
+  // Statutory IDs and bank details
   if (!partial || has('pan')) {
     const pan = str(b.pan, { max: 10 })?.toUpperCase() || null;
     if (pan && !PAN_RE.test(pan)) fail(400, 'PAN must look like ABCDE1234F');
@@ -181,11 +193,14 @@ function readEmployeeBody(db, b, { partial = false } = {}) {
   return out;
 }
 
+// Employee directory, profiles, logins, documents, assets and onboarding routes.
 export default function employeeRoutes(r, { db, uploads, upload }) {
+  // Paged employee directory with filters, search, sorting and headcount KPIs.
   r.get('/employees', (req, res) => {
     const T = today(db);
     const where = [];
     const params = [];
+    // The default "current" view hides exited employees
     const status = req.query.status || 'current';
     if (status === 'current') where.push("e.status != 'Exited'");
     else if (STATUSES.includes(status)) {
@@ -202,11 +217,13 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
       where.push('e.employment_type = ?');
       params.push(req.query.type);
     }
+    // team=1 keeps only the user's direct and indirect reports
     if (req.query.team === '1') {
       const team = reportIds(db, req.user.employeeId);
       where.push(team.length ? `e.id IN (${team.map(() => '?').join(',')})` : '0=1');
       params.push(...team);
     }
+    // Search by name, code, designation, department or email
     const q = String(req.query.search || '').trim();
     if (q) {
       const like = `%${q.replace(/[%_]/g, '')}%`;
@@ -215,6 +232,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
       );
       params.push(like, like, like, like, like);
     }
+    // Sort and paginate
     const sorts = {
       name: 'e.first_name, e.last_name',
       '-name': 'e.first_name DESC, e.last_name DESC',
@@ -236,6 +254,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
       pageSize,
       (page - 1) * pageSize,
     );
+    // Headcount KPIs; people on leave today don't count as active
     const leaveSet = onLeaveToday(db, T);
     const month = D.monthOf(T);
     const kpi = db.get(
@@ -260,6 +279,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     });
   });
 
+  // Downloads every employee, including exited ones, as CSV (HR only).
   r.get('/employees/export.csv', (req, res) => {
     requireHR(req);
     const rows = db.all(`${BASE_SELECT} ORDER BY e.code`);
@@ -287,10 +307,12 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     ]);
   });
 
+  // Employee profile; viewers outside their scope get a limited card without HR details.
   r.get('/employees/:id', (req, res) => {
     const eid = id(req.params.id);
     const T = today(db);
     const e = db.get(`${BASE_SELECT} WHERE e.id = ?`, eid) || notFound('Employee');
+    // full: within the viewer's scope; sensitive: HR or the employee themself
     const full = canSeeEmployee(db, req.user, eid);
     const self = req.user.employeeId === eid;
     const sensitive = isHR(req.user) || self;
@@ -305,6 +327,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
       location_id: e.location_id,
       employment_type: e.employment_type,
     };
+    // Manager, direct reports and peers are shown to everyone
     const manager = e.manager_id
       ? {
           id: e.manager_id,
@@ -330,6 +353,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
       : [];
     if (!full) return res.json({ employee: base, manager, reports, peers, limited: true });
 
+    // Day-by-day attendance for the chosen month, up to today
     const month =
       req.query.month && D.isValidMonth(req.query.month) ? req.query.month : D.monthOf(T);
     const to = D.monthEnd(month) < T ? D.monthEnd(month) : T;
@@ -347,6 +371,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     const cycle = db.get(
       "SELECT * FROM review_cycles WHERE status = 'Active' ORDER BY start_date DESC LIMIT 1",
     );
+    // Full profile: documents, assets, policies, leave, performance, onboarding and exit
     const out = {
       employee: {
         ...base,
@@ -406,6 +431,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
           eid,
         ) || null,
     };
+    // Pay details; employees only see payslips from completed runs
     if (sensitive) {
       const rules = getSettings(db).payroll;
       out.compensation = {
@@ -424,6 +450,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
         ),
       };
     }
+    // HR also sees the login account
     if (isHR(req.user))
       out.login =
         db.get(
@@ -433,11 +460,13 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     res.json(out);
   });
 
+  // Creates an employee with onboarding tasks and, optionally, a login (HR only).
   r.post('/employees', (req, res) => {
     requireHR(req);
     const data = readEmployeeBody(db, req.body);
     if (data.manager_id && !db.value('SELECT 1 FROM employees WHERE id = ?', data.manager_id))
       fail(400, 'Unknown manager');
+    // Optional login and its role; only admins can create admin logins
     const createLogin = Boolean(req.body.create_login);
     const role = oneOf(req.body.role || 'employee', ['employee', 'manager', 'hr', 'admin'], {
       name: 'Role',
@@ -447,6 +476,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     let temp = null;
     const eid = db.tx(() => {
       const newId = db.insert('employees', { ...data, code: nextCode(db), status: 'Active' });
+      // Joiners from the last 30 days get the default onboarding checklist
       if (data.join_date >= D.addDays(today(db), -30))
         ONBOARDING.forEach((t, i) =>
           db.insert('onboarding_tasks', { employee_id: newId, title: t, sort: i }),
@@ -476,18 +506,21 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     res.json({ id: eid, tempPassword: temp });
   });
 
+  // Updates an employee: HR can edit everything, employees only their own profile details.
   r.put('/employees/:id', (req, res) => {
     const eid = id(req.params.id);
     const existing = db.get('SELECT * FROM employees WHERE id = ?', eid) || notFound('Employee');
     let data;
     if (isHR(req.user)) {
       data = readEmployeeBody(db, req.body, { partial: true });
+      // Block reporting loops and unknown managers
       if ('manager_id' in data && data.manager_id) {
         if (data.manager_id === eid || reportIds(db, eid).includes(data.manager_id))
           fail(400, 'An employee cannot report to themselves or their own team');
         if (!db.value('SELECT 1 FROM employees WHERE id = ?', data.manager_id))
           fail(400, 'Unknown manager');
       }
+      // Leaving Active needs an exit date; going back to Active clears it
       if ('status' in req.body) {
         data.status = oneOf(req.body.status, STATUSES, { name: 'Status' });
         data.exit_date = date(req.body.exit_date, {
@@ -496,6 +529,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
         });
         if (data.status === 'Active') data.exit_date = null;
       }
+      // Re-estimate TDS when CTC changes and no TDS was given
       if ('ctc' in data && !('monthly_tds' in req.body))
         data.monthly_tds = estimateMonthlyTds(data.ctc, getSettings(db).payroll);
     } else if (req.user.employeeId === eid) {
@@ -513,15 +547,18 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
       );
       data = readEmployeeBody(db, body, { partial: true });
     } else fail(403, 'You can only edit your own profile');
+    // Keep the login email in sync
     if (data.email && data.email !== existing.email) {
       db.run('UPDATE users SET email = ? WHERE employee_id = ?', data.email, eid);
     }
     db.update('employees', eid, data);
+    // Exited employees can no longer sign in
     if (data.status === 'Exited') db.run('UPDATE users SET active = 0 WHERE employee_id = ?', eid);
     audit(db, req.user, 'employee.update', 'employee', eid, Object.keys(data));
     res.json({ ok: true });
   });
 
+  // Creates or resets an employee's login with a temporary password (HR only).
   r.post('/employees/:id/login', (req, res) => {
     requireHR(req);
     const eid = id(req.params.id);
@@ -532,6 +569,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     if (role === 'admin' && req.user.role !== 'admin')
       fail(403, 'Only an administrator can grant admin access');
     const temp = tempPassword();
+    // Reset the existing login and end its sessions, or create a new one
     const existing = db.get('SELECT * FROM users WHERE employee_id = ?', eid);
     if (existing) {
       if (existing.role === 'admin' && req.user.role !== 'admin')
@@ -558,6 +596,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     res.json({ email: e.email, tempPassword: temp, role });
   });
 
+  // Uploads a profile photo (HR or the employee) and deletes the old file.
   r.post(
     '/employees/:id/photo',
     upload('photos', { maxMb: 3, exts: ['.jpg', '.jpeg', '.png', '.webp'] }).single('photo'),
@@ -574,6 +613,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
   );
 
   // ---------- documents ----------
+  // Uploads a document for an employee (HR or the employee themself).
   r.post(
     '/employees/:id/documents',
     upload('documents', {
@@ -598,6 +638,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
       res.json({ id: did });
     },
   );
+  // Downloads a document file (HR or the employee it belongs to).
   r.get('/documents/:id/download', (req, res) => {
     const doc =
       db.get('SELECT * FROM documents WHERE id = ?', id(req.params.id)) || notFound('Document');
@@ -611,6 +652,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
   r.get('/documents', (req, res) => {
     const where = [];
     const params = [];
+    // Non-HR users are limited to their own documents
     if (!isHR(req.user)) {
       where.push('d.employee_id = ?');
       params.push(req.user.employeeId || 0);
@@ -635,6 +677,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
       where.push("(d.name LIKE ? OR e.first_name || ' ' || e.last_name LIKE ? OR e.code LIKE ?)");
       params.push(like, like, like);
     }
+    // Paged list with each uploader's name
     const sql = `FROM documents d JOIN employees e ON e.id = d.employee_id LEFT JOIN departments dp ON dp.id = e.department_id
       LEFT JOIN users u ON u.id = d.uploaded_by LEFT JOIN employees ue ON ue.id = u.employee_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`;
     const limit = Math.min(Number(req.query.limit) || 50, 200);
@@ -682,6 +725,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
       FROM employees e LEFT JOIN departments d ON d.id = e.department_id WHERE ${where.join(' AND ')} ORDER BY e.first_name, e.last_name`,
       ...params,
     );
+    // Latest document on file per category for each employee
     const docs = new Map();
     if (emps.length) {
       for (const d of db.all(
@@ -693,6 +737,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
         docs.set(d.employee_id, m);
       }
     }
+    // What each employee has and what is still missing
     const rows = emps.map((e) => {
       const have = docs.get(e.id) || {};
       const missing = required.filter((c) => !have[c]);
@@ -708,6 +753,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
         missing,
       };
     });
+    // missing=1 keeps only employees with gaps; the summary always covers everyone
     const onlyMissing = req.query.missing === '1';
     res.json({
       required,
@@ -728,6 +774,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     });
   });
 
+  // Deletes a document and its file (HR only).
   r.delete('/documents/:id', (req, res) => {
     requireHR(req);
     const doc =
@@ -738,6 +785,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
   });
 
   // ---------- assets ----------
+  // Issues an asset to an employee (HR only).
   r.post('/employees/:id/assets', (req, res) => {
     requireHR(req);
     const eid = id(req.params.id);
@@ -751,6 +799,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     });
     res.json({ id: aid });
   });
+  // Marks an asset issued or returned (HR only).
   r.put('/assets/:id', (req, res) => {
     requireHR(req);
     const aid = id(req.params.id);
@@ -765,6 +814,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     });
     res.json({ ok: true });
   });
+  // Deletes an asset record (HR only).
   r.delete('/assets/:id', (req, res) => {
     requireHR(req);
     db.run('DELETE FROM assets WHERE id = ?', id(req.params.id));
@@ -772,6 +822,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
   });
 
   // ---------- onboarding ----------
+  // Ticks or unticks an onboarding task; HR or the manager can, the new joiner can't.
   r.put('/onboarding/:id', (req, res) => {
     const tid = id(req.params.id);
     const task = db.get('SELECT * FROM onboarding_tasks WHERE id = ?', tid) || notFound('Task');
@@ -782,6 +833,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     db.update('onboarding_tasks', tid, { done, done_at: done ? new Date().toISOString() : null });
     res.json({ ok: true });
   });
+  // Adds a custom onboarding task at the end of the list (HR only).
   r.post('/employees/:id/onboarding', (req, res) => {
     requireHR(req);
     const eid = id(req.params.id);
@@ -795,6 +847,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
     res.json({ id: tid });
   });
 
+  // Sends an in-app notification to an employee's login (HR only).
   r.post('/employees/:id/notify', (req, res) => {
     requireHR(req);
     const uid = db.value('SELECT id FROM users WHERE employee_id = ?', id(req.params.id));

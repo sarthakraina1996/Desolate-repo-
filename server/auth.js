@@ -5,12 +5,14 @@ import { fail, fullName } from './core.js';
 const COOKIE = 'hrms_session';
 const SESSION_DAYS = 7;
 
+// Hashes a password with a random salt as "scrypt$salt$hash".
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16);
   const hash = crypto.scryptSync(password, salt, 64);
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
+// Checks a password against a stored hash in constant time.
 export function verifyPassword(password, stored) {
   const [alg, saltHex, hashHex] = String(stored).split('$');
   if (alg !== 'scrypt' || !saltHex || !hashHex) return false;
@@ -19,6 +21,7 @@ export function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(actual, expected);
 }
 
+// Rejects passwords shorter than 8 characters or without both letters and digits.
 export function checkPasswordStrength(pw) {
   if (typeof pw !== 'string' || pw.length < 8) fail(400, 'Password must be at least 8 characters');
   if (pw.length > 200) fail(400, 'Password is too long');
@@ -26,12 +29,15 @@ export function checkPasswordStrength(pw) {
     fail(400, 'Password must contain letters and numbers');
 }
 
+// Random temporary password that always passes the strength check.
 export function tempPassword() {
   return `Hr${crypto.randomBytes(6).toString('base64url')}9`;
 }
 
+// Session tokens are stored hashed so a leaked database can't be used to sign in.
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
+// Parses a Cookie header into a name -> value map.
 function parseCookies(header) {
   const out = {};
   for (const part of String(header || '').split(';')) {
@@ -41,13 +47,14 @@ function parseCookies(header) {
   return out;
 }
 
+// Cookie attributes; adds Secure on HTTPS or when COOKIE_SECURE=true.
 function cookieOptions(req) {
   const secure = process.env.COOKIE_SECURE === 'true' || req.secure;
   return `Path=/; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
 }
 
-// expiresAt (ISO) shortens the session, e.g. to midnight for people whose
-// sign-in depends on being in the office that day.
+// Starts a session, sets its cookie and prunes expired ones. expiresAt (ISO) shortens it,
+// e.g. to midnight for people whose sign-in depends on being in the office that day.
 export function createSession(db, req, res, userId, { expiresAt = null } = {}) {
   const token = crypto.randomBytes(32).toString('hex');
   const max = Date.now() + SESSION_DAYS * 86400000;
@@ -65,12 +72,14 @@ export function createSession(db, req, res, userId, { expiresAt = null } = {}) {
   );
 }
 
+// Signs out: deletes the session row and clears the cookie.
 export function destroySession(db, req, res) {
   const token = parseCookies(req.headers.cookie)[COOKIE];
   if (token) db.run('DELETE FROM sessions WHERE token_hash = ?', sha256(token));
   res.setHeader('Set-Cookie', `${COOKIE}=; ${cookieOptions(req)}; Max-Age=0`);
 }
 
+// Builds the req.user object for an active login, joined with its employee record.
 export function loadUser(db, userId) {
   const row = db.get(
     `
@@ -112,6 +121,7 @@ export function sessionMiddleware(db) {
 }
 
 // Simple in-memory brute-force guard for the login endpoint.
+// Allows 8 failures per key in a 15-minute window; returns callbacks to record the outcome.
 const attempts = new Map();
 export function loginThrottle(key) {
   const now = Date.now();

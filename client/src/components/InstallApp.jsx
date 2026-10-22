@@ -9,9 +9,12 @@ import { canOfferApp, isPhone, useInstall, useOnline } from '../lib/pwa.js';
 import { Button, Modal } from './ui.jsx';
 import { Monogram } from './icons.jsx';
 
+// localStorage key that remembers the phone banner was dismissed.
 const BANNER_KEY = 'hrms.app.banner';
+// Addresses that only work on this computer, so a phone can't open them.
 const localName = (host) => host === 'localhost' || host.startsWith('127.') || host === '[::1]';
 
+// One numbered install step, with an optional icon of the button to look for.
 function Step({ n, icon: Icon, children }) {
   return (
     <li className="app-step">
@@ -26,6 +29,7 @@ function Step({ n, icon: Icon, children }) {
   );
 }
 
+// App icon, name and a one-line pitch at the top of the install dialog.
 function AppIntro({ text }) {
   return (
     <div className="app-intro">
@@ -38,8 +42,10 @@ function AppIntro({ text }) {
   );
 }
 
+// Install instructions on a phone, matched to what the browser supports.
 function PhoneSteps({ app, onDone }) {
   const { toast } = useApp();
+  // The browser can install it with one tap.
   if (app.canPrompt) {
     return (
       <>
@@ -60,6 +66,7 @@ function PhoneSteps({ app, onDone }) {
       </>
     );
   }
+  // iPhone: Safari only installs through Share, then Add to Home Screen.
   if (app.ios) {
     return (
       <>
@@ -78,6 +85,7 @@ function PhoneSteps({ app, onDone }) {
       </>
     );
   }
+  // Any other browser: install from its menu.
   return (
     <>
       <AppIntro text="Add it to your home screen and it opens like any other app." />
@@ -128,9 +136,11 @@ function Qr({ url }) {
   );
 }
 
+// On a computer: a QR code of the HRMS address so it can be opened and installed on a phone.
 function ComputerSteps({ app, onDone }) {
   const { toast } = useApp();
   const here = window.location;
+  // Opened as localhost, so ask the server for the addresses a phone can reach instead.
   const onServer = localName(here.hostname);
   const [urls, setUrls] = useState(onServer ? null : [here.origin]);
   const [pick, setPick] = useState(0);
@@ -152,16 +162,20 @@ function ComputerSteps({ app, onDone }) {
       <p className="app-lead">
         Scan this with your phone's camera to open the HRMS there, then add it to the home screen.
       </p>
+      {/* Placeholder while the addresses load */}
       {urls === null && <div className="app-qr app-qr-wait" />}
+      {/* No address a phone can reach */}
       {urls && !url && (
         <div className="alert info">
           Phones cannot open "localhost". Start the HRMS on the office network (it prints the Wi-Fi
           address) or put it online, then open this again.
         </div>
       )}
+      {/* QR code, address, copy button and phone steps */}
       {url && (
         <>
           <Qr url={url} />
+          {/* Choice between addresses, e.g. office Wi-Fi and online */}
           {urls.length > 1 && (
             <div className="seg app-seg">
               {urls.map((u, i) => (
@@ -198,6 +212,7 @@ function ComputerSteps({ app, onDone }) {
           )}
         </>
       )}
+      {/* Install on this computer too, when the browser offers it */}
       {app.canPrompt && (
         <Button
           icon={Download}
@@ -216,8 +231,10 @@ function ComputerSteps({ app, onDone }) {
   );
 }
 
+// The "Get the app" dialog: install steps on a phone, a QR code on a computer.
 export function GetAppModal({ onClose }) {
   const app = useInstall();
+  // Touch screens (tablets too) get the phone steps.
   const phone = isPhone() || window.matchMedia?.('(pointer: coarse)').matches;
   return (
     <Modal title={phone ? 'Install the app' : 'Get the mobile app'} onClose={onClose} size="narrow">
@@ -243,6 +260,7 @@ export function InstallBanner({ onHow }) {
       return false;
     }
   });
+  // Only on phones that can install it: a one-tap prompt or the iPhone steps.
   if (hidden || app.installed || !canOfferApp() || !isPhone() || (!app.canPrompt && !app.ios))
     return null;
   const dismiss = () => {
@@ -253,6 +271,7 @@ export function InstallBanner({ onHow }) {
       // storage blocked: hidden for this visit
     }
   };
+  // Without a one-tap prompt (iPhone), open the how-to steps instead.
   const install = async () => {
     if (!app.canPrompt) return onHow();
     if (await app.install()) toast('Installed. BrainADZ HRMS is on your home screen.', 'success');
@@ -275,6 +294,7 @@ export function InstallBanner({ onHow }) {
   );
 }
 
+// Bar shown while offline; says "Back online" when the connection returns.
 export function OfflineBanner() {
   const online = useOnline();
   const { toast } = useApp();

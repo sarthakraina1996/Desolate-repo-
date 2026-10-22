@@ -24,6 +24,7 @@ import { leaveDaysByYear, isWorkingDay } from '../lib/leave.js';
 import { balances, leaveTypesFor } from '../services/leave.js';
 import { calendarCtx } from '../services/calendar.js';
 
+// Leave request with its type, employee details and who decided it.
 const LIST_SELECT = `
   SELECT r.*, t.name AS type, t.code, t.color, t.kind, e.first_name, e.last_name, e.code AS emp_code, e.designation,
          e.photo IS NOT NULL AS has_photo, d.name AS department, v.short AS vertical, v.color AS vertical_color,
@@ -36,6 +37,7 @@ const LIST_SELECT = `
   LEFT JOIN users u ON u.id = r.decided_by
   LEFT JOIN employees de ON de.id = u.employee_id`;
 
+// Adds the employee's and the decider's display names to a leave request row.
 const shape = (r) => ({
   ...r,
   name: fullName(r),
@@ -44,6 +46,7 @@ const shape = (r) => ({
     : r.decided_by_email || null,
 });
 
+// HR can approve any request, even their own; managers only their team's, never their own.
 function canApprove(db, user, employeeId) {
   if (user.employeeId === employeeId && !isHR(user)) return false;
   if (isHR(user)) return true;
@@ -51,10 +54,13 @@ function canApprove(db, user, employeeId) {
   return scope !== null && scope.includes(employeeId) && employeeId !== user.employeeId;
 }
 
+// Leave requests, balances, calendars, holidays and leave type routes.
 export default function leaveRoutes(r, { db }) {
+  // Leave dashboard: balances, pending requests and approvals, policy acknowledgement rate.
   r.get('/leave/overview', (req, res) => {
     const T = today(db);
     const year = Number(req.query.year) || D.yearOf(T);
+    // Pending requests this user can approve (HR: everyone), excluding their own
     const scope = scopeIds(db, req.user);
     const approvable = isHR(req.user) ? null : scope.filter((x) => x !== req.user.employeeId);
     const apWhere =
@@ -68,12 +74,14 @@ export default function leaveRoutes(r, { db }) {
       ...(approvable || []),
       ...(req.user.employeeId ? [req.user.employeeId] : []),
     );
+    // Average age of those pending requests, in days
     const avgAge = pendingApprovals.length
       ? pendingApprovals.reduce(
           (t, x) => t + (Date.now() - new Date(x.created_at).getTime()) / 86400000,
           0,
         ) / pendingApprovals.length
       : 0;
+    // The user's own balances and pending count
     const emp = req.user.employeeId
       ? db.get('SELECT * FROM employees WHERE id = ?', req.user.employeeId)
       : null;
@@ -86,6 +94,7 @@ export default function leaveRoutes(r, { db }) {
           emp.id,
         )
       : 0;
+    // Current employees who acknowledged the latest version of every required policy
     const current = db
       .all("SELECT id FROM employees WHERE status != 'Exited' AND join_date <= ?", T)
       .map((x) => x.id);
@@ -97,6 +106,7 @@ export default function leaveRoutes(r, { db }) {
           required,
         )
       : 0;
+    // HR sees the org-wide pending count, everyone else their own
     const orgPending = isHR(req.user)
       ? db.value("SELECT COUNT(*) FROM leave_requests WHERE status = 'Pending'")
       : myPending;
@@ -113,6 +123,7 @@ export default function leaveRoutes(r, { db }) {
     });
   });
 
+  // Lists leave requests for scope=mine, team, approvals or anything else the user can see.
   r.get('/leave/requests', (req, res) => {
     const scopeName = req.query.scope || 'mine';
     const where = [];
@@ -136,6 +147,7 @@ export default function leaveRoutes(r, { db }) {
         where.push(ids.length ? `r.employee_id IN (${ids.map(() => '?').join(',')})` : '0=1');
         params.push(...ids);
       }
+      // Approvals: pending requests from other people
       if (scopeName === 'approvals') {
         where.push("r.status = 'Pending'");
         if (req.user.employeeId) {
@@ -144,6 +156,7 @@ export default function leaveRoutes(r, { db }) {
         }
       }
     }
+    // Optional filters; from/to match any request overlapping the range
     if (req.query.status) {
       where.push('r.status = ?');
       params.push(req.query.status);
@@ -179,18 +192,22 @@ export default function leaveRoutes(r, { db }) {
     });
   });
 
+  // Validates a leave application; returns the employee, type, dates and working-day count.
   function validateRequest(body, user) {
+    // Only HR may apply on someone else's behalf
     const employeeId = body.employee_id ? id(body.employee_id) : user.employeeId;
     if (!employeeId) fail(400, 'Your login is not linked to an employee record');
     if (employeeId !== user.employeeId && !isHR(user))
       fail(403, 'Only HR can apply leave on behalf of someone else');
     const emp = db.get('SELECT * FROM employees WHERE id = ?', employeeId) || notFound('Employee');
     if (emp.status === 'Exited') fail(400, 'This employee has exited');
+    // Leave type must be active and, if gender-specific, match the employee
     const type =
       db.get('SELECT * FROM leave_types WHERE id = ? AND active = 1', id(body.leave_type_id)) ||
       fail(400, 'Choose a leave type');
     if (type.gender && emp.gender && type.gender !== emp.gender)
       fail(400, `${type.name} is not applicable`);
+    // Validate the dates
     const from = date(body.from_date, { required: true, name: 'From date' });
     const to = date(body.to_date || body.from_date, { required: true, name: 'To date' });
     if (to < from) fail(400, 'To date must be on or after the from date');
@@ -201,6 +218,7 @@ export default function leaveRoutes(r, { db }) {
     const T = today(db);
     if (from < D.addDays(T, -45) && !isHR(user))
       fail(400, 'Leave older than 45 days must be applied by HR');
+    // Days per year, skipping weekly offs and holidays unless the type counts calendar days
     const ctx = calendarCtx(db);
     const perYear = leaveDaysByYear(
       { from, to, halfDay, calendarDays: Boolean(type.calendar_days) },
@@ -208,6 +226,7 @@ export default function leaveRoutes(r, { db }) {
     );
     const days = [...perYear.values()].reduce((a, b) => a + b, 0);
     if (!days) fail(400, 'The selected dates are weekly offs or holidays');
+    // No overlap with pending or approved leave
     const overlap = db.get(
       "SELECT id FROM leave_requests WHERE employee_id = ? AND status IN ('Pending','Approved') AND from_date <= ? AND to_date >= ?",
       employeeId,

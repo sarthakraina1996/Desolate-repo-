@@ -35,6 +35,7 @@ import {
 import { Ring, STATUS } from '../components/charts.jsx';
 import { PolicyModal } from './MySpace.jsx';
 
+// POSH awareness training content as [question, answer] pairs.
 const TRAINING = [
   [
     'What is sexual harassment?',
@@ -58,21 +59,26 @@ const TRAINING = [
   ],
 ];
 
+// POSH page: compliance stats, the ICC, training, and raising or handling complaints.
+// Case details are only sent to ICC members; everyone else sees just their own concerns.
 export default function Posh() {
   const { isHR, toast, user } = useApp();
   const [sp, setSp] = useSearchParams();
   const { data, error, reload } = useApi('/posh');
+  // A ?raise link opens the complaint form straight away
   const [modal, setModal] = useState(sp.get('raise') ? 'raise' : null);
   const [run, busy] = useAction(toast);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
   const s = data.stats;
+  // Closes any dialog and drops ?raise so a reload does not reopen the form.
   const close = () => {
     setModal(null);
     if (sp.get('raise')) setSp({});
   };
   return (
     <div>
+      {/* Header with Raise a concern */}
       <div className="page-head">
         <div>
           <h1>POSH</h1>
@@ -84,6 +90,7 @@ export default function Posh() {
           Raise a concern
         </Button>
       </div>
+      {/* KPI cards */}
       <div className="kpis">
         <Kpi
           icon={ShieldCheck}
@@ -117,6 +124,7 @@ export default function Posh() {
           label="ICC Members"
           value={data.icc.members.length + (data.icc.externalMember ? 1 : 0)}
         />
+        {/* ICC members see open cases; others see a count of their own concerns */}
         {data.canSeeCases ? (
           <Kpi
             icon={Scale}
@@ -133,6 +141,7 @@ export default function Posh() {
           <Kpi icon={Lock} tone="purple" label="My Concerns" value={data.mine.length} />
         )}
       </div>
+      {/* ICC members, compliance rings and the confidential support card */}
       <div className="grid">
         <Card
           className="span-4"
@@ -208,6 +217,7 @@ export default function Posh() {
             </div>
           )}
         </Card>
+        {/* Confidential support with the user's own concerns and their status */}
         <div
           className="span-4 card"
           style={{ background: 'linear-gradient(160deg, #fff 0%, #fde9ef 100%)' }}
@@ -241,6 +251,7 @@ export default function Posh() {
           )}
         </div>
       </div>
+      {/* Training, and the case list (ICC) or the employee's rights */}
       <div className="grid">
         <Card
           className="span-6"
@@ -263,6 +274,7 @@ export default function Posh() {
               </div>
             </div>
           ))}
+          {/* Completion date, or a button to record that the user finished the training */}
           {user.employeeId &&
             (data.myTraining ? (
               <div className="row gap-6 green b6">
@@ -334,9 +346,11 @@ export default function Posh() {
           </Card>
         )}
       </div>
+      {/* Dialogs */}
       {modal === 'raise' && <RaiseModal onClose={close} onDone={reload} />}
       {modal === 'icc' && <IccModal icc={data.icc} onClose={close} onDone={reload} />}
       {modal === 'policy' && <PolicyModal id={data.policyId} onClose={close} onDone={reload} />}
+      {/* HR list of untrained employees, each can be marked trained */}
       {modal === 'untrained' && (
         <Modal title="Training not completed" onClose={close}>
           {data.untrained.map((e) => (
@@ -364,6 +378,7 @@ export default function Posh() {
   );
 }
 
+// Form to file a POSH complaint (optionally anonymous); shows the reference number after.
 function RaiseModal({ onClose, onDone }) {
   const { toast } = useApp();
   const [f, setF] = useState({
@@ -375,6 +390,7 @@ function RaiseModal({ onClose, onDone }) {
   });
   const [run, busy] = useAction(toast);
   const [ref, setRef] = useState(null);
+  // Once submitted, show the reference number instead of the form
   if (ref)
     return (
       <Modal
@@ -438,6 +454,7 @@ function RaiseModal({ onClose, onDone }) {
           />
           Submit anonymously
         </label>
+        {/* Incident details */}
         <div className="form-grid">
           <Field label="Person(s) involved (optional)">
             <Input
@@ -472,6 +489,7 @@ function RaiseModal({ onClose, onDone }) {
   );
 }
 
+// ICC view of one complaint: details, status change, a new log note and the case log.
 function CaseModal({ c, onClose, onDone }) {
   const { toast } = useApp();
   const [status, setStatus] = useState(c.status);
@@ -506,6 +524,7 @@ function CaseModal({ c, onClose, onDone }) {
       }
     >
       <div className="grid" style={{ gridTemplateColumns: '1.2fr 1fr', gap: 18, marginBottom: 0 }}>
+        {/* Case details and the update form */}
         <div>
           <dl className="kv">
             <dt>Respondent</dt>
@@ -537,6 +556,7 @@ function CaseModal({ c, onClose, onDone }) {
             </Field>
           </div>
         </div>
+        {/* Case log timeline */}
         <div>
           <b className="small">Case log</b>
           <div className="timeline mt-12">
@@ -556,9 +576,11 @@ function CaseModal({ c, onClose, onDone }) {
   );
 }
 
+// HR editor for the ICC: presiding officer, internal members and the external member.
 function IccModal({ icc, onClose, onDone }) {
   const { toast } = useApp();
   const presiding = icc.members.find((m) => m.role === 'Presiding Officer');
+  // Split the current committee into the form's fields
   const [f, setF] = useState({
     presidingOfficerId: presiding?.id || '',
     memberIds: icc.members.filter((m) => m.role === 'Member').map((m) => m.id),
@@ -609,6 +631,7 @@ function IccModal({ icc, onClose, onDone }) {
               </button>
             </div>
           ))}
+          {/* Add a member; current members and the presiding officer are excluded */}
           <div className="row" style={{ gap: 8 }}>
             <EmployeeSelect
               value={add}

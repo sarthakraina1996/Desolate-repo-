@@ -1,16 +1,15 @@
-// Stand-in for @anthropic-ai/sdk in the claude.ai demo. server/services/ai.js
-// calls client.beta.messages.create(); here that request is turned into one
-// prompt and sent through the artifact's `sample` capability, which runs on
-// the viewer's own Claude access. PDFs are converted to text first, since
-// `sample` takes text only.
+// Stand-in for @anthropic-ai/sdk: messages.create() becomes one prompt for the artifact's
+// `sample` capability (the viewer's own Claude access). PDFs go as text; `sample` is text-only.
 import { extractText, getDocumentProxy } from 'unpdf';
 import { Buffer } from 'buffer';
 
 let sample = null;
+// Receives the page's `sample` function once claude.ai grants it.
 export function setSample(fn) {
   sample = fn;
 }
 
+// Readable messages for the error codes `sample` can throw.
 const WHY = {
   not_granted: 'Claude is not allowed on this page (check the artifact permissions)',
   rate_limited: 'Claude is busy for this account; try again in a minute',
@@ -19,6 +18,7 @@ const WHY = {
   invalid_json: 'Claude returned an unreadable answer',
 };
 
+// Flattens one content block to text; PDFs are extracted and capped at 60,000 characters.
 async function blockText(block) {
   if (block.type === 'text') return block.text;
   if (block.type === 'document' && block.source?.type === 'base64') {
@@ -31,6 +31,7 @@ async function blockText(block) {
   return '';
 }
 
+// Stands in for messages.create(): JSON-schema requests use sample.json, the rest plain text.
 async function create(params) {
   if (!sample) throw new Error('Claude is not available on this page');
   const parts = [params.system || ''];
@@ -63,6 +64,7 @@ async function create(params) {
   }
 }
 
+// Stands in for the SDK client; beta.messages and messages share the same create().
 export default class Anthropic {
   constructor() {
     this.beta = { messages: { create } };

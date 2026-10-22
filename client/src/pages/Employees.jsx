@@ -61,6 +61,7 @@ import {
 import { ApplyLeaveModal, RaiseRequestModal, TempPasswordModal } from '../components/forms.jsx';
 import { VerticalFilterNote } from './Dashboard.jsx';
 
+// Employees page: the people directory, plus a helpdesk requests tab for HR.
 export default function Employees() {
   const { id } = useParams();
   const [sp, setSp] = useSearchParams();
@@ -83,10 +84,12 @@ export default function Employees() {
   );
 }
 
+// Searchable, filterable employee list with the selected employee's profile beside it.
 function People({ selectedId }) {
   const { meta, isHR, vertical, user } = useApp();
   const nav = useNavigate();
   const [q, setQ] = useState('');
+  // Debounced so the search doesn't hit the server on every keystroke
   const dq = useDebounced(q, 250);
   const [filters, setFilters] = useState({
     department: '',
@@ -98,6 +101,7 @@ function People({ selectedId }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [adding, setAdding] = useState(false);
+  // Build the list query, dropping empty params
   const qs = new URLSearchParams({
     page,
     pageSize,

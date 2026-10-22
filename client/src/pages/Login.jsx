@@ -6,6 +6,7 @@ import { useApp } from '../context.jsx';
 import { Avatar, Field, Input } from '../components/ui.jsx';
 import { Logo } from '../components/Layout.jsx';
 
+// Sign-in page: email/password form, office-location check and one-click demo accounts.
 export default function Login() {
   const { loadMe } = useApp();
   const [cfg, setCfg] = useState(null);
@@ -24,6 +25,7 @@ export default function Login() {
       return null;
     }
   });
+  // Load company name, office-only flag and demo accounts; fall back to none if it fails.
   useEffect(() => {
     api
       .get('/auth/config')
@@ -31,6 +33,7 @@ export default function Login() {
       .catch(() => setCfg({ demoAccounts: [] }));
   }, []);
 
+  // Signs in with the form or demo credentials, sending location only if the server asks.
   const signIn = async (e, creds) => {
     e?.preventDefault();
     setBusy(true);
@@ -46,6 +49,7 @@ export default function Login() {
       );
       await loadMe();
     } catch (ex) {
+      // Office-location failures get an extra hint about WFH and leave days.
       setErr({
         message: ex.message,
         outside: ex.code === 'outside_office' || ex.code === 'location_imprecise',
@@ -57,6 +61,7 @@ export default function Login() {
 
   return (
     <div className="login">
+      {/* Brand panel */}
       <div className="left">
         <Logo />
         <div>
@@ -87,6 +92,7 @@ export default function Login() {
           People · Power · Progress
         </div>
       </div>
+      {/* Sign-in panel */}
       <div className="right">
         <div className="box">
           <h1 style={{ fontSize: 28, letterSpacing: '-0.5px' }}>Sign in</h1>
@@ -101,6 +107,7 @@ export default function Login() {
             </p>
           )}
           {flash && <div className="alert warn mt-16">{flash}</div>}
+          {/* Credentials form */}
           <form className="col mt-16" style={{ gap: 14, marginTop: 24 }} onSubmit={signIn}>
             <Field label="Work email">
               <Input
@@ -138,6 +145,7 @@ export default function Login() {
               {locating ? 'Checking your location…' : busy ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
+          {/* Demo accounts (demo mode only) */}
           {cfg?.demo && cfg.demoAccounts.length > 0 && (
             <div className="mt-16" style={{ marginTop: 28 }}>
               <div className="small muted b6 mb-8">
@@ -145,6 +153,7 @@ export default function Login() {
               </div>
               <div className="col" style={{ gap: 8 }}>
                 {cfg.demoAccounts.map((a) => {
+                  // Display name from the email, e.g. "priya.sharma@..." -> "Priya Sharma".
                   const name = a.email
                     .split('@')[0]
                     .split('.')

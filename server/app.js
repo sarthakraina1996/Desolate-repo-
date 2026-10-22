@@ -26,6 +26,7 @@ import settingsRoutes from './routes/settings.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
+// Builds the Express app: opens the database, seeds it if empty and mounts all routes.
 export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, today } = {}) {
   const db = openDb(dbFile);
   const uploads = path.join(dataDir, 'uploads');
@@ -34,6 +35,7 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
     fs.mkdirSync(path.join(uploads, kind), { recursive: true });
     fs.writeFileSync(path.join(uploads, kind, path.basename(name)), bytes);
   };
+  // First run: load demo data, or create a lone admin (random password unless ADMIN_PASSWORD).
   if (!hasData(db) && !db.value('SELECT COUNT(*) FROM users')) {
     if (seed === 'demo') seedDemo(db, { today, saveFile });
     else {
@@ -88,6 +90,7 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
   const app = express();
   app.disable('x-powered-by');
   if (process.env.TRUST_PROXY) app.set('trust proxy', 1);
+  // Security headers on every response.
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -113,10 +116,12 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
     next();
   });
 
+  // Auth routes, mounted before the sign-in check so they work without a session.
   const pub = express.Router();
   authRoutes(pub, ctx);
   app.use('/api', pub);
 
+  // Everything else under /api requires a signed-in user.
   const api = express.Router();
   api.use((req, _res, next) => (req.user ? next() : next(new HttpError(401, 'Please sign in'))));
   for (const register of [
@@ -139,6 +144,7 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
   api.use((_req, _res, next) => next(new HttpError(404, 'API route not found')));
   app.use('/api', api);
 
+  // Serves the built React client, falling back to index.html for client-side routes.
   if (serveClient) {
     const dist = path.join(here, '..', 'client', 'dist');
     app.use(
@@ -166,6 +172,7 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
     });
   }
 
+  // Turns thrown errors into JSON { error }; unexpected ones are logged and hidden.
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, _next) => {
     let status = err.status || err.statusCode || 500;

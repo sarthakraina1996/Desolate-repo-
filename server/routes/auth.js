@@ -14,7 +14,9 @@ import * as D from '../lib/dates.js';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../seed.js';
 import { aiEnabled } from '../services/ai.js';
 
+// Sign-in, sign-out, current user and password change. Mounted without the sign-in guard.
 export default function authRoutes(r, { db }) {
+  // Public login-page config: company name, office-only flag and demo accounts in demo mode.
   r.get('/auth/config', (_req, res) => {
     const s = getSettings(db);
     res.json({
@@ -25,7 +27,9 @@ export default function authRoutes(r, { db }) {
     });
   });
 
+  // Signs in with email and password, then enforces the office location check if enabled.
   r.post('/auth/login', (req, res) => {
+    // Password check, throttled per IP and email.
     const email = str(req.body?.email, { required: true, name: 'Email', max: 200 }).toLowerCase();
     const password = String(req.body?.password || '');
     const guard = loginThrottle(`${req.ip}|${email}`);
@@ -41,6 +45,7 @@ export default function authRoutes(r, { db }) {
     const who = loadUser(db, user.id);
     const coords = readCoords(req.body?.location);
     const check = checkLocation(db, { user: who, coords, ip: req.ip, today: T, settings });
+    // Refused: log it (unless the browser simply hasn't sent a location yet) and say why.
     if (!check.ok) {
       if (check.code !== 'location_required')
         logLocation(db, { user: who, event: 'sign-in blocked', coords, ip: req.ip, check });
@@ -73,7 +78,7 @@ export default function authRoutes(r, { db }) {
     });
   });
 
-  // pause: true stops the work clock; the next sign-in asks why the employee was away.
+  // Signs out. pause: true stops the work clock; the next sign-in asks why they were away.
   r.post('/auth/logout', (req, res) => {
     let paused = null;
     if (req.user?.employeeId && req.body?.pause)
@@ -87,6 +92,7 @@ export default function authRoutes(r, { db }) {
     res.json({ ok: true, paused: Boolean(paused) });
   });
 
+  // Current signed-in user plus app flags (demo mode, AI available).
   r.get('/auth/me', (req, res) => {
     if (!req.user) return res.status(401).json({ error: 'Please sign in' });
     const s = getSettings(db);
@@ -98,6 +104,7 @@ export default function authRoutes(r, { db }) {
     });
   });
 
+  // Changes the signed-in user's password after verifying the current one.
   r.post('/auth/change-password', (req, res) => {
     if (!req.user) fail(401, 'Please sign in');
     const row = db.get('SELECT password_hash FROM users WHERE id = ?', req.user.id);

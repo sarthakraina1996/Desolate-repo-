@@ -5,7 +5,9 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 
 let server;
+// The last request the fake API received.
 let last;
+// Screening result the fake API returns for structured-output requests.
 const reply = {
   score: 87,
   verdict: 'Strong Fit',
@@ -30,6 +32,7 @@ const reply = {
   },
 };
 
+// Fake Messages API: records each request, answers JSON for screening and text otherwise.
 before(async () => {
   server = http.createServer((req, res) => {
     let body = '';
@@ -60,6 +63,7 @@ before(async () => {
     });
   });
   await new Promise((r) => server.listen(0, r));
+  // Point the SDK at the fake server.
   process.env.ANTHROPIC_API_KEY = 'test-key';
   process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${server.address().port}`;
 });
@@ -78,6 +82,7 @@ test('screenWithClaude sends a structured-output request and normalises the repl
   assert.equal(last.body.fallbacks, 'default');
   assert.match(last.headers['anthropic-beta'], /server-side-fallback-2026-07-01/);
   assert.equal(out.score, 87);
+  // String fields come back as numbers, and empty ones as null.
   assert.equal(out.extracted.experienceYears, 6);
   assert.equal(out.extracted.expectedCtcLpa, 18);
   assert.equal(out.extracted.phone, null);

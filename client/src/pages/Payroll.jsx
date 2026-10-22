@@ -39,9 +39,11 @@ import { Steps, Donut, Legend, Bars, Ring, CAT, STATUS } from '../components/cha
 import { BrandBanner } from '../components/Layout.jsx';
 import { ClaimModal } from '../components/forms.jsx';
 
+// Payroll page for a month: run status, salary lines, approvals, compliance and adjustments.
 export default function Payroll() {
   const { meta, vertical, toast, isAdmin } = useApp();
   const [sp, setSp] = useSearchParams();
+  // Month comes from the URL, defaulting to the current one
   const month = sp.get('month') || meta.today.slice(0, 7);
   const [dept, setDept] = useState('');
   const [loc, setLoc] = useState('');
@@ -54,19 +56,25 @@ export default function Payroll() {
   const { data, error, reload } = useApi(`/payroll?${qs}`);
   const [run, busy] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
+  // Employee picked in the salary table
   const [sel, setSel] = useState(null);
   const [modal, setModal] = useState(null);
+  // Clear the picked employee when the month changes
   useEffect(() => setSel(null), [month]);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
   const r = data.run;
   const status = r?.status;
+  // Picked employee's line, else the first one
   const line = data.lines.find((l) => l.employeeId === sel) || data.lines[0];
+  // Runs an action with its toast, then reloads the page data.
   const act = async (fn, msg) => {
     if (await run(fn, msg)) reload();
   };
+  // No run yet, or one not yet approved by management, can still be (re)computed
   const canRecompute = !r || ['In Review', 'Finance Reviewed'].includes(status);
 
+  // Run progress: done steps show their date, the first open step is current
   const steps = r?.steps || {};
   const stepper = [
     { label: 'Data Collation', at: steps.collation },
@@ -92,6 +100,7 @@ export default function Payroll() {
           </h1>
           <div className="sub">Simplified. Accurate. Compliant.</div>
         </div>
+        {/* Month, department and location filters */}
         <div className="filters">
           <input
             type="month"
@@ -117,6 +126,7 @@ export default function Payroll() {
         <BrandBanner />
       </div>
 
+      {/* KPI cards, with the run / re-run button */}
       <div className="kpis">
         <Kpi
           icon={Banknote}
@@ -152,6 +162,7 @@ export default function Payroll() {
             </div>
             <div className="small muted">Employees processed</div>
           </div>
+          {/* Run or re-run while open (a re-run asks first: it clears finance approval) */}
           {canRecompute ? (
             <Button
               variant="primary"
@@ -182,6 +193,7 @@ export default function Payroll() {
         </div>
       </div>
 
+      {/* Run status, pay calendar and sync health */}
       <div className="grid">
         <Card
           className="span-6"
@@ -234,6 +246,7 @@ export default function Payroll() {
         </Card>
       </div>
 
+      {/* Salary table, structure breakdown and payslip preview */}
       <div className="grid">
         <Card
           className="span-6"
@@ -290,6 +303,7 @@ export default function Payroll() {
         </Card>
       </div>
 
+      {/* Cost trend, cost composition and approval workflow */}
       <div className="grid">
         <Card className="span-4" title="CTC vs Net Pay Comparison">
           <div className="row small mb-8" style={{ gap: 14 }}>
@@ -368,6 +382,7 @@ export default function Payroll() {
         </Card>
       </div>
 
+      {/* Statutory dues, exceptions and bank batch */}
       <div className="grid">
         <Card className="span-4" title="Statutory & Compliance">
           <Statutory s={data.statutory} month={month} />
@@ -420,6 +435,7 @@ export default function Payroll() {
         </Card>
       </div>
 
+      {/* Bonuses, reimbursements and deductions; locked once the run is approved */}
       <Card
         id="adjustments"
         title={`Bonuses, Reimbursements & Deductions (${fmtMonth(month)})`}
@@ -437,6 +453,7 @@ export default function Payroll() {
         <Adjustments items={data.adjustments} onChange={reload} locked={!canRecompute} />
       </Card>
 
+      {/* Payslip details, exception list and add-adjustment modals */}
       {modal?.type === 'payslip' && (
         <Modal title={`Payslip · ${modal.line.name}`} size="wide" onClose={() => setModal(null)}>
           <PayslipView data={modal.line.payslip} label={data.label} />
@@ -463,9 +480,11 @@ export default function Payroll() {
   );
 }
 
+// Searchable, paged salary table; clicking a row selects it, and open runs allow holds.
 function SalaryTable({ lines, selected, onSelect, canHold, onHold }) {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
+  // Match on name, employee code or department
   const filtered = useMemo(
     () =>
       lines.filter(
@@ -477,6 +496,7 @@ function SalaryTable({ lines, selected, onSelect, canHold, onHold }) {
   const items = filtered.slice((page - 1) * size, page * size);
   return (
     <div>
+      {/* Search; a new query goes back to page 1 */}
       <input
         className="input sm mb-12"
         value={q}
@@ -520,6 +540,7 @@ function SalaryTable({ lines, selected, onSelect, canHold, onHold }) {
                 <td className="num b6">{inr(l.net).replace('₹', '')}</td>
                 <td className="nowrap">
                   <Badge>{l.status === 'Processed' ? 'Processing' : l.status}</Badge>
+                  {/* Hold or release the payslip without selecting the row */}
                   {canHold && l.payslipId && (
                     <button
                       type="button"
@@ -533,6 +554,7 @@ function SalaryTable({ lines, selected, onSelect, canHold, onHold }) {
                       {l.status === 'On Hold' ? 'Release' : 'Hold'}
                     </button>
                   )}
+                  {/* Warning icon; its tooltip lists the line's exceptions */}
                   {l.exceptions.length > 0 && (
                     <TriangleAlert
                       size={14}
@@ -553,8 +575,10 @@ function SalaryTable({ lines, selected, onSelect, canHold, onHold }) {
   );
 }
 
+// One employee's earnings and deductions with totals and net pay, plus an employee picker.
 function Structure({ line, lines, onSelect }) {
   const p = line.payslip;
+  // Fallback of 1 avoids dividing by zero in the share-of-gross column
   const gross = p.gross || 1;
   const rows = [
     ['Basic Salary', p.earnings.basic],
@@ -563,6 +587,7 @@ function Structure({ line, lines, onSelect }) {
     ['Performance Bonus', p.earnings.bonus],
     ['Reimbursements', p.earnings.reimbursement],
   ];
+  // Deductions, leaving out the ones that are zero
   const ded = [
     ['Provident Fund (PF)', p.deductions.pf],
     ['ESI', p.deductions.esi],
@@ -573,6 +598,7 @@ function Structure({ line, lines, onSelect }) {
   ].filter(([, v]) => v);
   return (
     <div>
+      {/* Employee picker */}
       <select
         className="select sm mb-12"
         value={line.employeeId}
@@ -584,6 +610,7 @@ function Structure({ line, lines, onSelect }) {
           </option>
         ))}
       </select>
+      {/* Earnings with their share of gross, then deductions */}
       <table className="table compact">
         <tbody>
           {rows.map(([l, v]) => (
@@ -612,6 +639,7 @@ function Structure({ line, lines, onSelect }) {
           </tr>
         </tbody>
       </table>
+      {/* Net pay */}
       <div
         className="row between mt-12"
         style={{ background: 'var(--blue-soft)', padding: '12px 14px', borderRadius: 10 }}
@@ -621,6 +649,7 @@ function Structure({ line, lines, onSelect }) {
           {inr(p.net)}
         </b>
       </div>
+      {/* Loss-of-pay note */}
       {p.lopDays > 0 && (
         <div className="small muted mt-8">
           {p.lopDays} loss-of-pay day(s) · paid days {p.paidDays}/{p.daysInMonth}
@@ -630,10 +659,12 @@ function Structure({ line, lines, onSelect }) {
   );
 }
 
+// Compact payslip preview with PDF download and a link to the full details.
 function PayslipCard({ line, label, onDetails }) {
   const p = line.payslip;
   return (
     <div className="card tight" style={{ boxShadow: 'none' }}>
+      {/* Logo and payslip month */}
       <div className="row between">
         <div className="logo sm">
           <div className="b" style={{ fontSize: 18 }}>
@@ -648,6 +679,7 @@ function PayslipCard({ line, label, onDetails }) {
           <div className="small muted">{label}</div>
         </div>
       </div>
+      {/* Employee and line status */}
       <div className="row mt-16" style={{ gap: 12 }}>
         <Person
           name={line.name}
@@ -659,6 +691,7 @@ function PayslipCard({ line, label, onDetails }) {
         <span className="grow" />
         <Badge>{line.status === 'Processed' ? 'Processing' : line.status}</Badge>
       </div>
+      {/* Totals and net pay */}
       <div className="mt-16 small">
         <div className="row between mb-8">
           <span>Gross Earnings</span>
@@ -679,6 +712,7 @@ function PayslipCard({ line, label, onDetails }) {
         </b>
       </div>
       <div className="row mt-12">
+        {/* The PDF exists only once payroll has been run */}
         {line.payslipId ? (
           <a
             className="btn sm grow"
@@ -702,6 +736,7 @@ function PayslipCard({ line, label, onDetails }) {
   );
 }
 
+// Full payslip: employee details, earnings beside deductions, net pay and employer contributions.
 export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
   const e = p.employee || {};
   const earn = [
@@ -719,9 +754,11 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
     ['Labour Welfare Fund', p.deductions.lwf],
     ['Other Deductions', p.deductions.other],
   ];
+  // Rows needed to show both columns side by side
   const n = Math.max(earn.length, ded.length);
   return (
     <div>
+      {/* Header */}
       <div
         className="row between"
         style={{ borderBottom: '2px solid var(--navy)', paddingBottom: 12 }}
@@ -737,6 +774,7 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
           <div className="muted">{label}</div>
         </div>
       </div>
+      {/* Employee details */}
       <dl className="kv mt-16" style={{ gridTemplateColumns: '130px 1fr 130px 1fr' }}>
         <dt>Employee</dt>
         <dd>{e.name}</dd>
@@ -760,6 +798,7 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
           {p.lopDays ? ` (LOP ${p.lopDays})` : ''}
         </dd>
       </dl>
+      {/* Earnings and deductions side by side */}
       <table className="table mt-16" style={{ border: '1px solid var(--border)' }}>
         <thead>
           <tr>
@@ -786,6 +825,7 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
           </tr>
         </tbody>
       </table>
+      {/* Net pay */}
       <div
         className="row between mt-16"
         style={{ background: 'var(--blue-soft)', padding: '14px 16px', borderRadius: 10 }}
@@ -793,6 +833,7 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
         <b>Net Pay</b>
         <b style={{ fontSize: 22 }}>{inr(p.net)}</b>
       </div>
+      {/* Employer contributions note */}
       <div className="small muted mt-12">
         Employer contributions (not deducted): PF {inr(p.employer.pf)} · ESI {inr(p.employer.esi)}
         {p.employer.lwf ? ` · LWF ${inr(p.employer.lwf)}` : ''}. This is a system-generated payslip
@@ -802,8 +843,10 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
   );
 }
 
+// This month's key payroll dates (data lock, approval, transfer, paid, pay day) as date chips.
 function PayCalendar({ month, steps, payDate }) {
   const marks = {};
+  // Marks a step's date if it falls in this month.
   const add = (iso, label, color) => {
     if (iso && iso.slice(0, 7) === month) marks[iso.slice(0, 10)] = { label, color };
   };
@@ -811,7 +854,9 @@ function PayCalendar({ month, steps, payDate }) {
   add(steps.approvals, 'Approved', '#7C5CFC');
   add(steps.transfer, 'Bank transfer', '#F2A600');
   add(steps.completed, 'Paid', '#1FA855');
+  // Show the planned pay day until salaries are paid, unless a step already uses that date
   if (!steps.completed) marks[payDate] = marks[payDate] || { label: 'Pay day', color: '#E5243B' };
+  // ISO date keys sort into date order
   const entries = Object.entries(marks).sort();
   return (
     <div>
@@ -842,6 +887,7 @@ function PayCalendar({ month, steps, payDate }) {
   );
 }
 
+// Donut of the month's payroll cost split by component.
 function Composition({ comp }) {
   const items = [
     { label: 'Basic', value: comp.basic, color: CAT[0] },
@@ -866,9 +912,11 @@ function Composition({ comp }) {
   );
 }
 
+// Sign-off steps from HR to paid, with the action buttons for the run's current status.
 function Approval({ run, busy, isAdmin, onApprove, onSendBack, onTransfer, onComplete, onDelete }) {
   if (!run) return <Empty text="Run payroll to start approvals" />;
   const s = run.status;
+  // Sign-off record for a stage, if it has one
   const has = (stage) => run.approvals.find((a) => a.stage === stage);
   const flow = [
     { label: 'Prepared by HR', a: has('Prepared by HR') },
@@ -880,6 +928,7 @@ function Approval({ run, busy, isAdmin, onApprove, onSendBack, onTransfer, onCom
   const firstOpen = flow.findIndex((f) => !f.a);
   return (
     <div>
+      {/* Steps, with who signed off and when */}
       <Steps
         steps={flow.map((f, i) => ({
           label: f.label,
@@ -887,6 +936,7 @@ function Approval({ run, busy, isAdmin, onApprove, onSendBack, onTransfer, onCom
           sub: f.a ? `${f.a.by ? `${f.a.by.split(' ')[0]} · ` : ''}${fmtShort(f.a.at)}` : '',
         }))}
       />
+      {/* Actions for the current status */}
       <div className="row wrap mt-16" style={{ gap: 8 }}>
         {s === 'In Review' && (
           <Button
@@ -898,6 +948,7 @@ function Approval({ run, busy, isAdmin, onApprove, onSendBack, onTransfer, onCom
             Approve (Finance)
           </Button>
         )}
+        {/* Only an administrator can give management approval */}
         {s === 'Finance Reviewed' &&
           (isAdmin ? (
             <Button
@@ -926,6 +977,7 @@ function Approval({ run, busy, isAdmin, onApprove, onSendBack, onTransfer, onCom
             Mark salaries paid
           </Button>
         )}
+        {/* A run can be deleted until management approves it */}
         {['In Review', 'Finance Reviewed'].includes(s) && (
           <Button variant="ghost" icon={Trash2} onClick={onDelete}>
             Delete run
@@ -942,7 +994,9 @@ function Approval({ run, busy, isAdmin, onApprove, onSendBack, onTransfer, onCom
   );
 }
 
+// Statutory dues for the month (PF, ESI, TDS, PT, LWF) and their due dates.
 function Statutory({ s, month }) {
+  // Dues fall on a fixed day of the following month
   const due = (day) => fmtShort(`${addMonths(month, 1)}-${day}`);
   const rows = [
     [
@@ -985,7 +1039,9 @@ function Statutory({ s, month }) {
   );
 }
 
+// Exception counts by type, each with a View link to the people affected.
 function Exceptions({ list, onView }) {
+  // Red for attendance, bank and salary problems, amber for claims, blue for the rest
   const icon = (t) =>
     t === 'attendance' || t === 'bank' || t === 'salary' ? (
       <TriangleAlert size={16} className="red" />
@@ -1016,6 +1072,7 @@ function Exceptions({ list, onView }) {
   );
 }
 
+// Month's bonuses, reimbursements and deductions; HR approves, rejects or removes them.
 function Adjustments({ items, onChange, locked }) {
   const { toast } = useApp();
   const [run] = useAction(toast);
@@ -1052,6 +1109,7 @@ function Adjustments({ items, onChange, locked }) {
                 <Badge>{a.status}</Badge>
               </td>
               <td className="right nowrap">
+                {/* No changes once the run is approved */}
                 {!locked && a.status === 'Pending' && (
                   <>
                     <Button
@@ -1099,6 +1157,7 @@ function Adjustments({ items, onChange, locked }) {
           ))}
         </tbody>
       </table>
+      {/* Approved claims only reach payslips after a re-run */}
       {!locked && (
         <div className="small muted mt-8">
           After approving claims, click <b>Re-run</b> above so payslips include them.

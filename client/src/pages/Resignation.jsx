@@ -39,11 +39,13 @@ import {
 import { Donut, Legend, Bars, LineChart, Steps, CAT } from '../components/charts.jsx';
 import { BrandBanner } from '../components/Layout.jsx';
 
+// Resignation page: HR and managers manage resignations; employees see their own.
 export default function Resignation() {
   const { isHR, isManager } = useApp();
   return isHR || isManager ? <Manage /> : <Mine />;
 }
 
+// HR/manager view: KPIs, the request list with the selected one's detail, and exit trends.
 function Manage() {
   const { isHR } = useApp();
   const [sp, setSp] = useSearchParams();
@@ -53,6 +55,7 @@ function Manage() {
   if (!data) return <Loading />;
   const k = data.kpis;
   const items = data.items.filter((r) => !filter || r.status === filter);
+  // Selected from ?id=, else the first open resignation, else the latest
   const selected =
     Number(sp.get('id')) ||
     (
@@ -68,6 +71,7 @@ function Manage() {
         </div>
         <BrandBanner />
       </div>
+      {/* KPI cards; Pending Approvals toggles the pending filter */}
       <div className="kpis">
         <Kpi
           icon={UserMinus}
@@ -93,6 +97,7 @@ function Manage() {
           unit="Days"
         />
       </div>
+      {/* Request list and the selected resignation's detail */}
       <div className="grid" style={{ alignItems: 'start' }}>
         <Card
           className="span-6"
@@ -167,6 +172,7 @@ function Manage() {
           )}
         </div>
       </div>
+      {/* Reasons, monthly resignations and attrition rate */}
       <div className="grid">
         <Card className="span-4" title="Reasons for Resignation" sub=" (This Year)">
           {data.reasons.length ? (
@@ -212,12 +218,14 @@ function Manage() {
   );
 }
 
+// Status icon for each offboarding checklist item.
 const ICON = {
   Completed: <Check size={13} strokeWidth={3} />,
   'In Progress': <CircleDot size={13} />,
   Pending: <Circle size={13} />,
 };
 
+// One resignation: workflow timeline, checklist, clearances, letters and the HR/manager actions.
 function Detail({ id, onChanged, labels, isHR }) {
   const { toast } = useApp();
   const { data, error, reload } = useApi(`/resignations/${id}`);
@@ -237,12 +245,14 @@ function Detail({ id, onChanged, labels, isHR }) {
       </Card>
     );
   const r = data;
+  // Runs an action, then refreshes this detail and the list behind it.
   const act = async (fn, msg) => {
     if (await run(fn, msg)) {
       reload();
       onChanged();
     }
   };
+  // Build the workflow timeline; offboarding is done once its four checklist tasks are complete
   const steps = r.steps;
   const offboardingDone = [
     'knowledge_transfer',
@@ -277,6 +287,7 @@ function Detail({ id, onChanged, labels, isHR }) {
       hint: 'Process full & final settlement',
     },
   ];
+  // The first unfinished step shows as current, unless the resignation was rejected or withdrawn
   const firstOpen = flow.findIndex((f) => !f.done);
   const terminal = ['Rejected', 'Withdrawn'].includes(r.status);
   return (
@@ -296,6 +307,7 @@ function Detail({ id, onChanged, labels, isHR }) {
         }
       >
         <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 0 }}>
+          {/* Workflow timeline with the reason and decision note */}
           <div>
             <b className="small">Resignation & Offboarding Workflow</b>
             <div className="timeline mt-12">
@@ -331,11 +343,14 @@ function Detail({ id, onChanged, labels, isHR }) {
             </div>
             {r.decision_note && <div className="small muted mt-8">Note: {r.decision_note}</div>}
           </div>
+          {/* Offboarding checklist */}
           <div>
             <b className="small">Offboarding Checklist</b>
             <div className="mt-8">
               {labels.checklistLabels.map(([key, label]) => {
                 const item = r.checklist[key] || { status: 'Pending' };
+                // Editable during offboarding: HR sets any task, the manager only KT and handover;
+                // the approval steps are set by the decisions themselves
                 const editable =
                   r.status === 'In Progress' &&
                   (isHR ||
@@ -393,6 +408,7 @@ function Detail({ id, onChanged, labels, isHR }) {
             </div>
           </div>
         </div>
+        {/* Actions available for the current status and role */}
         <div className="row wrap mt-16" style={{ gap: 8 }}>
           {r.status === 'Pending' && data.canManagerAct && (
             <>
@@ -468,6 +484,7 @@ function Detail({ id, onChanged, labels, isHR }) {
         </div>
       </Card>
 
+      {/* Department clearances; HR approves each one during offboarding */}
       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 0 }}>
         <Card title="Clearance Matrix">
           <table className="table compact">
@@ -517,6 +534,7 @@ function Detail({ id, onChanged, labels, isHR }) {
             </tbody>
           </table>
         </Card>
+        {/* Rehire flag, exit letters, settlement and exit interview summary */}
         <Card title="Rehire & Documentation">
           <div className="list-item">
             <UserCheck size={18} className="blue" />
@@ -537,6 +555,7 @@ function Detail({ id, onChanged, labels, isHR }) {
             ['experience', 'Experience Letter'],
             ['relieving', 'Relieving Letter'],
           ].map(([k, l]) => (
+            // Opening a letter that was not issued yet also marks it as issued (HR only)
             <div key={k} className="list-item">
               <FileText size={18} className="blue" />
               <span className="grow small">{l}</span>
@@ -577,6 +596,7 @@ function Detail({ id, onChanged, labels, isHR }) {
         </Card>
       </div>
 
+      {/* Notice period, last day and checklist progress steps */}
       <Card
         title="Employee Offboarding Progress"
         action={
@@ -607,6 +627,7 @@ function Detail({ id, onChanged, labels, isHR }) {
         />
       </Card>
 
+      {/* Dialogs */}
       {modal === 'hr' && (
         <HrModal
           r={r}
@@ -654,11 +675,13 @@ function Detail({ id, onChanged, labels, isHR }) {
   );
 }
 
+// HR accepts (confirming the last working day) or rejects a resignation.
 function HrModal({ r, onClose, onDone }) {
   const { toast } = useApp();
   const [lwd, setLwd] = useState(r.last_working_day);
   const [note, setNote] = useState('');
   const [run, busy] = useAction(toast);
+  // Sends the HR decision; accepting starts offboarding.
   const go = async (action) => {
     if (
       await run(
@@ -706,6 +729,7 @@ function HrModal({ r, onClose, onDone }) {
   );
 }
 
+// Asks for a note to the employee, e.g. when a manager does not accept a resignation.
 function NoteModal({ title, onClose, onSubmit }) {
   const [note, setNote] = useState('');
   return (
@@ -739,6 +763,7 @@ function NoteModal({ title, onClose, onSubmit }) {
   );
 }
 
+// Records or edits the exit interview, prefilled from any saved one.
 function ExitInterview({ r, onClose, onDone }) {
   const { toast } = useApp();
   const x = r.exit_interview || {};
@@ -809,6 +834,7 @@ function ExitInterview({ r, onClose, onDone }) {
   );
 }
 
+// Records the full & final settlement amount and, once paid, the payment date.
 function Settlement({ r, onClose, onDone }) {
   const { toast } = useApp();
   const s = r.settlement || {};
@@ -872,6 +898,7 @@ function Settlement({ r, onClose, onDone }) {
 }
 
 // ---------------------------------------------------------------- employee view
+// Employee view: submit a resignation, or track and withdraw the current one.
 function Mine() {
   const { toast, meta } = useApp();
   const { data, reload } = useApi('/resignations');
@@ -892,6 +919,7 @@ function Mine() {
           <div className="sub">Submit your resignation and track your offboarding.</div>
         </div>
       </div>
+      {/* Existing resignation and its progress, or the submit form */}
       {mine ? (
         <div className="grid">
           <Card
@@ -925,6 +953,7 @@ function Mine() {
                 }))}
               />
             </div>
+            {/* Employees can withdraw only until HR accepts and offboarding starts */}
             {['Pending', 'Approved'].includes(mine.status) && (
               <Button
                 className="mt-16"
@@ -952,6 +981,7 @@ function Mine() {
               </Button>
             )}
           </Card>
+          {/* Offboarding steps explained */}
           <Card className="span-5" title="What happens next">
             <ol
               className="small"
@@ -973,6 +1003,7 @@ function Mine() {
             {meta.settings.noticePeriodDays} days ({meta.settings.noticePeriodSeniorDays} for
             managers and above).
           </div>
+          {/* Reason and optional early last day */}
           <div className="col" style={{ gap: 14 }}>
             <Field label="Primary reason">
               <Select

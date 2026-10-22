@@ -22,16 +22,19 @@ function bindArgs(params) {
   return params;
 }
 
+// Stands in for node:sqlite's StatementSync: all(), get() and run() over a sql.js statement.
 class Statement {
   constructor(owner, sql) {
     this.owner = owner;
     this.stmt = owner.db.prepare(sql);
   }
+  // Resets the statement and binds positional or named parameters, if any.
   bind(params) {
     this.stmt.reset();
     const args = bindArgs(params);
     if (Array.isArray(args) ? args.length : Object.keys(args).length) this.stmt.bind(args);
   }
+  // Returns every row as a plain object.
   all(...params) {
     this.bind(params);
     const rows = [];
@@ -39,12 +42,14 @@ class Statement {
     this.stmt.reset();
     return rows;
   }
+  // Returns the first row, or undefined when there is none.
   get(...params) {
     this.bind(params);
     const row = this.stmt.step() ? this.stmt.getAsObject() : undefined;
     this.stmt.reset();
     return row;
   }
+  // Runs a write and reports changes and lastInsertRowid like node:sqlite.
   run(...params) {
     this.bind(params);
     this.stmt.step();
@@ -56,10 +61,12 @@ class Statement {
   }
 }
 
+// Stands in for node:sqlite's DatabaseSync; always in memory, the file path is ignored.
 export class DatabaseSync {
   constructor() {
     if (!SQL) throw new Error('sql.js is not initialised');
     this.db = new SQL.Database();
+    // Prepared once and reused by run() to read the last inserted row id.
     const s = this.db.prepare('SELECT last_insert_rowid() AS id');
     this.lastId = {
       get: () => {

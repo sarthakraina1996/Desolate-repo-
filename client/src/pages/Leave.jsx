@@ -50,6 +50,7 @@ import { ApplyLeaveModal } from '../components/forms.jsx';
 import { BrandBanner } from '../components/Layout.jsx';
 import { PolicyModal } from './MySpace.jsx';
 
+// Icon component for each leave type's icon key.
 export const LEAVE_ICONS = {
   calendar: Calendar,
   palm: Palmtree,
@@ -66,9 +67,11 @@ const TABS = [
   { value: 'policies', label: 'Policy Management' },
 ];
 
+// Leave page: overview, request management and policy tabs, with a policy year picker.
 export default function Leave() {
   const [sp, setSp] = useSearchParams();
   const { meta, user } = useApp();
+  // Tab comes from the URL; unknown values fall back to Overview
   const tab = TABS.some((t) => t.value === sp.get('tab')) ? sp.get('tab') : 'overview';
   const [year, setYear] = useState(Number(meta.today.slice(0, 4)));
   return (
@@ -82,6 +85,7 @@ export default function Leave() {
         </div>
         <BrandBanner />
       </div>
+      {/* Tabs and policy year picker */}
       <div className="row between wrap" style={{ alignItems: 'flex-end' }}>
         <div className="grow">
           <Tabs
@@ -98,6 +102,7 @@ export default function Leave() {
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
           >
+            {/* Previous, current and next year */}
             {[year - 1, year, year + 1]
               .filter((y, i, a) => a.indexOf(y) === i)
               .map((y) => (
@@ -106,6 +111,7 @@ export default function Leave() {
           </select>
         </div>
       </div>
+      {/* Active tab */}
       {tab === 'overview' && <Overview year={year} />}
       {tab === 'manage' && <Manage year={year} />}
       {tab === 'policies' && <Policies focus={Number(sp.get('policy')) || null} />}
@@ -114,6 +120,7 @@ export default function Leave() {
 }
 
 // ---------------------------------------------------------------- overview
+// Overview tab: KPIs, balances, recent requests, who's on leave and policy acknowledgement.
 function Overview({ year }) {
   const { isHR, user } = useApp();
   const { data, error, reload } = useApi(`/leave/overview?year=${year}`);
@@ -122,6 +129,7 @@ function Overview({ year }) {
   if (!data) return <Loading />;
   return (
     <div>
+      {/* KPI cards */}
       <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <Kpi
           icon={Plane}
@@ -158,6 +166,7 @@ function Overview({ year }) {
           value={`${data.policyAckPct}%`}
         />
       </div>
+      {/* Leave balances and recent requests */}
       <div className="grid">
         <Card
           className="span-7"
@@ -179,10 +188,12 @@ function Overview({ year }) {
                 marginBottom: 0,
               }}
             >
+              {/* One tile per leave type that has a quota */}
               {data.balances
                 .filter((b) => b.quota != null)
                 .map((b) => {
                   const Icon = LEAVE_ICONS[b.icon] || Calendar;
+                  // Entitlement plus days carried forward
                   const total = b.entitled + b.carried;
                   return (
                     <div
@@ -216,6 +227,7 @@ function Overview({ year }) {
                         {b.available} / {total}
                       </div>
                       <div className="xs muted mb-8">days</div>
+                      {/* Bar shows the share already used */}
                       <Progress
                         value={total ? ((total - b.available) / total) * 100 : 0}
                         color={b.color}
@@ -241,11 +253,13 @@ function Overview({ year }) {
           <Workflow onChanged={reload} />
         </Card>
       </div>
+      {/* Who's on leave this week */}
       <div className="grid">
         <Card className="span-12" title="Who's on Leave">
           <TeamCalendar />
         </Card>
       </div>
+      {/* Policy library and acknowledgement stats */}
       <div className="grid">
         <Card
           className="span-5"
@@ -267,11 +281,14 @@ function Overview({ year }) {
   );
 }
 
+// Recent requests card with My / Pending / Team tabs and a quick approve or reject menu.
 function Workflow({ onChanged }) {
   const { toast, isHR, user } = useApp();
+  // Logins without an employee record have no own requests, so start on approvals
   const [scope, setScope] = useState(user.employeeId ? 'mine' : 'approvals');
   const { data, reload } = useApi(`/leave/requests?scope=${scope}&limit=6`);
   const [run] = useAction(toast);
+  // Approves or rejects a request, then refreshes this list and the page KPIs.
   const decide = async (r, action) => {
     if (
       await run(
@@ -283,6 +300,7 @@ function Workflow({ onChanged }) {
       onChanged?.();
     }
   };
+  // Only the tabs the viewer can use
   const tabs = [
     user.employeeId && { value: 'mine', label: 'My Requests' },
     (isHR || user.role === 'manager') && { value: 'approvals', label: 'Pending Approvals' },
@@ -324,8 +342,10 @@ function Workflow({ onChanged }) {
   );
 }
 
+// Week view of who is on leave, filterable by department and leave type.
 function TeamCalendar() {
   const { meta } = useApp();
+  // Monday of the current week (Sunday counts as the end of the week)
   const monday = (() => {
     const d = dowOf(meta.today);
     return addDays(meta.today, d === 0 ? -6 : 1 - d);
@@ -340,6 +360,7 @@ function TeamCalendar() {
   const days = Array.from({ length: 7 }, (_, i) => addDays(from, i));
   return (
     <div>
+      {/* Week switcher and filters */}
       <div className="row wrap mb-12" style={{ gap: 8 }}>
         <Button size="sm" onClick={() => setFrom(addDays(from, -7))} aria-label="Previous week">
           ‹
@@ -389,6 +410,7 @@ function TeamCalendar() {
               minWidth: 520,
             }}
           >
+            {/* Header row: employee column, then one column per day */}
             <div className="gh" style={{ textAlign: 'left' }}>
               Employee
             </div>
@@ -411,6 +433,7 @@ function TeamCalendar() {
                 <Empty text="No one is on leave this week" />
               </div>
             )}
+            {/* First eight people; the rest are counted below */}
             {data.employees.slice(0, 8).map((e) => (
               <Row key={e.id} e={e} days={days} />
             ))}
@@ -425,6 +448,7 @@ function TeamCalendar() {
     </div>
   );
 }
+// One employee's row in the week view, with a bar per leave.
 function Row({ e, days }) {
   const from = days[0];
   const to = days[days.length - 1];
@@ -436,11 +460,13 @@ function Row({ e, days }) {
       </div>
       <div className="gc" style={{ gridColumn: 'span 7', position: 'relative', minHeight: 40 }}>
         {e.leaves.map((l) => {
+          // Clip the leave to the visible week and find its start and end columns
           const s = l.from < from ? from : l.from;
           const en = l.to > to ? to : l.to;
           const si = days.indexOf(s);
           const ei = days.indexOf(en);
           if (si < 0 || ei < 0) return null;
+          // Pending leave gets a dashed border; one-day bars show the short code
           return (
             <div
               key={l.id}
@@ -463,9 +489,11 @@ function Row({ e, days }) {
   );
 }
 
+// First four policies; flags ones the viewer still has to acknowledge and opens them on click.
 function PolicyLibraryMini() {
   const { data, reload } = useApi('/policies');
   const [open, setOpen] = useState(null);
+  // Icon colours, cycled per row
   const colors = [
     'var(--blue)',
     'var(--purple)',
@@ -503,6 +531,7 @@ function PolicyLibraryMini() {
   );
 }
 
+// Overall policy acknowledgement ring plus a percentage bar per department.
 function AckByDepartment() {
   const { data } = useApi('/policies');
   if (!data) return <Loading />;
@@ -535,8 +564,10 @@ function AckByDepartment() {
 }
 
 // ---------------------------------------------------------------- manage
+// Leave Management tab: filterable request table with approve, reject and cancel actions.
 function Manage({ year }) {
   const { isHR, user, toast, meta } = useApp();
+  // Default list: everything for HR, approvals for managers, own requests for others
   const [scope, setScope] = useState(isHR ? 'all' : user.role === 'manager' ? 'approvals' : 'mine');
   const [status, setStatus] = useState('');
   const [type, setType] = useState('');
@@ -545,7 +576,9 @@ function Manage({ year }) {
     `/leave/requests?scope=${scope}&limit=300${status ? `&status=${status}` : ''}${type ? `&type=${type}` : ''}&from=${year}-01-01&to=${year}-12-31`,
   );
   const [run] = useAction(toast);
+  // Reject dialog state: the request and the reason being typed
   const [note, setNote] = useState(null);
+  // Approves or rejects a request, with an optional note for the employee.
   const decide = async (r, action, msg) => {
     if (
       await run(
@@ -555,9 +588,11 @@ function Manage({ year }) {
     )
       reload();
   };
+  // Cancels a pending or approved request.
   const cancel = async (r) => {
     if (await run(() => api.post(`/leave/requests/${r.id}/cancel`), 'Request cancelled')) reload();
   };
+  // Scope options the viewer is allowed to use
   const scopes = [
     isHR && { value: 'all', label: 'All requests' },
     (isHR || user.role === 'manager') && { value: 'approvals', label: 'Pending approvals' },
@@ -567,6 +602,7 @@ function Manage({ year }) {
   return (
     <div>
       <Card flush>
+        {/* Scope, status and type filters, plus apply buttons */}
         <div className="row wrap" style={{ padding: 16, gap: 10 }}>
           <Seg value={scope} onChange={setScope} options={scopes} />
           <span className="grow" />
@@ -605,6 +641,7 @@ function Manage({ year }) {
             </Button>
           )}
         </div>
+        {/* Requests table */}
         {!data ? (
           <Loading />
         ) : data.items.length ? (
@@ -661,6 +698,7 @@ function Manage({ year }) {
                       )}
                     </td>
                     <td className="right nowrap" style={{ paddingRight: 18 }}>
+                      {/* Deciders approve or reject; reject asks for a reason first */}
                       {r.canDecide && (
                         <>
                           <Button size="xs" variant="success" onClick={() => decide(r, 'approve')}>
@@ -675,6 +713,7 @@ function Manage({ year }) {
                           </Button>
                         </>
                       )}
+                      {/* HR can cancel any time; employees only before the leave starts */}
                       {!r.canDecide &&
                         ['Pending', 'Approved'].includes(r.status) &&
                         (isHR ||
@@ -693,6 +732,7 @@ function Manage({ year }) {
           <Empty text="No leave requests match" />
         )}
       </Card>
+      {/* Balance register, HR only */}
       {isHR && (
         <Card
           className="mt-16"
@@ -710,10 +750,12 @@ function Manage({ year }) {
           <LeaveRegister year={year} />
         </Card>
       )}
+      {/* Apply leave, for yourself or (HR) on someone's behalf */}
       {modal === 'apply' && <ApplyLeaveModal onClose={() => setModal(null)} onDone={reload} />}
       {modal === 'behalf' && (
         <ApplyLeaveModal onBehalf onClose={() => setModal(null)} onDone={reload} />
       )}
+      {/* Reject dialog with a reason for the employee */}
       {note && (
         <Modal
           title={`Reject ${note.r.name}'s request`}
@@ -747,6 +789,7 @@ function Manage({ year }) {
   );
 }
 
+// Per-employee balances for the main leave types, with a name search.
 function LeaveRegister({ year }) {
   const { data } = useApi(`/leave/register?year=${year}`);
   const [q, setQ] = useState('');
@@ -755,6 +798,7 @@ function LeaveRegister({ year }) {
     [data, q],
   );
   if (!data) return <Loading />;
+  // Leave types shown as columns
   const codes = ['EL', 'CL', 'SL', 'WFH'];
   return (
     <div>
@@ -809,9 +853,11 @@ function LeaveRegister({ year }) {
 }
 
 // ---------------------------------------------------------------- policies
+// Policy Management tab: policy list with ack progress; HR can edit and chase acknowledgements.
 function Policies({ focus }) {
   const { isHR, toast } = useApp();
   const { data, reload } = useApi('/policies');
+  // Opens the policy named in the URL, if any
   const [view, setView] = useState(focus);
   const [edit, setEdit] = useState(null);
   const [pending, setPending] = useState(null);
@@ -836,6 +882,7 @@ function Policies({ focus }) {
           )
         }
       >
+        {/* Policy table; clicking a row opens the policy */}
         <div className="table-wrap" style={{ marginTop: 10 }}>
           <table className="table">
             <thead>
@@ -896,6 +943,7 @@ function Policies({ focus }) {
                     style={{ paddingRight: 18 }}
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {/* HR actions; clicks here don't open the policy */}
                     {isHR && (
                       <Menu
                         items={[
@@ -925,6 +973,7 @@ function Policies({ focus }) {
           </table>
         </div>
       </Card>
+      {/* View, edit and pending-acknowledgement modals */}
       {view && <PolicyModal id={view} onClose={() => setView(null)} onDone={reload} />}
       {edit && <PolicyEditor policy={edit} onClose={() => setEdit(null)} onDone={reload} />}
       {pending && <PendingAcks id={pending} onClose={() => setPending(null)} />}
@@ -932,6 +981,7 @@ function Policies({ focus }) {
   );
 }
 
+// Modal listing the employees who have not acknowledged a policy yet.
 function PendingAcks({ id, onClose }) {
   const { data } = useApi(`/policies/${id}`);
   return (
@@ -951,16 +1001,20 @@ function PendingAcks({ id, onClose }) {
   );
 }
 
+// Creates or edits a policy; an edit can be published as a new version to re-collect acks.
 function PolicyEditor({ policy, onClose, onDone }) {
   const { toast } = useApp();
   const isNew = !policy.id;
+  // Existing policies are loaded in full (with their text) before editing
   const { data: full } = useApi(isNew ? null : `/policies/${policy.id}`);
   const [f, setF] = useState(null);
   const [file, setFile] = useState(null);
   const [run, busy] = useAction(toast);
+  // Blank template for a new policy, else the loaded one
   const src = isNew
     ? { title: '', category: 'General', version: '1.0', summary: '', content: '', requires_ack: 1 }
     : full;
+  // Form values: edits so far, else the source with "new version" unticked
   const v = f || (src && { ...src, new_version: false });
   if (!v)
     return (
@@ -968,8 +1022,10 @@ function PolicyEditor({ policy, onClose, onDone }) {
         <Loading />
       </Modal>
     );
+  // Change handler for field k; checkboxes store their checked state.
   const set = (k) => (e) =>
     setF({ ...v, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  // Sends the form as multipart so an attached document can go with it.
   const save = async () => {
     const form = new FormData();
     for (const k of ['title', 'category', 'summary', 'content', 'version'])
@@ -1013,6 +1069,7 @@ function PolicyEditor({ policy, onClose, onDone }) {
             options={['Leave', 'General', 'Compliance', 'POSH', 'IT', 'Finance', 'HR']}
           />
         </Field>
+        {/* Version is typed only for a new policy; edits bump it via the checkbox below */}
         {isNew && (
           <Field label="Version">
             <Input value={v.version} onChange={set('version')} />
@@ -1053,6 +1110,7 @@ function PolicyEditor({ policy, onClose, onDone }) {
     </Modal>
   );
 }
+// Next minor version, e.g. 1.2 -> 1.3.
 const bump = (ver) => {
   const [a, b = '0'] = String(ver).split('.');
   return `${a}.${Number(b) + 1}`;

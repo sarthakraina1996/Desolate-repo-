@@ -21,13 +21,16 @@ import { json } from '../db.js';
 import * as D from '../lib/dates.js';
 import { isIcc } from './meta.js';
 
+// Allowed policy categories.
 const CATEGORIES = ['Leave', 'General', 'Compliance', 'POSH', 'IT', 'Finance', 'HR'];
 
+// Next minor version, e.g. 1.2 -> 1.3.
 function bumpVersion(v) {
   const [maj, min = '0'] = String(v || '1.0').split('.');
   return `${maj}.${Number(min) + 1}`;
 }
 
+// Logins to alert about POSH complaints: ICC presiding officer, members and all admins.
 function iccUserIds(db) {
   const icc = getSettings(db).icc || {};
   const empIds = [icc.presidingOfficerId, ...(icc.memberIds || [])].filter(Boolean);
@@ -38,13 +41,16 @@ function iccUserIds(db) {
   ];
 }
 
+// Company policies with acknowledgements, plus POSH training, ICC and complaints.
 export default function policyRoutes(r, { db, uploads, upload }) {
+  // Lists policies with ack counts, the caller's own ack and per-department compliance.
   r.get('/policies', (req, res) => {
     const T = today(db);
     const current = db.all(
       "SELECT e.id, e.department_id, d.name AS department FROM employees e LEFT JOIN departments d ON d.id = e.department_id WHERE e.status != 'Exited' AND e.join_date <= ?",
       T,
     );
+    // An ack of an older version counts as outdated, not as acknowledged.
     const items = db
       .all(
         'SELECT id, title, category, version, summary, requires_ack, file_name, updated_at FROM policies ORDER BY title',
@@ -95,6 +101,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     });
   });
 
+  // One policy; HR also gets the list of current staff yet to acknowledge it.
   r.get('/policies/:id', (req, res) => {
     const p =
       db.get('SELECT * FROM policies WHERE id = ?', id(req.params.id)) || notFound('Policy');
@@ -127,6 +134,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     });
   });
 
+  // Downloads the policy's attached document.
   r.get('/policies/:id/file', (req, res) => {
     const p =
       db.get('SELECT * FROM policies WHERE id = ?', id(req.params.id)) || notFound('Policy');
@@ -136,9 +144,11 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     res.download(file, p.file_name || `${p.title}.pdf`);
   });
 
+  // Policy attachments: PDF or Word, up to 15 MB.
   const policyUpload = upload('policies', { maxMb: 15, exts: ['.pdf', '.doc', '.docx'] }).single(
     'file',
   );
+  // Publishes a new policy (optional file) and notifies everyone. HR only.
   r.post('/policies', policyUpload, (req, res) => {
     requireHR(req);
     const pid = db.insert('policies', {
@@ -161,6 +171,8 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     res.json({ id: pid });
   });
 
+  // Edits a policy. HR only. new_version bumps the version, which voids existing acks
+  // and asks everyone to acknowledge again; a new file replaces the old one.
   r.put('/policies/:id', policyUpload, (req, res) => {
     requireHR(req);
     const p =
@@ -194,6 +206,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     res.json({ ok: true, version });
   });
 
+  // Deletes a policy and its file. HR only.
   r.delete('/policies/:id', (req, res) => {
     requireHR(req);
     const p =
@@ -204,6 +217,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     res.json({ ok: true });
   });
 
+  // Records the caller's acknowledgement of the policy's current version.
   r.post('/policies/:id/ack', (req, res) => {
     if (!req.user.employeeId) fail(400, 'Your login is not linked to an employee record');
     const p =
@@ -219,6 +233,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     res.json({ ok: true });
   });
 
+  // Reminds everyone who hasn't acknowledged the current version. HR only.
   r.post('/policies/:id/remind', (req, res) => {
     requireHR(req);
     const p =
@@ -242,7 +257,9 @@ export default function policyRoutes(r, { db, uploads, upload }) {
   });
 
   // ---------- POSH ----------
+  // POSH overview: training and ack stats, ICC members, and complaints (cases for ICC only).
   r.get('/posh', (req, res) => {
+    // Training and POSH policy acknowledgement among current staff.
     const T = today(db);
     const current = db.value(
       "SELECT COUNT(*) FROM employees WHERE status != 'Exited' AND join_date <= ?",
@@ -261,6 +278,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
           policy.version,
         )
       : 0;
+    // Internal Complaints Committee members from settings.
     const icc = getSettings(db).icc || {};
     const member = (eid, role) => {
       const e = db.get(
@@ -273,6 +291,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
       member(icc.presidingOfficerId, 'Presiding Officer'),
       ...(icc.memberIds || []).map((m) => member(m, 'Member')),
     ].filter(Boolean);
+    // All cases for ICC members, with anonymous complainants masked; others see only their own.
     const canSeeCases = isIcc(db, req.user);
     const complaints = canSeeCases
       ? db
@@ -296,6 +315,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
           req.user.employeeId,
         )
       : [];
+    // Staff who haven't completed training, for HR follow-up.
     const untrained = isHR(req.user)
       ? db
           .all(
@@ -336,6 +356,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     });
   });
 
+  // Marks POSH training complete for the caller, or for another employee (HR only).
   r.post('/posh/training', (req, res) => {
     const target = req.body.employee_id ? id(req.body.employee_id) : req.user.employeeId;
     if (!target) fail(400, 'Your login is not linked to an employee record');
@@ -348,6 +369,8 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     res.json({ ok: true });
   });
 
+  // Files a POSH complaint (optionally anonymous) with a yearly ref no. and a 90-day
+  // inquiry deadline, and alerts the ICC.
   r.post('/posh/complaints', (req, res) => {
     const anonymous = Boolean(req.body.anonymous);
     const T = today(db);
@@ -376,6 +399,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     res.json({ ref });
   });
 
+  // Updates a complaint's status or adds a case note; tells the complainant. ICC only.
   r.put('/posh/complaints/:id', (req, res) => {
     if (!isIcc(db, req.user)) fail(403, 'Only ICC members can update complaints');
     const c =
@@ -401,6 +425,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     res.json({ ok: true });
   });
 
+  // Sets the ICC presiding officer, up to 10 members and the external member. HR only.
   r.put('/posh/icc', (req, res) => {
     requireHR(req);
     const presidingOfficerId = req.body.presidingOfficerId ? id(req.body.presidingOfficerId) : null;
@@ -416,6 +441,7 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     res.json({ ok: true });
   });
 
+  // Reminds everyone without POSH training to complete it. HR only.
   r.post('/posh/remind-training', (req, res) => {
     requireHR(req);
     const users = db

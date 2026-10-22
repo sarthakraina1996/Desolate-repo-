@@ -7,6 +7,7 @@ import { useApp } from '../context.jsx';
 import { useAction, useDebounced } from '../lib/hooks.js';
 import { Button, EmployeeSelect, Field, Input, Modal, Select, Textarea } from './ui.jsx';
 
+// Leave application; with `onBehalf`, HR picks the employee and can record it as approved.
 export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, onBehalf }) {
   const { meta, user, toast } = useApp();
   const T = meta.today;
@@ -19,10 +20,12 @@ export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, on
     reason: '',
     approve: true,
   });
+  // Whose balances to show: the picked employee, the given one, or the signed-in user.
   const target = onBehalf ? f.employee_id : fixedEmployee || user.employeeId;
   const [balances, setBalances] = useState([]);
   const [preview, setPreview] = useState(null);
   const [run, busy] = useAction(toast);
+  // Load their leave balances and default to the first leave type.
   useEffect(() => {
     if (!target) return;
     api
@@ -33,11 +36,13 @@ export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, on
       })
       .catch(() => setBalances([]));
   }, [target]);
+  // Request body; a half day always ends on the day it starts.
   const body = {
     ...f,
     employee_id: onBehalf ? f.employee_id : fixedEmployee || undefined,
     to_date: f.half_day ? f.from_date : f.to_date,
   };
+  // As the form settles, ask the server how many working days it uses (or why it can't be taken).
   const key = useDebounced(JSON.stringify(body), 250);
   useEffect(() => {
     const b = JSON.parse(key);
@@ -48,6 +53,7 @@ export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, on
       .catch(() => setPreview(null));
   }, [key]);
   const bal = balances.find((b) => b.typeId === Number(f.leave_type_id));
+  // Sends the request, then closes and lets the page reload.
   const submit = async () => {
     const out = await run(
       () => api.post('/leave/requests', body),
@@ -75,6 +81,7 @@ export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, on
       }
     >
       <div className="form-grid">
+        {/* Employee picker (on behalf only); changing it resets the leave type */}
         {onBehalf && (
           <Field label="Employee" className="full">
             <EmployeeSelect
@@ -85,6 +92,7 @@ export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, on
             />
           </Field>
         )}
+        {/* Leave type with the days left, plus notes for WFH and unpaid types */}
         <Field label="Leave type" className="full">
           <Select
             value={f.leave_type_id}
@@ -102,6 +110,7 @@ export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, on
             <span className="hint">Loss of pay days are deducted in payroll.</span>
           )}
         </Field>
+        {/* Dates; To moves along when From passes it, and is locked for a half day */}
         <Field label="From">
           <Input
             type="date"
@@ -140,6 +149,7 @@ export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, on
             placeholder="Optional"
           />
         </Field>
+        {/* Record as already approved (on behalf only) */}
         {onBehalf && (
           <label className="check full">
             <input
@@ -150,6 +160,7 @@ export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, on
             Mark as approved (HR recording leave already agreed)
           </label>
         )}
+        {/* Preview: days used and balance left, or why the request isn't allowed */}
         <div className="full">
           {preview &&
             (preview.ok ? (
@@ -166,6 +177,7 @@ export function ApplyLeaveModal({ onClose, onDone, employeeId: fixedEmployee, on
   );
 }
 
+// Helpdesk request form (HR, IT, payroll, admin) that goes to HR.
 export function RaiseRequestModal({ onClose, onDone }) {
   const { toast } = useApp();
   const [f, setF] = useState({ category: 'HR', subject: '', description: '' });
@@ -219,6 +231,7 @@ export function RaiseRequestModal({ onClose, onDone }) {
   );
 }
 
+// An employee's reimbursement claim; with `hr`, any payroll adjustment for any employee.
 export function ClaimModal({ onClose, onDone, hr }) {
   const { toast, meta } = useApp();
   const [f, setF] = useState({
@@ -262,6 +275,7 @@ export function ClaimModal({ onClose, onDone, hr }) {
       }
     >
       <div className="form-grid">
+        {/* Employee and adjustment type (HR only; employees always claim a reimbursement) */}
         {hr && (
           <Field label="Employee" className="full">
             <EmployeeSelect
@@ -304,6 +318,7 @@ export function ClaimModal({ onClose, onDone, hr }) {
             maxLength={200}
           />
         </Field>
+        {/* Pre-approve so payroll picks it up (HR only) */}
         {hr && (
           <label className="check full">
             <input
@@ -319,6 +334,7 @@ export function ClaimModal({ onClose, onDone, hr }) {
   );
 }
 
+// Shows a new login's temporary password once, with a button to copy the details.
 export function TempPasswordModal({ email, password, onClose, note }) {
   const { toast } = useApp();
   return (

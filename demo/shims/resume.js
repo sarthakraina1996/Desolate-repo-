@@ -4,8 +4,10 @@ import fs from './fs-promises.js';
 import { extractText, getDocumentProxy } from 'unpdf';
 import mammoth from 'mammoth';
 
+// Upload types the resume screener accepts.
 export const RESUME_EXTS = ['.pdf', '.docx', '.txt'];
 
+// Stands in for the server's extractResumeText: PDF via unpdf, DOCX via mammoth, or plain text.
 export async function extractResumeText(filePath, ext) {
   const buf = await fs.readFile(filePath);
   if (ext === '.pdf') {
@@ -17,6 +19,7 @@ export async function extractResumeText(filePath, ext) {
   }
   if (ext === '.docx') {
     const { value } = await mammoth.extractRawText({
+      // Copy out just this Buffer's bytes; it may be a view into a larger shared ArrayBuffer.
       arrayBuffer: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
     });
     return value.trim();

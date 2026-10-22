@@ -7,6 +7,7 @@ let installedNow = false;
 const listeners = new Set();
 const notify = () => listeners.forEach((fn) => fn());
 
+// Listen from module load: the browser may offer the install prompt before React mounts.
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault(); // shown from our own button instead of the browser's mini bar
@@ -20,6 +21,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Registers the service worker after page load; browsers only allow it over https.
 export function registerApp() {
   if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
   window.addEventListener('load', () => {
@@ -27,8 +29,10 @@ export function registerApp() {
   });
 }
 
+// True when running as the installed app (navigator.standalone covers iOS Safari).
 export const isStandalone = () =>
   window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+// iPhone or iPad; iPadOS reports itself as a Mac, so touch support gives it away.
 export const isIOS = () =>
   /iphone|ipad|ipod/i.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -36,6 +40,7 @@ export const isPhone = () => window.matchMedia?.('(max-width: 760px)').matches ?
 // The demo runs inside a single page with no server; installing it makes no sense there.
 export const canOfferApp = () => /^https?:$/.test(window.location.protocol) && !window.hrmsDemo;
 
+// Install state for the UI and an install() that shows the browser's own prompt.
 export function useInstall() {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -50,6 +55,7 @@ export function useInstall() {
     secure: window.isSecureContext,
     async install() {
       if (!deferred) return false;
+      // A saved prompt can be shown only once.
       const prompt = deferred;
       deferred = null;
       prompt.prompt();
@@ -60,6 +66,7 @@ export function useInstall() {
   };
 }
 
+// Whether the browser currently reports a network connection.
 export function useOnline() {
   const [online, setOnline] = useState(() => navigator.onLine !== false);
   useEffect(() => {

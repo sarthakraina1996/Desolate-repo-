@@ -11,6 +11,7 @@ after(async () => {
   await ctx.close();
 });
 
+// Seeded logins and test positions around the Bengaluru office.
 const PW = 'Brainadz@2026';
 const EMP = 'aarav.mehta@brainadz.com';
 const HR = 'priya.sharma@brainadz.com';
@@ -20,6 +21,7 @@ const OFFICE = { lat: 12.9784, lng: 77.6408 };
 const INSIDE = { lat: 12.9786, lng: 77.6411, accuracy: 25 }; // about 40 m away
 const HOME = { lat: 12.9352, lng: 77.6245, accuracy: 30 }; // Koramangala, about 5 km away
 
+// Raw login attempt from a fresh client, so the response can be inspected.
 const signIn = (body) => client(ctx.base).post('/auth/login', body);
 
 test('distance and network helpers', () => {
@@ -58,6 +60,7 @@ test('sign-in needs a location inside an office; the password is checked first',
   assert.equal(home.body.code, 'outside_office');
   assert.equal(home.body.office, 'Bengaluru office');
   assert.match(home.body.error, /km from the nearest office/);
+  // A 5 km accuracy reading is too vague to judge either way.
   const rough = await signIn({ email: EMP, password: PW, location: { ...HOME, accuracy: 5000 } });
   assert.equal(rough.body.code, 'location_imprecise');
   const ok = await signIn({ email: EMP, password: PW, location: INSIDE });
@@ -88,6 +91,7 @@ test('administrators, people allowed anywhere, and office networks skip the GPS 
   const hr = await as(ctx.base, CEO);
   // The demo data dates leave from today, so on some days these people are on leave and skip the check anyway.
   assert.equal((await hr.put('/settings', { geofence: { allowWfhAndLeave: false } })).status, 200);
+  // The manager is refused from home until exempted as field staff.
   const mgrId = ctx.db.value('SELECT employee_id FROM users WHERE email = ?', MGR);
   assert.equal((await signIn({ email: MGR, password: PW, location: HOME })).status, 403);
   assert.equal(
@@ -100,6 +104,7 @@ test('administrators, people allowed anywhere, and office networks skip the GPS 
     'field staff sign in from anywhere',
   );
 
+  // Tests connect from 127.0.0.1, so listing it makes them count as on the office network.
   const office = ctx.db.get("SELECT * FROM office_sites WHERE name = 'Bengaluru office'");
   assert.equal(
     (await hr.put(`/settings/offices/${office.id}`, { ip_ranges: '127.0.0.1' })).status,
@@ -121,10 +126,11 @@ test('office check-in needs the office; work from home needs an approved WFH day
     (await c.post('/auth/login', { email: EMP, password: PW, location: INSIDE })).status,
     200,
   );
+  // Start with the clock stopped; after an earlier session, check-in needs a gap reason.
   let w = (await c.get('/attendance/workday')).body.workday;
   if (w.openSince) assert.equal((await c.post('/attendance/check-out')).status, 200);
   w = (await c.get('/attendance/workday')).body.workday;
-  const again = w.sessions.length ? { gap_reason: 'Lunch break' } : {};
+  const again =w.sessions.length ? { gap_reason: 'Lunch break' } : {};
   assert.equal(
     (await c.post('/attendance/check-in', { mode: 'wfh', ...again })).body.code,
     'wfh_not_approved',
@@ -155,6 +161,7 @@ test('strict mode signs you out after leaving the office and pauses the clock', 
     (await c.get('/attendance/workday')).body.workday.openSince,
     'clock running from the previous test',
   );
+  // The app reports location readings while the clock runs.
   const inside = await c.post('/attendance/location', INSIDE);
   assert.equal(inside.body.ok, true);
   const first = await c.post('/attendance/location', HOME);

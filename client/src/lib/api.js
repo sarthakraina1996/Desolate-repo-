@@ -2,6 +2,7 @@
 // the X-Requested-With header the server uses as its CSRF guard.
 export async function api(path, { method = 'GET', body, form } = {}) {
   const opts = { method, credentials: 'same-origin', headers: { 'X-Requested-With': 'hrms' } };
+  // FormData uploads go as-is so the browser sets the multipart boundary; anything else is JSON.
   if (form) opts.body = form;
   else if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json';
@@ -20,10 +21,12 @@ export async function api(path, { method = 'GET', body, form } = {}) {
     err.offline = true;
     throw err;
   }
+  // Session expired: tell the app to sign out (sign-in calls handle their own 401s).
   if (res.status === 401 && !path.startsWith('/auth'))
     window.dispatchEvent(new Event('hrms:unauthorized'));
   const type = res.headers.get('content-type') || '';
   const data = type.includes('application/json') ? await res.json() : await res.text();
+  // Errors carry the server's message, status and code so callers can branch on them.
   if (!res.ok) {
     const err = new Error((data && data.error) || `Request failed (${res.status})`);
     err.status = res.status;
@@ -33,6 +36,7 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   }
   return data;
 }
+// Shorthands: api.get('/x'), api.post('/x', body), api.upload('/x', formData).
 api.get = (p) => api(p);
 api.post = (p, body = {}) => api(p, { method: 'POST', body });
 api.put = (p, body = {}) => api(p, { method: 'PUT', body });
@@ -43,6 +47,7 @@ api.upload = (p, form, method = 'POST') => api(p, { method, form });
 // window.hrmsDemo so photos and downloads go through it instead of HTTP.
 const demo = () => window.hrmsDemo;
 
+// Image URL for an employee's profile photo.
 export function photoUrl(employeeId) {
   return demo() ? demo().photoUrl(employeeId) : `/api/files/photo/${employeeId}`;
 }
@@ -50,6 +55,7 @@ export function photoUrl(employeeId) {
 // Opens a GET download (CSV, documents) using the session cookie.
 export function download(path) {
   if (demo()) return demo().download(path);
+  // Click a temporary link so the browser downloads it instead of navigating away.
   const a = document.createElement('a');
   a.href = `/api${path}`;
   a.rel = 'noopener';
@@ -72,6 +78,7 @@ export async function postDownload(path, body, filename) {
   }
   const blob = await res.blob();
   if (demo()) return demo().saveFile(blob, filename);
+  // Save via a temporary object URL, freed shortly after the download starts.
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

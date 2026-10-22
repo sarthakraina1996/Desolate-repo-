@@ -37,21 +37,26 @@ const MONTHS = [
 ];
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const pad = (n) => String(n).padStart(2, '0');
+// Whole days from date a to date b (YYYY-MM-DD), counted in UTC.
 const dayDiff = (a, b) =>
   Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+// Short weekday name for a date, e.g. "Mon".
 const weekday = (d) => fmtDate(d, { weekday: 'short' });
 
+// One month grid: holidays, weekly offs and today coloured, the viewer's leave dotted.
 function Month({ year, month, byDate, leaveByDate, weeklyOffs, today }) {
   const first = new Date(Date.UTC(year, month, 1));
   const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
   const lead = (first.getUTCDay() + 6) % 7; // Monday-first grid
   const cells = [];
+  // Blank cells so the 1st lands under its weekday
   for (let i = 0; i < lead; i++) cells.push(<span key={`b${i}`} />);
   for (let d = 1; d <= days; d++) {
     const date = `${year}-${pad(month + 1)}-${pad(d)}`;
     const dow = new Date(Date.UTC(year, month, d)).getUTCDay();
     const h = byDate.get(date);
     const lv = leaveByDate.get(date);
+    // Day style and the tooltip / screen-reader label
     const cls = [
       'cal-day',
       h ? (h.type === 'Company' ? 'hol' : 'rh') : weeklyOffs.includes(dow) ? 'off' : '',
@@ -93,14 +98,17 @@ function Month({ year, month, byDate, leaveByDate, weeklyOffs, today }) {
   );
 }
 
+// Modal for HR to add a holiday; reports the saved holiday's year back to the page.
 function AddHoliday({ year, today, onClose, onAdded }) {
   const { toast } = useApp();
+  // Default the date to today in the current year, else 1 January of the year on screen
   const [f, setF] = useState({
     date: today.startsWith(String(year)) ? today : `${year}-01-01`,
     name: '',
     type: 'Company',
   });
   const [run, busy] = useAction(toast);
+  // Saves the holiday, ignoring repeat clicks while a save is running.
   const save = async () => {
     if (busy) return;
     if (await run(() => api.post('/holidays', f), `${f.name.trim() || 'Holiday'} added`))
@@ -151,6 +159,7 @@ function AddHoliday({ year, today, onClose, onAdded }) {
   );
 }
 
+// Holiday calendar page: year switcher, twelve month grids and the holiday list.
 export default function HolidayCalendar() {
   const { meta, isHR, toast } = useApp();
   const thisYear = Number(meta.today.slice(0, 4));
@@ -159,6 +168,7 @@ export default function HolidayCalendar() {
   const [adding, setAdding] = useState(false);
   const [run] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
+  // Deletes a holiday after the user confirms.
   const remove = async (h) => {
     if (
       !(await confirm({
@@ -171,9 +181,11 @@ export default function HolidayCalendar() {
       return;
     if (await run(() => api.del(`/holidays/${h.id}`), `${h.name} removed`)) reload();
   };
+  // Date lookups for the grids, the next company holiday and counts by type.
   const derived = useMemo(() => {
     if (!data) return null;
     const byDate = new Map();
+    // A company holiday wins when it shares a date with a restricted one
     for (const h of data.holidays)
       if (h.type === 'Company' || !byDate.has(h.date)) byDate.set(h.date, h);
     const leaveByDate = new Map(data.myLeave.map((l) => [l.date, l]));
@@ -188,6 +200,7 @@ export default function HolidayCalendar() {
   }, [data]);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   const months = data ? MONTHS.map((_, m) => m) : [];
+  // Holidays grouped by month for the side list, skipping empty months.
   const grouped = data
     ? months
         .map((m) => ({
@@ -206,6 +219,7 @@ export default function HolidayCalendar() {
             own leave.
           </div>
         </div>
+        {/* Year switcher */}
         <div className="row" style={{ gap: 8 }}>
           <Button icon={ChevronLeft} aria-label="Previous year" onClick={() => setYear(year - 1)} />
           <div
@@ -227,6 +241,7 @@ export default function HolidayCalendar() {
         <Loading />
       ) : (
         <div className="cal-layout">
+          {/* Year view: summary, legend and month grids */}
           <Card flush>
             <div className="cal-summary">
               <span>
@@ -245,6 +260,7 @@ export default function HolidayCalendar() {
                 </span>
               )}
             </div>
+            {/* Legend */}
             <div className="cal-legend">
               <span>
                 <i className="sw hol" />
@@ -267,6 +283,7 @@ export default function HolidayCalendar() {
                 Today
               </span>
             </div>
+            {/* Month grids */}
             <div className="cal-year">
               {months.map((m) => (
                 <Month
@@ -281,6 +298,7 @@ export default function HolidayCalendar() {
               ))}
             </div>
           </Card>
+          {/* Holiday list by month, with delete for HR */}
           <Card
             title={`Holidays ${year}`}
             action={
@@ -346,6 +364,7 @@ export default function HolidayCalendar() {
           today={data.today}
           onClose={() => setAdding(false)}
           onAdded={(y) => {
+            // Reload if it is in the year on screen, otherwise jump to its year
             setAdding(false);
             if (y === year) reload();
             else setYear(y);

@@ -7,15 +7,19 @@ import { inrShort, inr } from '../lib/format.js';
 import { Card, Kpi, Button, Loading, ErrorBox, Empty } from '../components/ui.jsx';
 import { Bars, LineChart, Donut, Legend, HBars } from '../components/charts.jsx';
 
+// Reports page: workforce KPIs, 12-month trend charts and CSV register downloads.
 export default function Reports() {
   const { meta } = useApp();
   const { data, error, reload } = useApi('/reports/summary');
+  // This month's payroll run, if any, adds a payroll register download.
   const { data: runs } = useApi('/payroll?month=' + meta.today.slice(0, 7));
   const [month, setMonth] = useState(meta.today.slice(0, 7));
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
+  // Latest month with a payroll run, and only the months that had one.
   const last = [...data.months].reverse().find((m) => m.payrollCost != null);
   const withPay = data.months.filter((m) => m.payrollCost != null);
+  // CSV downloads as [title, description, export URL].
   const downloads = [
     [
       'Employee master',
@@ -52,6 +56,7 @@ export default function Reports() {
           </div>
         </div>
       </div>
+      {/* KPI cards */}
       <div className="kpis">
         <Kpi icon={Users} tone="blue" label="Headcount" value={data.headcount} />
         <Kpi
@@ -73,8 +78,10 @@ export default function Reports() {
           value={last ? inrShort(last.payrollCost) : '—'}
         />
       </div>
+      {/* Headcount and joiner/exit trends */}
       <div className="grid">
         <Card className="span-6" title="Headcount, last 12 months">
+          {/* Y axis starts just below the lowest month, rounded down to a multiple of 10 */}
           <LineChart
             height={210}
             categories={data.months.map((m) => m.label)}
@@ -109,6 +116,7 @@ export default function Reports() {
           />
         </Card>
       </div>
+      {/* Vertical split, payroll cost and leave usage */}
       <div className="grid">
         <Card className="span-4" title="Headcount by vertical">
           <div className="row donut-row" style={{ gap: 16 }}>
@@ -147,6 +155,7 @@ export default function Reports() {
           />
         </Card>
       </div>
+      {/* CSV downloads; the month picker only affects the attendance register */}
       <Card
         title="Downloads"
         action={
@@ -182,6 +191,7 @@ export default function Reports() {
               </Button>
             </div>
           ))}
+          {/* Payroll register for the current month's run */}
           {runs?.run && (
             <div className="card tight row" style={{ boxShadow: 'none', gap: 12 }}>
               <FileSpreadsheet size={26} className="green" />

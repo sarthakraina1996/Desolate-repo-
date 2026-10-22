@@ -51,6 +51,7 @@ import { Bars, CAT } from '../components/charts.jsx';
 import { TempPasswordModal } from '../components/forms.jsx';
 import { VerticalFilterNote } from './Dashboard.jsx';
 
+// Pipeline stages in board order, from application to hire.
 export const STAGES = [
   'Applied',
   'AI Screened',
@@ -60,6 +61,7 @@ export const STAGES = [
   'Offer',
   'Hired',
 ];
+// [background, text] colours for each pipeline column.
 const STAGE_STYLE = {
   Applied: ['#F3F5F9', '#1b2848'],
   'AI Screened': ['#EAF1FE', '#1A6DF0'],
@@ -70,29 +72,35 @@ const STAGE_STYLE = {
   Hired: ['#EAF1FE', '#1350B8'],
 };
 
+// Hiring dashboard: KPIs, drag-and-drop pipeline, jobs, interviews and onboarding handoff.
 export default function Hiring() {
   const { meta, vertical, isHR, toast } = useApp();
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
   const [f, setF] = useState({ department: '', location: '', type: '', from: '', to: '' });
+  // Query from the vertical switcher, the filters set and an optional ?job= filter
   const qs = new URLSearchParams({
     ...(vertical ? { vertical } : {}),
     ...Object.fromEntries(Object.entries(f).filter(([, v]) => v)),
     ...(sp.get('job') ? { job: sp.get('job') } : {}),
   });
   const { data, error, reload, setData } = useApi(`/hiring?${qs}`);
+  // The selected candidate lives in the URL so it can be linked and survives a reload
   const selected = Number(sp.get('candidate')) || null;
   const [modal, setModal] = useState(null);
   const [run] = useAction(toast);
   // Drag and drop on the pipeline: drag is the card being moved, over the column under it.
   const [drag, setDrag] = useState(null);
   const [over, setOver] = useState(null);
+  // Bumped after a drag move so the candidate panel remounts with fresh data
   const [panelVersion, setPanelVersion] = useState(0);
+  // Hired is never a drop target; hiring goes through the offer's "Convert to employee".
   const canDrop = (stage) => Boolean(drag) && stage !== drag.from && stage !== 'Hired';
   const endDrag = () => {
     setDrag(null);
     setOver(null);
   };
+  // Moves the dragged candidate into the column it was dropped on.
   const drop = async (stage) => {
     const d = drag;
     endDrag();
@@ -120,6 +128,7 @@ export default function Hiring() {
         return col;
       }),
     }));
+    // Save the move, then refresh the board and the candidate panel
     await run(
       () => api.post(`/candidates/${d.id}/move`, { stage }),
       `Moved ${card.name} to ${stage}`,
@@ -127,6 +136,7 @@ export default function Hiring() {
     reload();
     setPanelVersion((v) => v + 1);
   };
+  // Selects a candidate (or clears the selection) through the ?candidate= param.
   const select = (id) =>
     setSp((p) => {
       const n = new URLSearchParams(p);
@@ -134,10 +144,12 @@ export default function Hiring() {
       else n.delete('candidate');
       return n;
     });
+  // Candidate ids in board order, for the previous/next buttons
   const flat = useMemo(
     () => (data?.pipeline || []).flatMap((c) => c.candidates.map((x) => x.id)),
     [data],
   );
+  // With nothing selected, show the first card on the board
   const current = selected || flat[0];
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
@@ -153,6 +165,7 @@ export default function Hiring() {
             Find Exceptional Talent. Build Stronger Teams. <VerticalFilterNote />
           </div>
         </div>
+        {/* Filters */}
         <div className="filters">
           <Select
             value={f.department}
@@ -199,6 +212,7 @@ export default function Hiring() {
           )}
         </div>
       </div>
+      {/* KPI cards */}
       <div className="kpis">
         <Kpi
           icon={Briefcase}
@@ -235,6 +249,7 @@ export default function Hiring() {
         />
       </div>
 
+      {/* Pipeline board and candidate details */}
       <div className="grid" style={{ alignItems: 'start' }}>
         <Card
           className="span-9"
@@ -253,6 +268,7 @@ export default function Hiring() {
           <div className="kanban">
             {data.pipeline.map((col) => {
               const [bg, fg] = STAGE_STYLE[col.stage];
+              // While dragging, mark each column as a valid or invalid drop target
               const target = drag
                 ? canDrop(col.stage)
                   ? 'drop-ok'
@@ -290,6 +306,7 @@ export default function Hiring() {
                     </div>
                   )}
                   {over === col.stage && <div className="kdrop">Move here</div>}
+                  {/* Candidate cards; hired ones can't be dragged back */}
                   {col.candidates.map((c) => (
                     <div
                       key={c.id}
@@ -322,6 +339,7 @@ export default function Hiring() {
                       </div>
                     </div>
                   ))}
+                  {/* The board shows a few cards per stage; the rest open in a list */}
                   {col.total > col.candidates.length && (
                     <div
                       className="more"
@@ -341,6 +359,7 @@ export default function Hiring() {
             })}
           </div>
         </Card>
+        {/* Candidate details with previous/next */}
         <div className="span-3">
           <Card
             title="Candidate Details"
@@ -376,6 +395,7 @@ export default function Hiring() {
         </div>
       </div>
 
+      {/* Job requisitions, interviews and scorecards */}
       <div className="grid">
         <Card
           className="span-5"
@@ -478,6 +498,7 @@ export default function Hiring() {
             </button>
           )}
         </Card>
+        {/* Today's interviews, or upcoming ones when there are none today */}
         <Card
           className="span-4"
           title={data.interviewsToday.length ? 'Interview Schedule (Today)' : 'Upcoming Interviews'}
@@ -512,6 +533,7 @@ export default function Hiring() {
             <Empty text="No interviews scheduled" />
           )}
         </Card>
+        {/* Average interview rating of recently interviewed, still-open candidates */}
         <Card className="span-3" title="Hiring Team Scorecards">
           {data.scorecards.length ? (
             data.scorecards.map((s) => (
@@ -541,6 +563,7 @@ export default function Hiring() {
         </Card>
       </div>
 
+      {/* Source performance and new-hire onboarding */}
       <div className="grid">
         <Card className="span-6" title="Candidate Source Performance">
           <div className="row small mb-8" style={{ gap: 14 }}>
@@ -644,6 +667,7 @@ export default function Hiring() {
         </Card>
       </div>
 
+      {/* Modals: job form, candidate lists, all jobs */}
       {modal?.type === 'job' && (
         <JobForm job={modal.job} onClose={() => setModal(null)} onSaved={reload} />
       )}
@@ -689,8 +713,10 @@ export default function Hiring() {
   );
 }
 
+// Modal with a searchable candidate table; clicking a row picks that candidate.
 function CandidateList({ title, query, onPick, onClose }) {
   const [q, setQ] = useState('');
+  // Debounced so the search doesn't hit the server on every keystroke
   const dq = useDebounced(q, 250);
   const { data } = useApi(`/candidates?${query}${dq ? `&search=${encodeURIComponent(dq)}` : ''}`);
   return (
@@ -747,6 +773,7 @@ function CandidateList({ title, query, onPick, onClose }) {
 }
 
 // ---------------------------------------------------------------- candidate panel
+// Candidate profile with overview, interviews, scorecard, offer and activity tabs plus actions.
 export function CandidatePanel({ id, onChanged }) {
   const { toast, isHR } = useApp();
   const nav = useNavigate();
@@ -757,12 +784,15 @@ export function CandidatePanel({ id, onChanged }) {
   if (error && !data) return <ErrorBox error={error} />;
   if (!data) return <Loading />;
   const c = data.candidate;
+  // Reloads this panel and tells the parent page to refresh too.
   const refresh = () => {
     reload();
     onChanged?.();
   };
   const stageIdx = STAGES.indexOf(c.stage);
+  // Next stage for "Move to"; stops at Offer, since hiring is done by converting to an employee
   const nextStage = stageIdx >= 0 && stageIdx < 5 ? STAGES[stageIdx + 1] : null;
+  // Moves the candidate to a stage, with a reason when rejecting.
   const move = async (stage, reason) => {
     if (
       await run(() => api.post(`/candidates/${c.id}/move`, { stage, reason }), `Moved to ${stage}`)
@@ -771,6 +801,7 @@ export function CandidatePanel({ id, onChanged }) {
   };
   return (
     <div>
+      {/* Name, stage and application source */}
       <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
         <Avatar name={c.name} size={56} />
         <div className="grow" style={{ minWidth: 0 }}>
@@ -784,6 +815,7 @@ export function CandidatePanel({ id, onChanged }) {
           </div>
         </div>
       </div>
+      {/* Contact details */}
       <div className="col small mt-12" style={{ gap: 5, color: 'var(--text-2)' }}>
         {c.email && (
           <span className="row gap-6">
@@ -818,6 +850,7 @@ export function CandidatePanel({ id, onChanged }) {
           tabs={['Overview', 'Interviews', 'Scorecard', 'Offer', 'Activity']}
         />
       </div>
+      {/* Overview tab: key facts, skills match, education and resume */}
       {tab === 'Overview' && (
         <div>
           <div
@@ -891,9 +924,11 @@ export function CandidatePanel({ id, onChanged }) {
           )}
         </div>
       )}
+      {/* Interviews tab */}
       {tab === 'Interviews' && (
         <Interviews data={data} onChanged={refresh} onSchedule={() => setModal('schedule')} />
       )}
+      {/* Scorecard tab: average rating and each rated interview */}
       {tab === 'Scorecard' && (
         <div>
           <div className="row" style={{ gap: 10 }}>
@@ -923,9 +958,11 @@ export function CandidatePanel({ id, onChanged }) {
             ))}
         </div>
       )}
+      {/* Offer tab */}
       {tab === 'Offer' && (
         <Offer c={c} canManage={isHR} onChanged={refresh} onHire={() => setModal('hire')} />
       )}
+      {/* Activity tab */}
       {tab === 'Activity' && (
         <div className="timeline">
           {data.activity.map((a) => (
@@ -941,12 +978,14 @@ export function CandidatePanel({ id, onChanged }) {
           ))}
         </div>
       )}
+      {/* Stage actions for people who can manage this candidate */}
       {data.canManage && !['Rejected', 'Hired'].includes(c.stage) && (
         <div className="col mt-16" style={{ gap: 8 }}>
           <Button variant="primary" icon={CalendarPlus} onClick={() => setModal('schedule')}>
             Schedule Interview
           </Button>
           <div className="row" style={{ gap: 8 }}>
+            {/* Moving to Offer opens the Offer tab, since an offer needs a CTC first */}
             {nextStage && (
               <Button
                 className="grow"
@@ -972,6 +1011,7 @@ export function CandidatePanel({ id, onChanged }) {
           Open employee record
         </Button>
       )}
+      {/* Modals: schedule, reject, hire */}
       {modal === 'schedule' && (
         <ScheduleModal c={c} onClose={() => setModal(null)} onDone={refresh} />
       )}
@@ -989,6 +1029,7 @@ export function CandidatePanel({ id, onChanged }) {
   );
 }
 
+// Interview list for a candidate; HR or the assigned interviewer can add feedback.
 function Interviews({ data, onChanged, onSchedule }) {
   const { user, isHR } = useApp();
   const [fb, setFb] = useState(null);
@@ -1031,8 +1072,10 @@ function Interviews({ data, onChanged, onSchedule }) {
   );
 }
 
+// Modal to schedule an interview round and notify the interviewer.
 function ScheduleModal({ c, onClose, onDone }) {
   const { toast, meta } = useApp();
+  // Suggest the round after the candidate's current one
   const next = ['Interview 1', 'Interview 2'].includes(c.stage)
     ? c.stage === 'Interview 1'
       ? 'Interview 2'
@@ -1121,10 +1164,12 @@ function ScheduleModal({ c, onClose, onDone }) {
   );
 }
 
+// Modal to rate an interview, or mark it as a no-show or cancelled.
 function FeedbackModal({ interview, onClose, onDone }) {
   const { toast } = useApp();
   const [f, setF] = useState({ rating: 4, recommendation: 'Hire', feedback: '' });
   const [run, busy] = useAction(toast);
+  // Saves the new status; rating and feedback are sent only when completed.
   const save = async (status) => {
     if (
       await run(
@@ -1193,6 +1238,7 @@ function FeedbackModal({ interview, onClose, onDone }) {
   );
 }
 
+// Modal asking for a rejection reason.
 function RejectModal({ onClose, onReject }) {
   const [reason, setReason] = useState('Skills mismatch');
   return (
@@ -1227,8 +1273,10 @@ function RejectModal({ onClose, onReject }) {
   );
 }
 
+// Offer tab: current offer status, accept/decline, convert to employee, and the offer form.
 function Offer({ c, canManage, onChanged, onHire }) {
   const { toast, meta } = useApp();
+  // Prefill the offer with the last offer or the candidate's expected CTC
   const [f, setF] = useState({
     offer_ctc: c.offer_ctc || c.expected_ctc || '',
     joining_date: c.joining_date || '',
@@ -1236,6 +1284,7 @@ function Offer({ c, canManage, onChanged, onHire }) {
   const [run, busy] = useAction(toast);
   return (
     <div>
+      {/* Current offer */}
       {c.offer_status && (
         <div className="card tight mb-12" style={{ boxShadow: 'none' }}>
           <div className="row between">
@@ -1246,6 +1295,7 @@ function Offer({ c, canManage, onChanged, onHire }) {
             Offered {fmtDate(c.offer_date)}
             {c.joining_date ? ` · joining ${fmtDate(c.joining_date)}` : ''}
           </div>
+          {/* Record the candidate's answer to a sent offer */}
           {canManage && c.offer_status === 'Sent' && (
             <div className="row mt-12" style={{ gap: 8 }}>
               <Button
@@ -1282,6 +1332,7 @@ function Offer({ c, canManage, onChanged, onHire }) {
               </Button>
             </div>
           )}
+          {/* Convert an accepted offer into an employee record, if not done yet */}
           {canManage &&
             (c.offer_status === 'Accepted' || c.stage === 'Hired') &&
             !c.employee_id && (
@@ -1303,6 +1354,7 @@ function Offer({ c, canManage, onChanged, onHire }) {
           )}
         </div>
       )}
+      {/* Send or revise the offer until it's accepted */}
       {canManage && !c.employee_id && c.offer_status !== 'Accepted' && (
         <div className="col" style={{ gap: 10 }}>
           <Field label="Offer CTC (LPA)">
@@ -1340,12 +1392,14 @@ function Offer({ c, canManage, onChanged, onHire }) {
   );
 }
 
+// Modal that creates an employee from an accepted candidate, optionally with an HRMS login.
 function HireModal({ c, onClose, onDone }) {
   const { toast, refreshMeta } = useApp();
   const nav = useNavigate();
   const [f, setF] = useState({ join_date: c.joining_date || '', email: '', create_login: true });
   const [run, busy] = useAction(toast);
   const [temp, setTemp] = useState(null);
+  // A login was created: show its temporary password before opening the new employee
   if (temp)
     return (
       <TempPasswordModal
@@ -1375,6 +1429,7 @@ function HireModal({ c, onClose, onDone }) {
               );
               if (out) {
                 onDone();
+                // Reload lookup data so the new employee appears in employee pickers
                 refreshMeta();
                 if (out.tempPassword) setTemp(out);
                 else {
@@ -1422,8 +1477,10 @@ function HireModal({ c, onClose, onDone }) {
   );
 }
 
+// Create or edit a job requisition; also used by the Resume Screener.
 export function JobForm({ job, onClose, onSaved }) {
   const { meta, toast } = useApp();
+  // Skill lists edit as comma-separated text and knockout questions as one per line
   const [f, setF] = useState(() => ({
     title: job?.title || '',
     vertical_id: job?.vertical_id || '',
@@ -1445,6 +1502,7 @@ export function JobForm({ job, onClose, onSaved }) {
   }));
   const [run, busy] = useAction(toast);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Saves the job, turning the knockout text into a list of questions.
   const save = async () => {
     const body = {
       ...f,

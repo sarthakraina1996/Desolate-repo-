@@ -27,6 +27,7 @@ import {
 import { Donut, Legend, Bars, HBars, STATUS } from '../components/charts.jsx';
 import { VerticalFilterNote } from './Dashboard.jsx';
 
+// Chart colour for each review status.
 const STATUS_COLORS = {
   'Not Started': STATUS.neutral,
   'Self Review': STATUS.warn,
@@ -34,6 +35,7 @@ const STATUS_COLORS = {
   Completed: STATUS.good,
 };
 
+// Performance page: the user's own review, cycle stats and charts, and the team/all-reviews table.
 export default function Performance() {
   const { isHR, vertical, isEmployeeOnly } = useApp();
   const [sp, setSp] = useSearchParams();
@@ -44,11 +46,13 @@ export default function Performance() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const { meta, toast } = useApp();
+  // Load the chosen cycle (the server defaults to the active one), filtered by vertical/dept
   const { data, error, reload } = useApi(
     `/performance?${new URLSearchParams({ ...(cycle ? { cycle } : {}), ...(vertical ? { vertical } : {}), ...(dept ? { department: dept } : {}) })}`,
   );
   const [run] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
+  // The open review lives in ?review= so it can be linked to
   const open = Number(sp.get('review')) || null;
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
@@ -63,6 +67,7 @@ export default function Performance() {
             Goals, self reviews and manager reviews for every cycle. <VerticalFilterNote />
           </div>
         </div>
+        {/* Cycle and department filters, plus HR's export and cycle actions */}
         <div className="filters">
           <select
             className="select"
@@ -124,6 +129,7 @@ export default function Performance() {
         </Card>
       ) : (
         <>
+          {/* The user's own review for this cycle */}
           {data.mine && (
             <div
               className="card mb-16 row wrap"
@@ -161,6 +167,7 @@ export default function Performance() {
               </Button>
             </div>
           )}
+          {/* Cycle stats, shown once the user can see any reviews besides their own */}
           {s.total > 0 && (
             <>
               <div className="kpis">
@@ -197,6 +204,7 @@ export default function Performance() {
                   value={s.statusCounts.find((x) => x.label === 'Manager Review').value}
                 />
               </div>
+              {/* Status donut, rating distribution and top performers */}
               <div className="grid">
                 <Card className="span-4" title="Review Status">
                   <div className="row donut-row" style={{ gap: 18 }}>
@@ -267,6 +275,7 @@ export default function Performance() {
               )}
             </>
           )}
+          {/* Team / all-reviews table, filtered and paged in the browser */}
           {data.reviews.filter((r) => !r.mine).length > 0 &&
             (() => {
               const team = data.reviews.filter(
@@ -374,6 +383,7 @@ export default function Performance() {
             })()}
         </>
       )}
+      {/* Dialogs */}
       {open && <ReviewModal id={open} onClose={() => setSp({})} onChanged={reload} />}
       {newCycle && <NewCycle onClose={() => setNewCycle(false)} onDone={reload} />}
       {confirmEl}
@@ -381,6 +391,8 @@ export default function Performance() {
   );
 }
 
+// One review: goals with progress, the self review and the manager review.
+// What can be edited (goals, self, manager) comes from the server's permission flags.
 function ReviewModal({ id, onClose, onChanged }) {
   const { toast } = useApp();
   const { data, error, reload } = useApi(`/performance/reviews/${id}`);
@@ -388,6 +400,7 @@ function ReviewModal({ id, onClose, onChanged }) {
   const [goal, setGoal] = useState({ title: '', weight: 25 });
   const [self, setSelf] = useState(null);
   const [mgr, setMgr] = useState({ rating: 3, comments: '' });
+  // Reloads this review and the page behind it.
   const refresh = () => {
     reload();
     onChanged();
@@ -405,14 +418,17 @@ function ReviewModal({ id, onClose, onChanged }) {
       </Modal>
     );
   const r = data.review;
+  // Self-review form starts from what was saved until the user edits it
   const s = self || { rating: r.self_rating || 4, comments: r.self_comments || '' };
   const totalWeight = data.goals.reduce((t, g) => t + g.weight, 0);
+  // Ratings 1-5 in half steps; whole numbers carry their label
   const ratingOpts = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1].map((n) => ({
     value: n,
     label: `${n}${data.ratingLabels[n] ? ` · ${data.ratingLabels[n]}` : ''}`,
   }));
   return (
     <Modal title={`${r.name} · ${data.cycle.name}`} size="wide" onClose={onClose}>
+      {/* Status and final rating */}
       <div className="row wrap mb-16" style={{ gap: 10 }}>
         <Badge lg>{r.status}</Badge>
         {r.final_rating && (
@@ -424,6 +440,7 @@ function ReviewModal({ id, onClose, onChanged }) {
           {r.designation} · {r.department}
         </span>
       </div>
+      {/* Goals; weights should add up to 100% */}
       <div className="row between mb-8">
         <b>Goals</b>
         <span className={`small ${totalWeight === 100 ? 'muted' : 'amber'}`}>
@@ -439,6 +456,7 @@ function ReviewModal({ id, onClose, onChanged }) {
                 Weight {g.weight}%{g.due_date ? ` · due ${fmtDate(g.due_date)}` : ''}
               </div>
             </div>
+            {/* Progress is saved when the slider is released (mouse, key or touch) */}
             {data.canEditGoals ? (
               <>
                 <input
@@ -494,6 +512,7 @@ function ReviewModal({ id, onClose, onChanged }) {
       ) : (
         <Empty text="No goals yet" />
       )}
+      {/* Add a goal */}
       {data.canEditGoals && (
         <div className="row mt-8" style={{ gap: 8 }}>
           <Input
@@ -539,6 +558,7 @@ function ReviewModal({ id, onClose, onChanged }) {
       )}
       <div className="divider" />
       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 0 }}>
+        {/* Self review: draft or submit to the manager, or read-only */}
         <div>
           <b>Self review</b>
           {data.canSelf ? (
@@ -602,6 +622,7 @@ function ReviewModal({ id, onClose, onChanged }) {
             </div>
           )}
         </div>
+        {/* Manager review: sets the final rating and completes the review */}
         <div>
           <b>Manager review</b>
           {data.canManager ? (
@@ -658,6 +679,7 @@ function ReviewModal({ id, onClose, onChanged }) {
   );
 }
 
+// HR form to start a review cycle; defaults to the Indian financial year (April to March).
 function NewCycle({ onClose, onDone }) {
   const { toast, meta } = useApp();
   const y = Number(meta.today.slice(0, 4));

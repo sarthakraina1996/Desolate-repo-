@@ -8,5 +8,6 @@ export function lanAddresses() {
     .map((i) => i.address);
 }
 
+// True when the request comes from the server computer itself (IPv4 or IPv6 loopback).
 export const isLoopback = (ip = '') =>
   ip === '::1' || ip === '127.0.0.1' || ip.startsWith('127.') || ip === '::ffff:127.0.0.1';

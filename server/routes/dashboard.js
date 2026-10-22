@@ -4,7 +4,9 @@ import { balances } from '../services/leave.js';
 import { calendarCtx, dayStatuses } from '../services/calendar.js';
 import { runSummary } from '../services/payroll.js';
 
+// Percentage to one decimal place, 0 when the base is 0.
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
+// Whole-number % change from prev to now; growth from zero counts as 100%.
 const change = (now, prev) => (prev ? Math.round(((now - prev) / prev) * 100) : now ? 100 : 0);
 
 // WHERE fragment for "employed on date" plus scope and vertical filters.
@@ -22,6 +24,7 @@ export function employeeFilter(scope, vertical, alias = 'e') {
   return { sql: parts.length ? parts.join(' AND ') : '1=1', params };
 }
 
+// Employees on the rolls on `date` (joined and not yet exited) matching the filter.
 export function headcountOn(db, date, f) {
   return db.value(
     `SELECT COUNT(*) FROM employees e WHERE e.join_date <= ? AND (e.exit_date IS NULL OR e.exit_date >= ?) AND ${f.sql}`,
@@ -32,6 +35,7 @@ export function headcountOn(db, date, f) {
 }
 
 export default function dashboardRoutes(r, { db }) {
+  // Organisation dashboard (HR) or team dashboard (managers), optionally by vertical.
   r.get('/dashboard', (req, res) => {
     if (!isHR(req.user) && req.user.role !== 'manager')
       fail(403, 'Use My Space for your personal dashboard');
@@ -43,6 +47,7 @@ export default function dashboardRoutes(r, { db }) {
     const prevMonth = D.addMonths(month, -1);
     const prevEnd = D.monthEnd(prevMonth);
 
+    // Headcount now vs end of last month, and the current employees in scope.
     const headcount = headcountOn(db, T, f);
     const headcountPrev = headcountOn(db, prevEnd, f);
     const current = db.all(
@@ -56,6 +61,7 @@ export default function dashboardRoutes(r, { db }) {
     );
     const ids = current.map((e) => e.id);
 
+    // Joiners this month to date vs all of last month.
     const joiners = db.value(
       `SELECT COUNT(*) FROM employees e WHERE e.join_date BETWEEN ? AND ? AND ${f.sql}`,
       D.monthStart(month),
@@ -69,6 +75,7 @@ export default function dashboardRoutes(r, { db }) {
       ...f.params,
     );
 
+    // People on approved leave today (not WFH or other non-leave kinds).
     const onLeave = ids.length
       ? db.all(
           `
@@ -96,12 +103,14 @@ export default function dashboardRoutes(r, { db }) {
       `SELECT COALESCE(SUM(openings),0) FROM jobs j WHERE j.status = 'Active' ${jw}`,
       ...jobParams,
     );
+    // Openings that were live at the end of last month, for the change figure.
     const openPrev = db.value(
       `SELECT COALESCE(SUM(openings),0) FROM jobs j WHERE j.posted_on <= ? AND (j.closed_on IS NULL OR j.closed_on > ?) AND j.status != 'On Hold' ${jw}`,
       prevEnd,
       prevEnd,
       ...jobParams,
     );
+    // Funnel uses the furthest stage each candidate reached, so later rejections still count.
     const funnel = db.get(
       `
       SELECT COUNT(*) AS applications, SUM(c.max_stage >= 1) AS screened, SUM(c.max_stage >= 3) AS interviews,
@@ -109,6 +118,7 @@ export default function dashboardRoutes(r, { db }) {
       FROM candidates c JOIN jobs j ON j.id = c.job_id WHERE 1=1 ${jw}`,
       ...jobParams,
     );
+    // Current pipeline: candidates by stage on jobs that are still open.
     const stageCounts = Object.fromEntries(
       db
         .all(
@@ -127,6 +137,7 @@ export default function dashboardRoutes(r, { db }) {
       offers: stageCounts.Offer || 0,
       hired: stageCounts.Hired || 0,
     };
+    // Next few interviews; managers also see ones where they are the interviewer.
     const interviews = db.all(
       `
       SELECT i.id, i.scheduled_at, i.round, i.mode, c.id AS candidate_id, c.name, j.title
@@ -139,6 +150,7 @@ export default function dashboardRoutes(r, { db }) {
     );
 
     // Leave requests this user can act on
+    // (never their own, so managers don't see themselves in the queue).
     const approvable = scope === null ? null : scope.filter((x) => x !== req.user.employeeId);
     const lf = employeeFilter(approvable, vertical);
     const pendingLeaves = db.all(
@@ -172,6 +184,7 @@ export default function dashboardRoutes(r, { db }) {
             )
             .map((x) => [x.status, x.n]),
         );
+        // Current staff without a payslip in this run count as not applicable.
         const total = Object.values(counts).reduce((a, b) => a + b, 0);
         const na = Math.max(0, headcount - total);
         payroll = {
@@ -208,6 +221,7 @@ export default function dashboardRoutes(r, { db }) {
       });
     }
 
+    // Breakdowns of current staff: by a field (largest first), tenure band and vertical.
     const group = (key) => {
       const m = new Map();
       for (const e of current)
@@ -239,6 +253,7 @@ export default function dashboardRoutes(r, { db }) {
       }));
 
     // Compliance
+    // An employee counts only after acknowledging the current version of every required policy.
     const required = db.all('SELECT id, version FROM policies WHERE requires_ack = 1');
     let fullyAcked = 0;
     if (ids.length && required.length) {
@@ -307,6 +322,7 @@ export default function dashboardRoutes(r, { db }) {
     const empId = req.user.employeeId;
     const notices = db.all('SELECT * FROM notices ORDER BY created_at DESC LIMIT 4');
     if (!empId) return res.json({ today: T, employee: null, notices });
+    // Profile, today's attendance and this month's day-status tally.
     const e = db.get(
       `SELECT e.*, d.name AS department, v.name AS vertical, v.short AS vertical_short, v.color AS vertical_color, l.name AS location
       FROM employees e LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN verticals v ON v.id = e.vertical_id LEFT JOIN locations l ON l.id = e.location_id WHERE e.id = ?`,
@@ -317,12 +333,14 @@ export default function dashboardRoutes(r, { db }) {
     const statuses = dayStatuses(db, [e], D.monthStart(month), T, T).get(e.id);
     const summary = { P: 0, WFH: 0, HD: 0, A: 0, L: 0, U: 0 };
     for (const s of statuses.values()) if (s.code in summary) summary[s.code]++;
+    // Required policies not yet acknowledged at their current version.
     const policies = db.all(
       `SELECT p.id, p.title, p.version FROM policies p
       LEFT JOIN policy_acks a ON a.policy_id = p.id AND a.employee_id = ? AND a.version = p.version
       WHERE p.requires_ack = 1 AND a.policy_id IS NULL`,
       empId,
     );
+    // Goals and review in the active cycle, and the latest completed payslip.
     const cycle = db.get(
       "SELECT * FROM review_cycles WHERE status = 'Active' ORDER BY start_date DESC LIMIT 1",
     );
@@ -341,6 +359,7 @@ export default function dashboardRoutes(r, { db }) {
       WHERE p.employee_id = ? AND r.status = 'Completed' ORDER BY r.month DESC LIMIT 1`,
       empId,
     );
+    // Teammates (same manager) and who of them is on leave in the next two weeks.
     const team = e.manager_id
       ? db.all(
           `SELECT e.id, e.first_name, e.last_name, e.designation, e.photo IS NOT NULL AS has_photo FROM employees e
@@ -359,6 +378,7 @@ export default function dashboardRoutes(r, { db }) {
           ...teamIds,
         )
       : [];
+    // Birthdays and work anniversaries (1 year or more) in the next 14 days.
     const celebrations = db
       .all(
         `SELECT id, first_name, last_name, dob, join_date FROM employees WHERE status != 'Exited'`,
@@ -370,6 +390,7 @@ export default function dashboardRoutes(r, { db }) {
           ['Work anniversary', x.join_date],
         ]) {
           if (!d) continue;
+          // Next occurrence from today; a Feb 29 date is skipped in non-leap years.
           let next = `${T.slice(0, 4)}${d.slice(4)}`;
           if (next < T) next = `${Number(T.slice(0, 4)) + 1}${d.slice(4)}`;
           const years = Number(next.slice(0, 4)) - Number(d.slice(0, 4));

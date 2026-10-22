@@ -16,7 +16,9 @@ function useWidth(fallback = 560) {
 }
 import { Check } from 'lucide-react';
 
+// Categorical series colours, in the order to assign them.
 export const CAT = ['#1A6DF0', '#E8890C', '#7C5CFC', '#0F9D8F', '#E5243B'];
+// Status colours for good / warning / bad results, plus neutral and info.
 export const STATUS = {
   good: '#1FA855',
   warn: '#F2A600',
@@ -24,9 +26,11 @@ export const STATUS = {
   neutral: '#B8C1CF',
   info: '#1A6DF0',
 };
+// Gridline and axis-label colours.
 const GRID = '#EEF2F7';
 const AXIS = '#6B7A90';
 
+// Hover tooltip: put `ref` on the chart wrapper, call show(e, content), render `el` inside it.
 function useTip() {
   const ref = useRef(null);
   const [tip, setTip] = useState(null);
@@ -35,6 +39,7 @@ function useTip() {
     if (!box) return;
     setTip({ x: e.clientX - box.left, y: e.clientY - box.top, content, w: box.width });
   };
+  // Follows the pointer but stays inside the chart's right edge.
   const el = tip ? (
     <div
       style={{
@@ -59,6 +64,7 @@ function useTip() {
   return { ref, show, hide: () => setTip(null), el };
 }
 
+// Compact axis labels in Indian units: 1.2Cr, 5L, 12K.
 const fmtAxis = (v) =>
   v >= 1e7
     ? `${(v / 1e7).toFixed(1)}Cr`
@@ -67,6 +73,7 @@ const fmtAxis = (v) =>
       : v >= 1000
         ? `${Math.round(v / 1000)}K`
         : String(Math.round(v * 10) / 10);
+// Rounds the axis top up to 1, 2, 4, 5 or 10 times a power of ten, for even ticks.
 function niceMax(v) {
   if (v <= 0) return 4;
   const pow = 10 ** Math.floor(Math.log10(v));
@@ -75,6 +82,7 @@ function niceMax(v) {
   return step * pow;
 }
 
+// Donut chart with hover tooltips and an optional value and label in the middle.
 export function Donut({ data, size = 170, thickness = 24, center, format = (v) => v }) {
   const t = useTip();
   const total = data.reduce((s, d) => s + d.value, 0);
@@ -90,6 +98,7 @@ export function Donut({ data, size = 170, thickness = 24, center, format = (v) =
         role="img"
         aria-label={data.map((d) => `${d.label} ${d.value}`).join(', ')}
       >
+        {/* Empty track behind the slices */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -98,9 +107,11 @@ export function Donut({ data, size = 170, thickness = 24, center, format = (v) =
           stroke="#EEF2F7"
           strokeWidth={thickness}
         />
+        {/* Slices, each a dashed stroke of the same circle */}
         {total > 0 &&
           data.map((d) => {
             const len = (d.value / total) * c;
+            // A small gap between slices, none when only one slice has a value.
             const gap = data.filter((x) => x.value > 0).length > 1 ? Math.min(3, len / 2) : 0;
             const el = (
               <circle
@@ -132,6 +143,7 @@ export function Donut({ data, size = 170, thickness = 24, center, format = (v) =
             return el;
           })}
       </svg>
+      {/* Centre value and label */}
       {center && (
         <div
           style={{
@@ -164,6 +176,7 @@ export function Donut({ data, size = 170, thickness = 24, center, format = (v) =
   );
 }
 
+// Colour key for a chart, with each value and its share of the total.
 export function Legend({ items, format = (v) => v, total, column = true }) {
   const sum = total ?? items.reduce((s, d) => s + (d.value || 0), 0);
   return (
@@ -186,6 +199,7 @@ export function Legend({ items, format = (v) => v, total, column = true }) {
   );
 }
 
+// Progress ring for a 0-100 percentage, with the number in the middle and an optional caption.
 export function Ring({ value = 0, size = 96, thickness = 9, color = STATUS.good, label, sub }) {
   const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
@@ -214,6 +228,7 @@ export function Ring({ value = 0, size = 96, thickness = 9, color = STATUS.good,
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
           />
         </svg>
+        {/* Percentage in the middle */}
         <div
           style={{
             position: 'absolute',
@@ -228,6 +243,7 @@ export function Ring({ value = 0, size = 96, thickness = 9, color = STATUS.good,
           {Math.round(v)}%
         </div>
       </div>
+      {/* Caption and sub-line */}
       {label && (
         <div className="small" style={{ marginTop: 8, color: 'var(--text-2)', lineHeight: 1.3 }}>
           {label}
@@ -248,6 +264,7 @@ export function Bars({ categories, series, height = 190, format = fmtAxis, tipFo
   const [wref, w] = useWidth();
   const pad = { l: 40, r: 8, t: 10, b: 26 };
   const all = series.flatMap((s) => s.values.map((v) => v || 0));
+  // Counts get an axis of at least 4 so the quarter ticks stay whole numbers.
   const max = niceMax(Math.max(all.every(Number.isInteger) ? 4 : 1, ...all));
   const ih = height - pad.t - pad.b;
   const iw = w - pad.l - pad.r;
@@ -266,6 +283,7 @@ export function Bars({ categories, series, height = 190, format = fmtAxis, tipFo
         role="img"
         aria-label="Bar chart"
       >
+        {/* Gridlines and y-axis labels */}
         {ticks.map((v) => (
           <g key={v}>
             <line x1={pad.l} x2={w - pad.r} y1={y(v)} y2={y(v)} stroke={GRID} />
@@ -274,6 +292,7 @@ export function Bars({ categories, series, height = 190, format = fmtAxis, tipFo
             </text>
           </g>
         ))}
+        {/* One group per category: hover area, bars and x-axis label */}
         {categories.map((cat, i) => {
           const x0 = pad.l + band * i + (band - groupW) / 2;
           return (
@@ -295,9 +314,11 @@ export function Bars({ categories, series, height = 190, format = fmtAxis, tipFo
               }
               onMouseLeave={t.hide}
             >
+              {/* Invisible full-height hit area so the whole column shows the tooltip */}
               <rect x={pad.l + band * i} y={pad.t} width={band} height={ih} fill="transparent" />
               {series.map((s, k) => {
                 const v = s.values[i] || 0;
+                // Bars have rounded tops; tiny non-zero values still show a 2px sliver.
                 const h = Math.max(v > 0 ? 2 : 0, (v / max) * ih);
                 const x = x0 + k * (bw + 2);
                 const rr = Math.min(4, bw / 2, h);
@@ -327,6 +348,7 @@ export function Bars({ categories, series, height = 190, format = fmtAxis, tipFo
   );
 }
 
+// Line chart with a hover guide and tooltip; a single series also gets a soft area fill.
 export function LineChart({
   categories,
   series,
@@ -342,6 +364,7 @@ export function LineChart({
   const max = niceMax(Math.max(1, ...series.flatMap((s) => s.values.filter((v) => v != null))));
   const ih = height - pad.t - pad.b;
   const iw = w - pad.l - pad.r;
+  // Points spread edge to edge; a single point sits in the middle.
   const x = (i) => pad.l + (categories.length === 1 ? iw / 2 : (iw * i) / (categories.length - 1));
   const y = (v) => pad.t + ih - ((v - min) / (max - min)) * ih;
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => min + f * (max - min));
@@ -359,6 +382,7 @@ export function LineChart({
           t.hide();
         }}
       >
+        {/* Gridlines and y-axis labels */}
         {ticks.map((v) => (
           <g key={v}>
             <line x1={pad.l} x2={w - pad.r} y1={y(v)} y2={y(v)} stroke={GRID} />
@@ -367,10 +391,13 @@ export function LineChart({
             </text>
           </g>
         ))}
+        {/* Vertical guide at the hovered category */}
         {hover != null && (
           <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + ih} stroke="#C9D2DF" />
         )}
+        {/* Lines, with dots on the hovered and the latest points */}
         {series.map((s) => {
+          // Missing values are skipped, so the line joins the points either side.
           const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
           if (!pts.length) return null;
           const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ');
@@ -409,6 +436,7 @@ export function LineChart({
             </g>
           );
         })}
+        {/* X-axis labels and a hover strip per category */}
         {categories.map((cat, i) => (
           <g key={cat}>
             <text x={x(i)} y={height - 8} textAnchor="middle" fontSize="11.5" fill={AXIS}>
@@ -444,6 +472,7 @@ export function LineChart({
   );
 }
 
+// Horizontal bar list; widths are relative to `max`, or to the largest value.
 export function HBars({
   items,
   color = '#1A6DF0',
@@ -487,7 +516,9 @@ export function HBars({
   );
 }
 
+// Funnel stage colours, dark to light.
 const FUNNEL = ['#1350B8', '#1A6DF0', '#4C8DF5', '#82B0F8', '#B6D0FB'];
+// Funnel of stage counts (e.g. hiring), with a list of the numbers beside it.
 export function Funnel({ steps }) {
   const w = 200;
   const h = 34;
@@ -501,6 +532,7 @@ export function Funnel({ steps }) {
         aria-label="Funnel"
       >
         {steps.map((s, i) => {
+          // Each band tapers to the next stage's width; never below 18% so small stages show.
           const w1 = Math.max(0.18, i === 0 ? 1 : steps[i].value / top) * w;
           const next = steps[i + 1] ? Math.max(0.18, steps[i + 1].value / top) * w : w1 * 0.8;
           const y0 = i * (h + 3);
@@ -517,6 +549,7 @@ export function Funnel({ steps }) {
           );
         })}
       </svg>
+      {/* Stage names and counts */}
       <div className="col grow" style={{ justifyContent: 'space-around', gap: 0 }}>
         {steps.map((s, i) => (
           <div key={s.label} className="row between small">
@@ -549,10 +582,12 @@ export function Steps({ steps }) {
   );
 }
 
+// Stage counts over a gradient track with one dot per stage, darker further along.
 export function PipelineDots({ items }) {
   const color = '#1A6DF0';
   return (
     <div>
+      {/* Counts and labels */}
       <div className="row between" style={{ alignItems: 'flex-start' }}>
         {items.map((it) => (
           <div key={it.label} style={{ flex: 1, textAlign: 'center' }}>
@@ -561,6 +596,7 @@ export function PipelineDots({ items }) {
           </div>
         ))}
       </div>
+      {/* Track and dots */}
       <div style={{ position: 'relative', height: 28, marginTop: 14 }}>
         <div
           style={{
@@ -596,6 +632,7 @@ export function PipelineDots({ items }) {
   );
 }
 
+// Month grid with marked days (`marks` by date) and previous/next month buttons.
 export function MiniCalendar({ month, marks = {}, today, onPrev, onNext, title }) {
   const days = useMemo(() => {
     const [y, m] = month.split('-').map(Number);
@@ -603,6 +640,7 @@ export function MiniCalendar({ month, marks = {}, today, onPrev, onNext, title }
     const count = new Date(Date.UTC(y, m, 0)).getUTCDate();
     return { first, count, y, m };
   }, [month]);
+  // Blank cells up to the month's first weekday, then one cell per day.
   const cells = [];
   for (let i = 0; i < days.first; i++) cells.push(<div key={`b${i}`} />);
   for (let d = 1; d <= days.count; d++) {
@@ -620,6 +658,7 @@ export function MiniCalendar({ month, marks = {}, today, onPrev, onNext, title }
   }
   return (
     <div>
+      {/* Month switcher */}
       <div className="row between mb-8">
         <button type="button" className="btn ghost sm" onClick={onPrev} aria-label="Previous month">
           ‹
@@ -636,6 +675,7 @@ export function MiniCalendar({ month, marks = {}, today, onPrev, onNext, title }
           ›
         </button>
       </div>
+      {/* Weekday headings and days */}
       <div className="calendar">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
           <div key={d} className="dh">

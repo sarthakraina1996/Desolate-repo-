@@ -21,6 +21,7 @@ import * as D from '../lib/dates.js';
 import { hashPassword, tempPassword } from '../auth.js';
 import { estimateMonthlyTds } from '../lib/payroll.js';
 
+// Pipeline stages in order; a candidate's max_stage is the index of the furthest one reached.
 export const STAGES = [
   'Applied',
   'AI Screened',
@@ -30,8 +31,10 @@ export const STAGES = [
   'Offer',
   'Hired',
 ];
+// Pipeline stages plus the states that take a candidate out of it.
 const ALL_STAGES = [...STAGES, 'Rejected', 'On Hold'];
 const SOURCES = ['LinkedIn', 'Naukri', 'Indeed', 'Company Website', 'Referrals', 'Other', 'Upload'];
+// Default onboarding checklist for a hired candidate.
 const ONBOARDING = [
   'Offer letter signed',
   'Documents & KYC collected',
@@ -40,6 +43,7 @@ const ONBOARDING = [
   'Orientation and buddy assigned',
 ];
 
+// Job row with vertical, department, location, hiring manager and applicant count.
 export const JOB_SELECT = `
   SELECT j.*, v.name AS vertical, v.short AS vertical_short, v.color AS vertical_color, d.name AS department, l.name AS location,
          m.first_name AS hm_first, m.last_name AS hm_last,
@@ -47,6 +51,7 @@ export const JOB_SELECT = `
   FROM jobs j LEFT JOIN verticals v ON v.id = j.vertical_id LEFT JOIN departments d ON d.id = j.department_id
   LEFT JOIN locations l ON l.id = j.location_id LEFT JOIN employees m ON m.id = j.hiring_manager_id`;
 
+// Parses a job's JSON columns and adds the hiring manager's name.
 export function shapeJob(j) {
   return {
     ...j,
@@ -57,6 +62,7 @@ export function shapeJob(j) {
   };
 }
 
+// Parses a candidate's JSON columns; leaves out the resume text to keep payloads small.
 export function shapeCandidate(c) {
   return {
     ...c,
@@ -71,6 +77,7 @@ export function shapeCandidate(c) {
 export function canAccessJob(user, job) {
   return isHR(user) || (job && user.employeeId && job.hiring_manager_id === user.employeeId);
 }
+// Throws 403 unless the user is HR, the job's hiring manager or one of the interviewers.
 export function assertCandidateAccess(db, user, cand) {
   if (isHR(user)) return;
   const job = cand.job_id
@@ -86,6 +93,7 @@ export function assertCandidateAccess(db, user, cand) {
   if (!canAccessJob(user, job) && !interviewer)
     fail(403, 'You do not have access to this candidate');
 }
+// Adds an entry to a candidate's activity timeline.
 export function logActivity(db, candidateId, text, user) {
   db.insert('candidate_activity', {
     candidate_id: candidateId,
@@ -94,7 +102,9 @@ export function logActivity(db, candidateId, text, user) {
   });
 }
 
+// Hiring dashboard, candidates, interviews, offers, hiring and job routes.
 export default function hiringRoutes(r, { db }) {
+  // WHERE parts for the vertical, department, location, type and job filters.
   function jobFilters(q) {
     const where = [];
     const params = [];
@@ -114,15 +124,18 @@ export default function hiringRoutes(r, { db }) {
     return { where, params };
   }
 
+  // Hiring dashboard: KPIs vs the previous period, pipeline, interviews, sources (HR, managers).
   r.get('/hiring', (req, res) => {
     if (!isHR(req.user) && req.user.role !== 'manager')
       fail(403, 'Hiring is available to HR and hiring managers');
     const T = today(db);
     const from = date(req.query.from) || D.monthStart(D.monthOf(T));
     const to = date(req.query.to) || T;
+    // Compare against a period of the same length just before
     const span = D.diffDays(from, to) + 1;
     const pFrom = D.addDays(from, -span);
     const pTo = D.addDays(from, -1);
+    // Managers only see jobs they are hiring for
     const f = jobFilters(req.query);
     if (!isHR(req.user)) {
       f.where.push('j.hiring_manager_id = ?');
@@ -138,6 +151,7 @@ export default function hiringRoutes(r, { db }) {
     const jobIds = jobs.map((j) => j.id);
     const inJobs = jobIds.length ? `c.job_id IN (${jobIds.map(() => '?').join(',')})` : '0=1';
 
+    // Time to fill: average days from posting to an accepted offer
     const ttf = (a, b) => {
       const rows = db.all(
         `SELECT c.offer_date, j.posted_on FROM candidates c JOIN jobs j ON j.id = c.job_id WHERE ${inJobs} AND c.offer_status = 'Accepted' AND c.offer_date BETWEEN ? AND ?`,
@@ -158,6 +172,7 @@ export default function hiringRoutes(r, { db }) {
         a,
         b,
       );
+    // Acceptance rate among offers that were accepted or declined
     const accept = (a, b) => {
       const x = db.get(
         `SELECT SUM(offer_status = 'Accepted') acc, SUM(offer_status = 'Declined') dec FROM candidates c WHERE ${inJobs} AND c.offer_date BETWEEN ? AND ?`,
@@ -168,7 +183,9 @@ export default function hiringRoutes(r, { db }) {
       const decided = (x.acc || 0) + (x.dec || 0);
       return decided ? Math.round(((x.acc || 0) / decided) * 100) : null;
     };
+    // Percent change vs the previous period
     const pct = (a, b) => (a == null || b == null || !b ? null : Math.round(((a - b) / b) * 100));
+    // Open roles now vs at the end of the previous period
     const openRoles = jobs.filter((j) => j.status === 'Active').reduce((t, j) => t + j.openings, 0);
     const openPrev = jobs
       .filter(
@@ -186,6 +203,7 @@ export default function hiringRoutes(r, { db }) {
       acceptanceChange: pct(accept(from, to), accept(pFrom, pTo)),
     };
 
+    // Pipeline counts and the three latest candidates per stage, for jobs not closed
     const activeJobIds = jobs.filter((j) => j.status !== 'Closed').map((j) => j.id);
     const inActive = activeJobIds.length
       ? `c.job_id IN (${activeJobIds.map(() => '?').join(',')})`
@@ -204,6 +222,7 @@ export default function hiringRoutes(r, { db }) {
       );
       return { stage, total, candidates: top };
     });
+    // Today's interviews, or the next few scheduled when there are none today
     const interviewsToday = db
       .all(
         `SELECT i.*, c.name, c.id AS candidate_id, j.title, e.first_name, e.last_name FROM interviews i
@@ -222,6 +241,7 @@ export default function hiringRoutes(r, { db }) {
           ...jobIds,
           `${T}T23:59`,
         );
+    // Latest interview ratings for candidates still in the running
     const scorecards = db
       .all(
         `SELECT c.id, c.name, j.title, AVG(i.rating) AS avg, COUNT(i.id) AS n FROM interviews i JOIN candidates c ON c.id = i.candidate_id JOIN jobs j ON j.id = c.job_id
@@ -229,11 +249,13 @@ export default function hiringRoutes(r, { db }) {
         ...jobIds,
       )
       .map((s) => ({ ...s, avg: Math.round(s.avg * 10) / 10 }));
+    // Funnel per source: applied, reached Shortlisted, hired
     const sources = db.all(
       `SELECT c.source, COUNT(*) AS applied, SUM(c.max_stage >= 2) AS shortlisted, SUM(c.max_stage >= 6) AS hired FROM candidates c
       WHERE ${inJobs} GROUP BY c.source ORDER BY applied DESC`,
       ...jobIds,
     );
+    // Onboarding progress for recent or unfinished joiners (HR only)
     const onboarding = isHR(req.user)
       ? db
           .all(
@@ -268,6 +290,7 @@ export default function hiringRoutes(r, { db }) {
     });
   });
 
+  // Lists candidates with filters and search; managers see only their jobs' candidates.
   r.get('/candidates', (req, res) => {
     if (!isHR(req.user) && req.user.role !== 'manager') fail(403, 'Not allowed');
     const where = [];
@@ -300,6 +323,7 @@ export default function hiringRoutes(r, { db }) {
     res.json({ items: rows.map(shapeCandidate) });
   });
 
+  // Candidate profile with resume, job, interviews, activity and average rating.
   r.get('/candidates/:id', (req, res) => {
     const c =
       db.get(
@@ -335,6 +359,7 @@ export default function hiringRoutes(r, { db }) {
     });
   });
 
+  // Validates candidate fields (CTC in lakhs); with `partial`, only fields in the body.
   function readCandidate(b, partial = false) {
     const out = {};
     const has = (k) => !partial || Object.prototype.hasOwnProperty.call(b, k);
@@ -360,6 +385,7 @@ export default function hiringRoutes(r, { db }) {
     return out;
   }
 
+  // Adds a candidate to a job by hand (HR only).
   r.post('/candidates', (req, res) => {
     requireHR(req);
     const jobId = id(req.body.job_id);
@@ -374,6 +400,7 @@ export default function hiringRoutes(r, { db }) {
     res.json({ id: cid });
   });
 
+  // Edits a candidate's details (HR only).
   r.put('/candidates/:id', (req, res) => {
     const c =
       db.get('SELECT * FROM candidates WHERE id = ?', id(req.params.id)) || notFound('Candidate');
@@ -385,6 +412,7 @@ export default function hiringRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Moves a candidate to another stage (HR or the hiring manager); hiring has its own route.
   r.post('/candidates/:id/move', (req, res) => {
     const c =
       db.get('SELECT * FROM candidates WHERE id = ?', id(req.params.id)) || notFound('Candidate');
@@ -392,6 +420,7 @@ export default function hiringRoutes(r, { db }) {
     if (!canAccessJob(req.user, job)) fail(403, 'You cannot move this candidate');
     const stage = oneOf(req.body.stage, ALL_STAGES, { required: true, name: 'Stage' });
     if (stage === 'Hired') fail(400, 'Use "Convert to employee" to hire a candidate');
+    // Decision follows the stage: reject, hold, or shortlist from Shortlisted onwards
     const idx = STAGES.indexOf(stage);
     const decision =
       stage === 'Rejected'
@@ -420,6 +449,7 @@ export default function hiringRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Schedules an interview (HR or the hiring manager) and notifies the interviewer.
   r.post('/interviews', (req, res) => {
     const c =
       db.get('SELECT * FROM candidates WHERE id = ?', id(req.body.candidate_id)) ||
@@ -432,6 +462,7 @@ export default function hiringRoutes(r, { db }) {
       ['Interview 1', 'Interview 2', 'HR Round'],
       { name: 'Round' },
     );
+    // Expects local date-time as YYYY-MM-DDTHH:MM
     const at = String(req.body.scheduled_at || '');
     if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at) || !D.isValidYmd(at.slice(0, 10)))
       fail(400, 'Choose a valid date and time');
@@ -444,6 +475,7 @@ export default function hiringRoutes(r, { db }) {
       interviewer_id: interviewer,
       status: 'Scheduled',
     });
+    // Move the candidate up to this round if they are behind it
     const idx = STAGES.indexOf(round);
     if (idx > STAGES.indexOf(c.stage))
       db.update('candidates', c.id, {
@@ -453,6 +485,7 @@ export default function hiringRoutes(r, { db }) {
         updated_at: new Date().toISOString(),
       });
     logActivity(db, c.id, `${round} scheduled for ${at.replace('T', ' ')}`, req.user);
+    // Tell the interviewer
     if (interviewer)
       notifyUsers(
         db,
@@ -463,6 +496,7 @@ export default function hiringRoutes(r, { db }) {
     res.json({ id: iid });
   });
 
+  // Updates an interview (HR, the candidate's interviewers or the hiring manager).
   r.put('/interviews/:id', (req, res) => {
     const i =
       db.get('SELECT * FROM interviews WHERE id = ?', id(req.params.id)) || notFound('Interview');
@@ -476,6 +510,7 @@ export default function hiringRoutes(r, { db }) {
     );
     const data = { status };
     if (req.body.scheduled_at) data.scheduled_at = String(req.body.scheduled_at).slice(0, 16);
+    // Completing an interview needs a rating and a recommendation
     if (status === 'Completed') {
       data.rating = num(req.body.rating, { required: true, min: 1, max: 5, name: 'Rating' });
       data.recommendation = oneOf(req.body.recommendation, ['Strong Hire', 'Hire', 'No Hire'], {
@@ -494,6 +529,7 @@ export default function hiringRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Records an offer sent to a candidate, CTC in lakhs per annum (HR only).
   r.post('/candidates/:id/offer', (req, res) => {
     requireHR(req);
     const c =
@@ -524,6 +560,7 @@ export default function hiringRoutes(r, { db }) {
     res.json({ ok: true });
   });
 
+  // Marks an offer accepted or declined (HR only); a declined offer rejects the candidate.
   r.post('/candidates/:id/offer-status', (req, res) => {
     requireHR(req);
     const c =
@@ -551,6 +588,7 @@ export default function hiringRoutes(r, { db }) {
     if (c.employee_id) fail(409, 'This candidate is already an employee');
     if (!c.email && !req.body.email) fail(400, "Add the candidate's email first");
     const job = c.job_id ? db.get('SELECT * FROM jobs WHERE id = ?', c.job_id) : {};
+    // Work email defaults to first.last@brainadz.com and must be unused
     const [first, ...rest] = c.name.split(' ');
     const joinDate = date(req.body.join_date || c.joining_date, {
       required: true,
@@ -563,9 +601,11 @@ export default function hiringRoutes(r, { db }) {
     );
     if (db.value('SELECT 1 FROM employees WHERE email = ?', workEmail))
       fail(409, `${workEmail} is already used by another employee`);
+    // Candidate CTC is in lakhs; employees store annual CTC in rupees
     const ctc = Math.round((Number(req.body.ctc) || c.offer_ctc || c.expected_ctc || 0) * 100000);
     let temp = null;
     const eid = db.tx(() => {
+      // Next employee code from the settings prefix (stored as JSON)
       const prefix = db.value("SELECT value FROM settings WHERE key = 'employeeCodePrefix'");
       const max = db
         .all('SELECT code FROM employees')
@@ -590,6 +630,7 @@ export default function hiringRoutes(r, { db }) {
         ctc,
         monthly_tds: estimateMonthlyTds(ctc),
       });
+      // Onboarding checklist; the signed offer letter is already done
       ONBOARDING.forEach((t, i) =>
         db.insert('onboarding_tasks', {
           employee_id: newId,
@@ -599,6 +640,7 @@ export default function hiringRoutes(r, { db }) {
           sort: i,
         }),
       );
+      // Optional login with a temporary password
       if (req.body.create_login) {
         temp = tempPassword();
         db.insert('users', {
@@ -609,6 +651,7 @@ export default function hiringRoutes(r, { db }) {
           must_change_password: 1,
         });
       }
+      // Mark the candidate hired and link the new employee
       db.update('candidates', c.id, {
         stage: 'Hired',
         max_stage: 6,
@@ -620,6 +663,7 @@ export default function hiringRoutes(r, { db }) {
       return newId;
     });
     logActivity(db, c.id, `Hired · employee record created (joining ${joinDate})`, req.user);
+    // Tell the hiring manager
     if (job.hiring_manager_id)
       notifyUsers(
         db,
@@ -632,6 +676,7 @@ export default function hiringRoutes(r, { db }) {
   });
 
   // ---------- jobs ----------
+  // Lists jobs, active first; managers see only those they are hiring for.
   r.get('/jobs', (req, res) => {
     if (!isHR(req.user) && req.user.role !== 'manager') fail(403, 'Not allowed');
     const rows = db.all(
@@ -641,6 +686,7 @@ export default function hiringRoutes(r, { db }) {
     res.json({ items: rows.map(shapeJob) });
   });
 
+  // Validates a job form; referenced rows must exist and max experience must be >= min.
   function readJob(b) {
     const ref = (k, table) => {
       const v = b[k] ? id(b[k]) : null;
@@ -678,12 +724,14 @@ export default function hiringRoutes(r, { db }) {
       hiring_manager_id: ref('hiring_manager_id', 'employees'),
     };
   }
+  // Creates a job, active and posted today (HR only).
   r.post('/jobs', (req, res) => {
     requireHR(req);
     const jid = db.insert('jobs', { ...readJob(req.body), status: 'Active', posted_on: today(db) });
     audit(db, req.user, 'job.create', 'job', jid);
     res.json({ id: jid });
   });
+  // Edits a job and/or changes its status (HR or the hiring manager).
   r.put('/jobs/:id', (req, res) => {
     const job = db.get('SELECT * FROM jobs WHERE id = ?', id(req.params.id)) || notFound('Job');
     if (!canAccessJob(req.user, job)) fail(403, 'You cannot edit this job');

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { extractFields, heuristicScreen, searchResume } from '../server/lib/screener.js';
 
+// A job and a resume that matches it well, using synonyms like JS and React.js.
 const job = {
   title: 'Senior Frontend Developer',
   must_have: ['React', 'JavaScript', 'TypeScript', 'Redux'],
@@ -28,6 +29,7 @@ test('extracts contact and career fields', () => {
   const f = extractFields(resume);
   assert.equal(f.name, 'Ananya Rao');
   assert.equal(f.email, 'ananya.rao@example.com');
+  // Phone, city and notice period are normalised (2 months becomes 60 days).
   assert.equal(f.phone, '+91 9876543210');
   assert.equal(f.experience, 6);
   assert.equal(f.currentCompany, 'Flipkart');

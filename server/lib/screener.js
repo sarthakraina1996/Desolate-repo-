@@ -1,6 +1,7 @@
 // Rule-based resume screening. Used when no Claude API key is configured, for
 // seed data, and as the field extractor for every uploaded resume.
 
+// Alternate spellings and related tools that count as a mention of each skill.
 const SYNONYMS = {
   javascript: ['javascript', 'js', 'es6', 'ecmascript'],
   typescript: ['typescript', 'ts'],
@@ -26,6 +27,7 @@ const SYNONYMS = {
   'vendor management': ['vendor management', 'vendors', 'vendor coordination'],
 };
 
+// Degree names and the patterns that detect them in resume or job text.
 const DEGREES = [
   ['B.Tech', /\bb\.?\s?tech\b/i],
   ['B.E.', /\bb\.?\s?e\.?(?=[\s,(-])/i],
@@ -47,6 +49,7 @@ const DEGREES = [
   ['Diploma', /\bdiploma\b/i],
 ];
 
+// Metro areas and the city names that belong to each, for location matching.
 const CITY_ALIASES = {
   bengaluru: ['bengaluru', 'bangalore', 'blr'],
   mumbai: ['mumbai', 'navi mumbai', 'thane', 'bombay'],
@@ -65,6 +68,7 @@ const CITY_ALIASES = {
   hyderabad: ['hyderabad'],
   kolkata: ['kolkata', 'calcutta'],
 };
+// How each metro area is shown on a candidate's profile.
 const CITY_DISPLAY = {
   bengaluru: 'Bengaluru, KA',
   mumbai: 'Mumbai, MH',
@@ -75,9 +79,11 @@ const CITY_DISPLAY = {
   kolkata: 'Kolkata, WB',
 };
 
+// Whole-word matcher for a term, so "ts" doesn't match inside "skills".
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const termRe = (t) => new RegExp(`(?<![a-z0-9])${esc(t.toLowerCase())}(?![a-z0-9])`, 'g');
 
+// Counts mentions of a skill (and its synonyms) and returns a snippet around the first one.
 export function countMentions(text, skill) {
   const lower = text.toLowerCase();
   const terms = SYNONYMS[skill.toLowerCase()] || [skill.toLowerCase()];
@@ -100,6 +106,7 @@ export function countMentions(text, skill) {
   return { count: n, evidence };
 }
 
+// Metro area key for a place name, or null.
 function cityKey(s) {
   const lower = String(s || '').toLowerCase();
   for (const [key, aliases] of Object.entries(CITY_ALIASES))
@@ -107,6 +114,7 @@ function cityKey(s) {
   return null;
 }
 
+// Pulls contact and profile fields out of resume text with regexes; missing ones are null.
 export function extractFields(text, { fileName } = {}) {
   const t = String(text || '');
   const lines = t
@@ -114,6 +122,7 @@ export function extractFields(text, { fileName } = {}) {
     .map((l) => l.trim())
     .filter(Boolean);
   const out = {};
+  // Contact details; Indian mobile numbers are normalised to "+91 XXXXXXXXXX".
   out.email = (t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) || [])[0] || null;
   const phone = t.match(/(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}/);
   out.phone = phone
@@ -124,6 +133,7 @@ export function extractFields(text, { fileName } = {}) {
     : null;
   out.linkedin = (t.match(/linkedin\.com\/in\/[A-Za-z0-9_-]+/i) || [])[0] || null;
 
+  // Name: a 2-4 word line near the top that isn't a heading or job title, else the file name.
   const nameLine = lines
     .slice(0, 6)
     .find(
@@ -145,6 +155,7 @@ export function extractFields(text, { fileName } = {}) {
     if (base) out.name = base.replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
+  // Experience: the largest plausible "N years" mentioned.
   let exp = null;
   const expRe =
     /(\d{1,2}(?:\.\d{1,2})?)\s*\+?\s*(?:years?|yrs?)(?:\s+of)?(?:\s+(?:total\s+)?(?:work\s+)?experience)?/gi;
@@ -159,6 +170,7 @@ export function extractFields(text, { fileName } = {}) {
   out.education = degrees.length ? degrees.slice(0, 2).join(', ') : null;
   out.degrees = degrees;
 
+  // Current company and title, only when explicitly labelled.
   const company = t.match(
     /(?:current(?:ly)?\s+(?:company|employer|working at|at)|presently\s+(?:at|with))\s*[:\-]?\s*([A-Z][A-Za-z0-9&.,' ]{1,40})/i,
   );
@@ -168,12 +180,14 @@ export function extractFields(text, { fileName } = {}) {
   );
   out.currentTitle = title ? title[1].trim() : null;
 
+  // Location from a labelled line, else from the header lines.
   const loc = t.match(
     /(?:location|based in|current location|address)\s*[:\-]?\s*([A-Za-z ,]{3,40})/i,
   );
   const key = cityKey(loc ? loc[1] : lines.slice(0, 8).join(' '));
   out.location = key ? CITY_DISPLAY[key] : null;
 
+  // Expected and current CTC in lakhs per annum, and notice period in days.
   const ctc = t.match(
     /expected\s+(?:ctc|salary|compensation)\s*[:\-]?\s*(?:rs\.?|inr|₹)?\s*(\d{1,3}(?:\.\d{1,2})?)\s*(?:lpa|lakhs?|l\b)/i,
   );
@@ -187,11 +201,14 @@ export function extractFields(text, { fileName } = {}) {
   return out;
 }
 
+// Fit label for a 0-100 match score.
 const verdictFor = (s) =>
   s >= 80 ? 'Strong Fit' : s >= 65 ? 'Good Fit' : s >= 45 ? 'Partial Fit' : 'Weak Fit';
 
+// Rule-based match of a resume to a job, in the same shape as the Claude screening result.
 // job: { title, must_have[], nice_to_have[], exp_min, exp_max, education, location, work_mode, salary_min, salary_max, knockout[] }
 export function heuristicScreen(job, text, fields = extractFields(text)) {
+  // Skills: each must-have scores by mention count; preferred skills add a small bonus.
   const must = job.must_have || [];
   const nice = job.nice_to_have || [];
   const skills = must.map((skill) => {
@@ -206,6 +223,7 @@ export function heuristicScreen(job, text, fields = extractFields(text)) {
   const skillScore = skills.length ? skills.reduce((t, s) => t + s.score, 0) / skills.length : 70;
   const niceHits = nice.filter((s) => countMentions(text, s).count > 0);
 
+  // Experience: full marks in range; too little drops fast, too much only a little.
   const exp = fields.experience;
   let expScore = 50;
   if (exp != null && job.exp_min != null) {
@@ -215,6 +233,7 @@ export function heuristicScreen(job, text, fields = extractFields(text)) {
     else expScore = Math.max(60, 100 - (exp - max) * 8);
   }
 
+  // Education, location and salary sub-scores; unknown values get a neutral score.
   const wanted = DEGREES.filter(([, re]) => re.test(job.education || '')).map(([d]) => d);
   let eduScore = fields.degrees?.length ? 60 : 30;
   if (wanted.length && fields.degrees?.some((d) => wanted.includes(d))) eduScore = 100;
@@ -233,6 +252,7 @@ export function heuristicScreen(job, text, fields = extractFields(text)) {
         : Math.max(0, 100 - ((fields.expectedCtc - job.salary_max) / job.salary_max) * 200);
   }
 
+  // Weighted total: skills 55%, experience 20%, education 10%, location 10%, salary 5%.
   const score = Math.round(
     Math.min(
       100,
@@ -245,6 +265,7 @@ export function heuristicScreen(job, text, fields = extractFields(text)) {
     ),
   );
 
+  // Requirement checklist shown as matched and missing chips.
   const matched = [];
   const missing = [];
   for (const s of skills) (s.score > 0 ? matched : missing).push(s.skill);
@@ -258,6 +279,7 @@ export function heuristicScreen(job, text, fields = extractFields(text)) {
   if (fields.expectedCtc != null && job.salary_max)
     (salScore === 100 ? matched : missing).push('Expected Salary in Range');
 
+  // Knockout questions: "Yes" if a key word from the question appears in the resume.
   const knockout = (job.knockout || []).map((q) => {
     const words = q.toLowerCase().match(/[a-z][a-z.+#]{3,}/g) || [];
     const stop = new Set([
@@ -290,6 +312,7 @@ export function heuristicScreen(job, text, fields = extractFields(text)) {
     };
   });
 
+  // Plain-English headline and summary.
   const verdict = verdictFor(score);
   const name = fields.name || 'The candidate';
   const headline = must.length
@@ -354,6 +377,7 @@ export function searchResume(text, question) {
         'for',
       ].includes(w),
   );
+  // Returns the three resume sentences containing the most question keywords.
   const sentences = String(text)
     .split(/(?<=[.!?])\s+|\n+/)
     .map((s) => s.trim())

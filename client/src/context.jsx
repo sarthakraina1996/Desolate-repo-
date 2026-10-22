@@ -15,9 +15,12 @@ import Toasts from './components/Toasts.jsx';
 import { moduleFor } from './components/icons.jsx';
 
 const AppCtx = createContext(null);
+// Reads the app-wide state: signed-in user, lookup data, toasts and session actions.
 export const useApp = () => useContext(AppCtx);
 
+// The vertical picked in the switcher is remembered on this device.
 const VKEY = 'hrms.vertical';
+// Reads the saved vertical id, or null when none is saved or storage is blocked.
 const readVertical = () => {
   try {
     return Number(localStorage.getItem(VKEY)) || null;
@@ -26,12 +29,14 @@ const readVertical = () => {
   }
 };
 
+// Holds the session, shared lookup data and toasts, and provides them to the whole app.
 export function AppProvider({ children }) {
   const [user, setUser] = useState(undefined); // undefined = loading, null = signed out
   const [info, setInfo] = useState({});
   const [meta, setMeta] = useState(null);
   const [vertical, setVerticalState] = useState(readVertical);
   const [toasts, setToasts] = useState([]);
+  // Lets event listeners read the current user without re-subscribing.
   const userRef = useRef(user);
   userRef.current = user;
 
@@ -49,6 +54,7 @@ export function AppProvider({ children }) {
   }, []);
   const dropToast = useCallback((tid) => setToasts((t) => t.filter((x) => x.id !== tid)), []);
 
+  // Loads the signed-in user, then the lookup data; any failure counts as signed out.
   const loadMe = useCallback(async () => {
     try {
       const me = await api.get('/auth/me');
@@ -63,8 +69,10 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // Reloads the lookup data after settings, employees or verticals change.
   const refreshMeta = useCallback(async () => setMeta(await api.get('/meta')), []);
 
+  // Check the session on start and sign out whenever the API answers 401.
   useEffect(() => {
     loadMe();
     const h = () => setUser(null);
@@ -78,6 +86,7 @@ export function AppProvider({ children }) {
     };
   }, [loadMe]);
 
+  // Switches the selected vertical and remembers it on this device.
   const setVertical = useCallback((v) => {
     setVerticalState(v);
     try {
@@ -100,6 +109,7 @@ export function AppProvider({ children }) {
     setMeta(null);
   }, []);
 
+  // Context value with role flags and name/vertical lookup helpers.
   const value = useMemo(() => {
     const role = user?.role;
     return {

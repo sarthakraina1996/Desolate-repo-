@@ -1,7 +1,5 @@
-// The HRMS server running inside the browser for the claude.ai demo. It
-// reuses the real route modules, database code and seed; only the transport
-// differs: a small router replaces Express and requests arrive through a
-// patched fetch() instead of HTTP.
+// The HRMS server running in the browser for the claude.ai demo: real routes, db and seed,
+// but a small router replaces Express and requests arrive via a patched fetch(), not HTTP.
 import fs from './shims/fs.js';
 import path from './shims/path.js';
 import { randomBytes } from './shims/crypto.js';
@@ -24,6 +22,7 @@ import performanceRoutes from '../server/routes/performance.js';
 import reportRoutes from '../server/routes/reports.js';
 import settingsRoutes from '../server/routes/settings.js';
 
+// Content types for files served from the in-memory upload store.
 const MIME = {
   '.pdf': 'application/pdf',
   '.png': 'image/png',
@@ -43,6 +42,7 @@ class Router {
   constructor() {
     this.routes = [];
   }
+  // Compiles the path pattern to a case-insensitive regex that captures each :param.
   add(method, pattern, fns) {
     const keys = [];
     const re = new RegExp(
@@ -69,6 +69,7 @@ class Router {
   delete(p, ...fns) {
     this.add('DELETE', p, fns);
   }
+  // First route for this method and path, with its params decoded; null if none.
   match(method, p) {
     for (const r of this.routes) {
       if (r.method !== method) continue;
@@ -98,6 +99,7 @@ async function runChain(fns, req, res) {
   }
 }
 
+// Express-like response that records status, headers and body for the patched fetch().
 function makeRes() {
   return {
     statusCode: 200,
@@ -120,6 +122,7 @@ function makeRes() {
       this.finished = true;
       return this;
     },
+    // Like Express, plain objects are sent as JSON and anything else defaults to text.
     send(b) {
       if (b !== null && typeof b === 'object' && !(b instanceof Uint8Array)) return this.json(b);
       if (!this.headers['content-type'])
@@ -170,6 +173,7 @@ function makeUpload(uploads) {
         if (exts && !exts.includes(ext))
           fail(400, `Unsupported file type ${ext || ''}. Allowed: ${exts.join(', ')}`);
         if (f.size > maxMb * 1024 * 1024) fail(400, 'File is too large');
+        // Stored under a random name that keeps the original extension.
         const filename = `${randomBytes(12).toString('hex')}${ext.slice(0, 8)}`;
         fs.writeFileSync(path.join(dir, filename), new Uint8Array(await f.arrayBuffer()));
         saved.push({
@@ -194,6 +198,7 @@ function makeUpload(uploads) {
   };
 }
 
+// Opens an in-memory database, seeds the demo company and registers every route module.
 export function createDemoServer() {
   const db = openDb(':memory:');
   const uploads = '/data/uploads';
@@ -204,6 +209,7 @@ export function createDemoServer() {
   setSetting(db, 'geofence', { ...getSettings(db).geofence, mode: 'login' });
   const ctx = { db, uploads, upload: makeUpload(uploads), here: '/server', saveFile };
 
+  // Auth routes are public; everything else needs a signed-in user.
   const pub = new Router();
   authRoutes(pub, ctx);
   const api = new Router();
@@ -226,6 +232,7 @@ export function createDemoServer() {
   }
   const session = sessionMiddleware(db);
 
+  // Handles one request the way server/app.js does and returns the filled-in response.
   // req: { method, path, query, headers, body, formData }
   async function handle(req) {
     const res = makeRes();
@@ -235,6 +242,7 @@ export function createDemoServer() {
     req.get = (h) => req.headers[h.toLowerCase()];
     try {
       session(req, res, () => {});
+      // Same CSRF guard as the real server: writes must carry X-Requested-With: hrms.
       if (!['GET', 'HEAD'].includes(req.method) && req.get('x-requested-with') !== 'hrms')
         throw new HttpError(403, 'Request blocked (missing X-Requested-With header)');
       let hit = pub.match(req.method, req.path);
@@ -247,6 +255,7 @@ export function createDemoServer() {
       await runChain(hit.fns, req, res);
       if (!res.finished) res.status(204).end();
     } catch (err) {
+      // Duplicate rows become 409; unexpected errors are logged and hidden from the user.
       let status = err.status || err.statusCode || 500;
       let message = err.message || 'Something went wrong';
       if (/UNIQUE constraint failed/.test(message)) {

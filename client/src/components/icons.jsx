@@ -1,5 +1,6 @@
 // The BrainADZ HRMS icon set: colourful duotone icons for the sidebar and
 // navy outline icons for the top bar, drawn on a 24 x 24 grid.
+// Icon palette; the module themes below reuse these colours.
 const C = {
   red: '#F2183C',
   redSoft: '#FDDDE6',
@@ -44,6 +45,7 @@ const C = {
   exhibits: '#22A04B',
 };
 
+// Shared 24 x 24 SVG wrapper; hidden from screen readers unless given a `title`.
 function Svg({ size = 24, title, children, className, ...rest }) {
   return (
     <svg
@@ -90,6 +92,7 @@ function sparkle(x, y, r) {
   return `M${x} ${y - r}Q${x + k} ${y - k} ${x + r} ${y}Q${x + k} ${y + k} ${x} ${y + r}Q${x - k} ${y + k} ${x - r} ${y}Q${x - k} ${y - k} ${x} ${y - r}Z`;
 }
 
+// The Settings gear path, built once.
 const GEAR = gear(12, 12, 10, 7.6, 8);
 // Palm fronds drooping from the crown at (19.4, 12.4).
 const PALM = [
@@ -101,6 +104,7 @@ const PALM = [
 ];
 
 // ---------- sidebar (duotone) ----------
+// Dashboard: a house with a door.
 export const IconDashboard = (p) => (
   <Svg {...p}>
     <path
@@ -113,6 +117,7 @@ export const IconDashboard = (p) => (
   </Svg>
 );
 
+// My Space: an ID badge with a person.
 export const IconMySpace = (p) => (
   <Svg {...p}>
     <rect
@@ -131,6 +136,7 @@ export const IconMySpace = (p) => (
   </Svg>
 );
 
+// Hiring: a person with a plus sign.
 export const IconHiring = (p) => (
   <Svg {...p}>
     <circle cx="9" cy="7.6" r="3.7" fill={C.blueSoft} stroke={C.blue} strokeWidth="2" />
@@ -144,6 +150,7 @@ export const IconHiring = (p) => (
   </Svg>
 );
 
+// Resume Screener AI: a magic wand with sparkles.
 export const IconScreener = (p) => (
   <Svg {...p}>
     <path d="M3.4 20.6 12 12" stroke={C.violet} strokeWidth="3.8" />
@@ -157,6 +164,7 @@ export const IconScreener = (p) => (
   </Svg>
 );
 
+// Employees: a group of three people.
 export const IconEmployees = (p) => (
   <Svg {...p}>
     <path
@@ -183,6 +191,7 @@ export const IconEmployees = (p) => (
   </Svg>
 );
 
+// Documents: an open folder holding a sheet.
 export const IconDocuments = (p) => (
   <Svg {...p}>
     <path d="M3.4 12V6.3a1.7 1.7 0 0 1 1.7-1.7H8" stroke={C.orange} strokeWidth="2" />
@@ -203,6 +212,7 @@ export const IconDocuments = (p) => (
   </Svg>
 );
 
+// Leave & Policies: a policy sheet with a ticked shield.
 export const IconLeave = (p) => (
   <Svg {...p}>
     <rect
@@ -226,6 +236,7 @@ export const IconLeave = (p) => (
   </Svg>
 );
 
+// Holiday Calendar: a calendar with a palm tree over its corner.
 export const IconHolidays = (p) => (
   <Svg {...p}>
     <rect x="1.4" y="4" width="15.6" height="16.4" rx="3" fill={C.pinkSoft} />
@@ -251,6 +262,7 @@ export const IconHolidays = (p) => (
   </Svg>
 );
 
+// Payroll: a bank card with a rupee coin.
 export const IconPayroll = (p) => (
   <Svg {...p}>
     <rect
@@ -274,6 +286,7 @@ export const IconPayroll = (p) => (
   </Svg>
 );
 
+// Performance: rising bars with a trend arrow.
 export const IconPerformance = (p) => (
   <Svg {...p}>
     <rect x="2.6" y="14.6" width="4.4" height="6.6" rx="1.4" fill={C.violetBar} />
@@ -284,6 +297,7 @@ export const IconPerformance = (p) => (
   </Svg>
 );
 
+// Attendance: a clock face.
 export const IconAttendance = (p) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="9.2" fill={C.clockSoft} stroke={C.clock} strokeWidth="2.4" />
@@ -291,6 +305,7 @@ export const IconAttendance = (p) => (
   </Svg>
 );
 
+// POSH: a shield with the female symbol.
 export const IconPosh = (p) => (
   <Svg {...p}>
     <path
@@ -304,6 +319,7 @@ export const IconPosh = (p) => (
   </Svg>
 );
 
+// Resignation: a letter with an exit arrow.
 export const IconResignation = (p) => (
   <Svg {...p}>
     <path
@@ -317,6 +333,7 @@ export const IconResignation = (p) => (
   </Svg>
 );
 
+// Reports: three rising green bars.
 export const IconReports = (p) => (
   <Svg {...p}>
     <rect x="3" y="13" width="4.6" height="8.4" rx="1.6" fill={C.mint1} />
@@ -325,6 +342,7 @@ export const IconReports = (p) => (
   </Svg>
 );
 
+// Settings: a gear.
 export const IconSettings = (p) => (
   <Svg {...p}>
     <path d={GEAR} fill={C.slateSoft} stroke={C.slate} strokeWidth="1.9" />
@@ -333,8 +351,10 @@ export const IconSettings = (p) => (
 );
 
 // ---------- top bar (navy outline with brand accents) ----------
+// Stroke shared by the navy outline icons.
 const line = { stroke: C.navy, strokeWidth: 1.9 };
 
+// Magnifying glass.
 export const IconSearch = (p) => (
   <Svg {...p}>
     <circle cx="10.6" cy="10.6" r="6.6" {...line} />
@@ -342,6 +362,7 @@ export const IconSearch = (p) => (
   </Svg>
 );
 
+// Stopwatch for the work clock; `color` overrides the navy.
 export const IconTimer = ({ color = C.navy, ...p }) => (
   <Svg {...p}>
     <circle cx="12" cy="13.4" r="7.4" stroke={color} strokeWidth="1.9" />
@@ -353,6 +374,7 @@ export const IconTimer = ({ color = C.navy, ...p }) => (
   </Svg>
 );
 
+// Green "working" status dot; `pulse` animates its halo.
 export const IconWorking = ({ pulse, ...p }) => (
   <Svg {...p}>
     <circle
@@ -366,6 +388,7 @@ export const IconWorking = ({ pulse, ...p }) => (
   </Svg>
 );
 
+// Notification bell.
 export const IconBell = (p) => (
   <Svg {...p}>
     <path d="M6 16.6V11a6 6 0 0 1 12 0v5.6l1.6 1.9H4.4Z" {...line} />
@@ -373,6 +396,7 @@ export const IconBell = (p) => (
   </Svg>
 );
 
+// Account avatar: a person on a peach circle.
 export const IconProfile = (p) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="12" fill={C.peach} />
@@ -385,12 +409,14 @@ export const IconProfile = (p) => (
   </Svg>
 );
 
+// Down chevron for menus.
 export const IconChevronDown = (p) => (
   <Svg {...p}>
     <path d="m6 9.4 6 6 6-6" {...line} />
   </Svg>
 );
 
+// Live vertical: a screen with a red play button.
 export const IconLive = (p) => (
   <Svg {...p}>
     <rect x="2.4" y="3.8" width="19.2" height="13.4" rx="2" {...line} />
@@ -399,6 +425,7 @@ export const IconLive = (p) => (
   </Svg>
 );
 
+// Marketing vertical: a megaphone.
 export const IconMarketing = (p) => (
   <Svg {...p}>
     <path
@@ -410,6 +437,7 @@ export const IconMarketing = (p) => (
   </Svg>
 );
 
+// Exhibits vertical: four tiles, one in green.
 export const IconExhibits = (p) => (
   <Svg {...p}>
     <rect x="3" y="3" width="7.6" height="7.6" rx="2" {...line} />
@@ -419,11 +447,13 @@ export const IconExhibits = (p) => (
   </Svg>
 );
 
+// Icon for each business vertical, by vertical name.
 export const VERTICAL_ICONS = { Live: IconLive, Marketing: IconMarketing, Exhibits: IconExhibits };
 
 // The "Br" monogram: the collapsed sidebar and general messages (traced from the brand artwork).
 const MONOGRAM_PATH =
   'M31.7 0.0L26.3 0.4L22.7 1.1L19.1 2.2L17.4 2.9L14.9 4.2L11.9 6.3L9.9 8.2L8.6 9.6L7.4 11.3L6.3 13.0L4.9 16.2L4.2 18.5L3.6 20.8L3.1 25.6L3.3 30.1L3.6 32.2L4.2 34.2L4.8 35.6L6.1 38.1L8.4 41.1L10.1 42.8L11.8 44.1L13.2 44.9L15.2 45.8L15.2 45.9L13.5 46.6L10.1 48.4L7.7 50.1L6.0 51.7L4.3 53.9L3.5 55.3L2.0 58.3L1.4 60.1L0.5 63.5L0.2 66.3L0.0 68.9L0.1 72.4L0.4 75.9L1.1 79.0L2.0 81.7L3.2 84.4L4.7 86.9L6.3 89.0L9.2 91.9L12.0 94.1L15.5 95.9L17.7 96.9L21.3 98.1L23.9 98.7L26.5 99.2L30.2 99.6L34.9 99.9L82.2 100.0L82.3 55.8L82.8 54.0L83.4 52.3L84.1 50.9L85.8 48.6L87.6 46.9L88.9 46.0L90.3 45.3L92.3 44.6L93.9 44.1L97.2 43.7L101.3 43.6L105.2 44.1L105.2 23.9L99.8 23.9L97.7 24.1L94.4 24.6L92.2 25.2L89.1 26.6L86.7 28.1L85.1 29.4L83.5 30.9L82.7 32.0L82.4 32.2L82.4 0.1ZM62.3 22.4L62.2 39.0L34.9 39.0L32.0 38.7L30.6 38.4L29.0 37.9L27.6 37.2L26.2 36.1L25.4 35.2L24.5 34.0L23.9 32.6L23.6 31.4L23.3 29.4L23.3 26.4L23.8 23.9L24.6 22.1L25.5 20.8L26.7 19.7L28.6 18.6L30.8 17.9L32.9 17.5L35.2 17.3L62.3 17.4ZM20.4 69.3L20.3 68.0L20.6 65.3L21.2 63.1L22.1 61.3L23.0 60.1L24.6 58.7L25.6 58.1L28.0 57.0L30.3 56.4L33.9 56.0L62.2 56.0L62.2 83.0L33.8 82.9L31.9 82.6L29.9 82.2L28.1 81.5L25.8 80.1L24.5 79.1L23.0 77.4L21.9 75.6L21.0 73.4L20.5 71.5Z';
+// Draws the monogram at any height and colour.
 // label={null} when something around it already names it (a button, a heading).
 export function Monogram({ className = '', height = 36, color = '#2B3C6D', label = 'BrainADZ' }) {
   return (
@@ -570,6 +600,7 @@ export const MODULES = [
     ink: '#D0102F',
   },
 ];
+// Theme for pages outside any module: the Br monogram in navy.
 const GENERAL = {
   path: '',
   label: 'BrainADZ HRMS',

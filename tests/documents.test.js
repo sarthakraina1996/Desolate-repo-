@@ -10,6 +10,7 @@ after(async () => {
   await ctx.close();
 });
 
+// Seeded logins; Aarav's file is missing only his address proof.
 const EMP = 'aarav.mehta@brainadz.com';
 const HR = 'priya.sharma@brainadz.com';
 const MGR = 'vikram.patel@brainadz.com';
@@ -43,6 +44,7 @@ test('employees and managers only see their own documents and can upload their o
   assert.equal(check.rows.length, 1);
   assert.deepEqual(check.rows[0].missing, ['Address Proof']);
 
+  // Uploading the missing address proof completes the checklist.
   const form = new FormData();
   form.append(
     'file',
@@ -61,6 +63,7 @@ test('employees and managers only see their own documents and can upload their o
     "managers do not see their team's ID documents",
   );
   assert.equal((await mgr.raw('GET', `/documents/${mine.items[0].id}/download`)).status, 403);
+  // Managers cannot upload to someone else's file either.
   const bad = new FormData();
   bad.append('file', new Blob(['x']), 'x.pdf');
   assert.equal(

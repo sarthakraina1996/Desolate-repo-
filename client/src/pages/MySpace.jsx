@@ -40,12 +40,14 @@ import { ClockActions, AttentionBanner } from '../components/WorkClock.jsx';
 import { useWorkday, useNow, workedNow, clockText, useOnWorkdayChange } from '../lib/workday.js';
 import { EmployeeForm, Onboarding } from './Employees.jsx';
 
+// Employee self-service home: overview, payslips and claims, and helpdesk requests.
 export default function MySpace() {
   const [sp, setSp] = useSearchParams();
   const tab = sp.get('tab') || 'overview';
   const { user } = useApp();
   return (
     <div>
+      {/* Greeting */}
       <div className="page-head">
         <div>
           <h1>
@@ -54,6 +56,7 @@ export default function MySpace() {
           <div className="sub">Your attendance, leave, pay and requests in one place.</div>
         </div>
       </div>
+      {/* Tabs; the overview keeps a clean URL */}
       <Tabs
         value={tab}
         onChange={(t) => setSp(t === 'overview' ? {} : { tab: t })}
@@ -70,10 +73,12 @@ export default function MySpace() {
   );
 }
 
+// Today's work-clock card: live worked time, clock actions and this month's attendance counts.
 function CheckIn({ data }) {
   const s = useWorkday();
   const now = useNow(1000);
   const st = data.attendance.todayStatus;
+  // Holiday, weekly off or leave: nothing to check in for today
   const off = st && ['H', 'WO', 'L'].includes(st.code);
   const w = s?.workday;
   const running = Boolean(w?.openSince);
@@ -84,6 +89,7 @@ function CheckIn({ data }) {
       className="card"
       style={{ background: 'linear-gradient(135deg, #1f2b7b, #3346b8)', color: '#fff', border: 0 }}
     >
+      {/* Today's status and clock buttons */}
       <div className="row between wrap" style={{ gap: 14 }}>
         <div>
           <div style={{ opacity: 0.8, fontSize: 13 }}>{fmtDay(data.today)}</div>
@@ -118,6 +124,7 @@ function CheckIn({ data }) {
         </div>
         <ClockActions light />
       </div>
+      {/* This month's attendance summary */}
       <div className="row wrap mt-16" style={{ gap: 18, fontSize: 13, opacity: 0.9 }}>
         <span>This month:</span>
         <span>
@@ -145,15 +152,18 @@ function CheckIn({ data }) {
   );
 }
 
+// Overview tab: check-in, quick actions, reminders, leave, pay, goals, team and notices.
 function Overview() {
   const { toast } = useApp();
   const { data, error, reload } = useApi('/dashboard/me');
   const [modal, setModal] = useState(null);
   const [policy, setPolicy] = useState(null);
   const [run] = useAction(toast);
+  // Refresh when the work clock changes (check-in, pause, check-out)
   useOnWorkdayChange(reload);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
+  // Logins without an employee record have nothing to show
   if (!data.employee)
     return (
       <Card>
@@ -164,6 +174,7 @@ function Overview() {
   return (
     <div>
       <AttentionBanner />
+      {/* Check-in card and quick actions */}
       <div className="grid">
         <div className="span-8">
           <CheckIn data={data} />
@@ -189,12 +200,14 @@ function Overview() {
         </Card>
       </div>
 
+      {/* Onboarding tasks, shown until all are done */}
       {data.onboarding.length > 0 && data.onboarding.some((t) => !t.done) && (
         <div className="mb-16">
           <Onboarding tasks={data.onboarding} reload={reload} canEdit={false} />
         </div>
       )}
 
+      {/* Reminders: policies to acknowledge and POSH training */}
       {data.pendingPolicies.length > 0 && (
         <div className="alert warn mb-16" style={{ alignItems: 'center' }}>
           <CircleAlert size={18} />
@@ -224,6 +237,7 @@ function Overview() {
         </div>
       )}
 
+      {/* Leave balances and recent requests, latest payslip, celebrations */}
       <div className="grid">
         <Card
           className="span-8"
@@ -242,6 +256,7 @@ function Overview() {
               marginBottom: 0,
             }}
           >
+            {/* Only leave types with a quota; the bar counts pending days as used */}
             {data.balances
               .filter((b) => b.quota != null)
               .map((b) => (
@@ -285,6 +300,7 @@ function Overview() {
                   </span>
                 </span>
                 <Badge>{r.status}</Badge>
+                {/* Only leave that has not started yet can be cancelled */}
                 {['Pending', 'Approved'].includes(r.status) && r.from_date > data.today && (
                   <Button
                     size="xs"
@@ -368,6 +384,7 @@ function Overview() {
         </div>
       </div>
 
+      {/* Goals, team and notice board */}
       <div className="grid">
         <Card
           className="span-4"
@@ -435,6 +452,7 @@ function Overview() {
           <NoticeBoard notices={data.notices} onChange={reload} compact />
         </div>
       </div>
+      {/* Quick-action and policy dialogs */}
       {modal === 'leave' && <ApplyLeaveModal onClose={() => setModal(null)} onDone={reload} />}
       {modal === 'request' && <RaiseRequestModal onClose={() => setModal(null)} onDone={reload} />}
       {modal === 'claim' && <ClaimModal onClose={() => setModal(null)} onDone={reload} />}
@@ -444,12 +462,14 @@ function Overview() {
   );
 }
 
+// Loads the employee record, then opens the self-service profile form.
 function ProfileLoader({ id, onClose }) {
   const { data } = useApi(`/employees/${id}`);
   if (!data) return null;
   return <EmployeeForm employee={data} selfOnly onClose={onClose} />;
 }
 
+// Shows a policy with its document and lets an employee acknowledge it when required.
 export function PolicyModal({ id, onClose, onDone }) {
   const { toast, user } = useApp();
   const { data } = useApi(`/policies/${id}`);
@@ -467,6 +487,7 @@ export function PolicyModal({ id, onClose, onDone }) {
                 Download document
               </Button>
             )}
+            {/* Acknowledge button, the acknowledged date, or just Close */}
             {data.requires_ack && user.employeeId ? (
               data.myAck ? (
                 <span className="row gap-6 green b6">
@@ -516,6 +537,7 @@ export function PolicyModal({ id, onClose, onDone }) {
   );
 }
 
+// Payslips & Claims tab: paid payslips and the employee's reimbursement claims.
 function Payslips() {
   const { toast } = useApp();
   const { data, reload } = useApi('/payroll/my');
@@ -525,6 +547,7 @@ function Payslips() {
   if (!data) return <Loading />;
   return (
     <div className="grid">
+      {/* Payslips table */}
       <Card className="span-7" title="Payslips" flush>
         {data.items.length ? (
           <table className="table">
@@ -567,6 +590,7 @@ function Payslips() {
           </div>
         )}
       </Card>
+      {/* Claims; pending ones can still be withdrawn */}
       <Card
         className="span-5"
         title="Reimbursement claims"
@@ -622,6 +646,7 @@ function Payslips() {
   );
 }
 
+// My Requests tab: the employee's helpdesk requests with HR's replies.
 function MyRequests() {
   const { data, reload } = useApi('/requests?mine=1');
   const [open, setOpen] = useState(false);

@@ -42,6 +42,7 @@ import {
 } from '../components/ui.jsx';
 import { VerticalFilterNote } from './Dashboard.jsx';
 
+// Short column labels for the checklist table's document types.
 const SHORT = {
   'Aadhaar Card': 'Aadhaar',
   'PAN Card': 'PAN',
@@ -50,9 +51,12 @@ const SHORT = {
   'Appointment Letter': 'Appointment',
   'Bank Proof': 'Bank',
 };
+// File size in whole KB (at least 1), or a dash when unknown.
 const kb = (n) => (n ? `${Math.max(1, Math.round(n / 1024))} KB` : '—');
+// File types the upload picker offers.
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt';
 
+// Uploads one document; HR picks the employee unless one is given, others upload their own.
 export function UploadModal({ employeeId, category, onClose, onDone }) {
   const { meta, user, isHR, toast } = useApp();
   const [f, setF] = useState({
@@ -62,6 +66,7 @@ export function UploadModal({ employeeId, category, onClose, onDone }) {
   });
   const [file, setFile] = useState(null);
   const [run, busy] = useAction(toast);
+  // Sends the file as multipart form data; the name falls back to the file's own.
   const submit = async () => {
     const form = new FormData();
     form.append('file', file);
@@ -134,15 +139,18 @@ export function UploadModal({ employeeId, category, onClose, onDone }) {
   );
 }
 
+// Documents page: HR gets the checklist and all-documents tabs, others their own files.
 export default function Documents() {
   const { isHR } = useApp();
   const [sp, setSp] = useSearchParams();
   const [upload, setUpload] = useState(null);
   const [tick, setTick] = useState(0);
   const tab = isHR ? sp.get('tab') || 'checklist' : 'mine';
+  // Bumping the key remounts the open tab so it reloads after an upload.
   const done = () => setTick((t) => t + 1);
   return (
     <div>
+      {/* Header with the upload button */}
       <div className="page-head">
         <div>
           <h1>Documents</h1>
@@ -171,6 +179,7 @@ export default function Documents() {
           ]}
         />
       )}
+      {/* Active tab */}
       {tab === 'checklist' && <Checklist key={tick} onUpload={setUpload} />}
       {tab === 'all' && <AllDocuments key={tick} />}
       {tab === 'mine' && <MyDocuments key={tick} onUpload={setUpload} />}
@@ -186,12 +195,14 @@ export default function Documents() {
   );
 }
 
+// HR checklist: one row per employee showing which required documents are on file.
 function Checklist({ onUpload }) {
   const { meta, vertical } = useApp();
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('');
   const [only, setOnly] = useState('all');
   const q = useDebounced(search, 250);
+  // Build the filter query and load the checklist
   const qs = new URLSearchParams({
     ...(vertical ? { vertical } : {}),
     ...(department ? { department } : {}),
@@ -204,6 +215,7 @@ function Checklist({ onUpload }) {
   const s = data.summary;
   return (
     <div>
+      {/* KPI cards */}
       <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <Kpi icon={Users} tone="blue" label="Employees" value={s.employees} />
         <Kpi
@@ -222,6 +234,7 @@ function Checklist({ onUpload }) {
         />
         <Kpi icon={FolderOpen} tone="purple" label="Documents on file" value={s.totalDocs} />
       </div>
+      {/* Employee x required-document matrix; the subtitle names the most-missed types */}
       <Card
         flush
         title="Required documents"
@@ -234,6 +247,7 @@ function Checklist({ onUpload }) {
             .join(', ') || 'nothing'
         }`}
       >
+        {/* Filters */}
         <div className="filters" style={{ padding: '0 18px 14px' }}>
           <Input
             value={search}
@@ -292,6 +306,7 @@ function Checklist({ onUpload }) {
                         size={34}
                       />
                     </td>
+                    {/* A tick downloads the file on record; Add opens the upload for that type */}
                     {data.required.map((c) => (
                       <td key={c} className="center">
                         {r.docs[c] ? (
@@ -318,6 +333,7 @@ function Checklist({ onUpload }) {
                         )}
                       </td>
                     ))}
+                    {/* Count and progress of required documents on file */}
                     <td style={{ minWidth: 110 }}>
                       <div className="small b6">
                         {data.required.length - r.missing.length}/{data.required.length}
@@ -339,6 +355,7 @@ function Checklist({ onUpload }) {
   );
 }
 
+// HR list of every uploaded document, searchable by name or employee, 25 per page.
 function AllDocuments() {
   const { meta, vertical, toast } = useApp();
   const [search, setSearch] = useState('');
@@ -347,6 +364,7 @@ function AllDocuments() {
   const [run] = useAction(toast);
   const [confirm, confirmEl] = useConfirm();
   const q = useDebounced(search, 250);
+  // Build the filter query and load the current page
   const qs = new URLSearchParams({
     page,
     limit: 25,
@@ -359,6 +377,7 @@ function AllDocuments() {
   if (!data) return <Loading />;
   return (
     <Card flush title={`${data.total} documents`}>
+      {/* Filters; changing one goes back to page 1 */}
       <div className="filters" style={{ padding: '0 18px 14px' }}>
         <Input
           value={search}
@@ -384,6 +403,7 @@ function AllDocuments() {
         <Empty icon={FileText} text="No documents match." />
       ) : (
         <>
+          {/* Documents table */}
           <div className="table-wrap">
             <table className="table">
               <thead>
@@ -465,10 +485,12 @@ function AllDocuments() {
   );
 }
 
+// An employee's own required-documents checklist and full document list.
 function MyDocuments({ onUpload }) {
   const { user } = useApp();
   const list = useApi('/documents?limit=200');
   const check = useApi('/documents/checklist');
+  // Logins without an employee record have no documents
   if (!user.employeeId)
     return (
       <Card>
@@ -486,10 +508,12 @@ function MyDocuments({ onUpload }) {
       />
     );
   if (!list.data || !check.data) return <Loading />;
+  // For non-HR the checklist holds just the user's own row
   const me = check.data.rows[0];
   const required = check.data.required;
   return (
     <div className="grid">
+      {/* Required documents with view or upload per type */}
       <Card
         className="span-5"
         title="Required documents"
@@ -528,6 +552,7 @@ function MyDocuments({ onUpload }) {
           ))}
         </div>
       </Card>
+      {/* Everything the employee has on file */}
       <Card className="span-7" title="All my documents" flush>
         {!list.data.items.length ? (
           <Empty
