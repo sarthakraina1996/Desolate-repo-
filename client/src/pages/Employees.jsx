@@ -826,10 +826,7 @@ function Overview({ data, isSelf, onAction, reload }) {
             <h3 className="mb-12" style={{ fontSize: 15 }}>
               Quick Actions (Self Service)
             </h3>
-            <div
-              className="grid"
-              style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 0 }}
-            >
+            <div className="grid pair" style={{ gap: 10, marginBottom: 0 }}>
               <QuickAction
                 icon={CalendarCheck}
                 color="var(--blue)"

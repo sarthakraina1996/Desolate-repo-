@@ -779,7 +779,7 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
         </div>
       </div>
       {/* Employee details */}
-      <dl className="kv mt-16" style={{ gridTemplateColumns: '130px 1fr 130px 1fr' }}>
+      <dl className="kv kv-4 mt-16">
         <dt>Employee</dt>
         <dd>{e.name}</dd>
         <dt>Employee ID</dt>
@@ -803,7 +803,7 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
         </dd>
       </dl>
       {/* Earnings and deductions side by side */}
-      <div className="table-wrap">
+      <div className="table-wrap hide-sm">
         <table className="table mt-16" style={{ border: '1px solid var(--border)' }}>
           <thead>
             <tr>
@@ -830,6 +830,34 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
             </tr>
           </tbody>
         </table>
+      </div>
+      {/* Phones: earnings, then deductions */}
+      <div className="show-sm">
+        {[
+          ['Earnings', earn, 'Total Earnings', p.totalEarnings],
+          ['Deductions', ded, 'Total Deductions', p.totalDeductions],
+        ].map(([title, rows, total, sum]) => (
+          <table key={title} className="table mt-16" style={{ border: '1px solid var(--border)' }}>
+            <thead>
+              <tr>
+                <th>{title}</th>
+                <th className="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([name, amount]) => (
+                <tr key={name}>
+                  <td>{name}</td>
+                  <td className="num">{inr(amount)}</td>
+                </tr>
+              ))}
+              <tr className="b7">
+                <td>{total}</td>
+                <td className="num">{inr(sum)}</td>
+              </tr>
+            </tbody>
+          </table>
+        ))}
       </div>
       {/* Net pay */}
       <div

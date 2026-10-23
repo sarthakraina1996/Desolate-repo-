@@ -181,10 +181,7 @@ function Overview() {
           <CheckIn data={data} />
         </div>
         <Card className="span-4" title="Quick actions">
-          <div
-            className="grid"
-            style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 0 }}
-          >
+          <div className="grid pair" style={{ gap: 10, marginBottom: 0 }}>
             <Button icon={CalendarCheck} onClick={() => setModal('leave')}>
               Apply leave
             </Button>

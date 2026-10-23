@@ -372,7 +372,7 @@ function Notifications() {
     if (n.link) nav(n.link);
   };
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} className="bell-wrap">
       {/* Bell with the unread count */}
       <button
         type="button"
@@ -387,7 +387,7 @@ function Notifications() {
       </button>
       {/* Dropdown: "Mark all read", then the list */}
       {open && (
-        <div className="dropdown" style={{ width: 360 }}>
+        <div className="dropdown notif-panel">
           <div className="head">
             Notifications{' '}
             {data.unread > 0 && (

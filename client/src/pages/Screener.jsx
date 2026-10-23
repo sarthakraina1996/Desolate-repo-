@@ -244,7 +244,7 @@ export default function Screener() {
             <div
               className="grid"
               style={{
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))',
                 gap: 16,
                 marginBottom: 0,
               }}
@@ -280,7 +280,7 @@ export default function Screener() {
                 label="Salary Band"
                 value={job.salary_max ? `₹ ${job.salary_min} - ${job.salary_max} LPA` : '—'}
               />
-              <div style={{ gridColumn: 'span 2' }}>
+              <div className="req-wide">
                 <Req
                   icon={FileText}
                   color="var(--blue)"
