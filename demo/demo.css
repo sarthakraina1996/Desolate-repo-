@@ -69,6 +69,10 @@
   border-radius: 999px;
   box-shadow: var(--shadow-lg);
 }
+/* × hides the note; display: flex above would otherwise keep it on screen */
+.demo-badge[hidden] {
+  display: none;
+}
 /* Lets the note wrap to a second line, with a smaller radius to suit */
 .demo-badge {
   flex-wrap: wrap;

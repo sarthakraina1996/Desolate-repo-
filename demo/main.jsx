@@ -27,6 +27,12 @@ function notice(text) {
   }, 5000);
 }
 
+// × on the corner note hides it until the page reloads. Wired here rather than with an inline
+// onclick, which claude.ai's page security blocks.
+document.getElementById('demo-badge-close')?.addEventListener('click', () => {
+  document.getElementById('demo-badge').hidden = true;
+});
+
 // Sends the app's /api fetches to the in-page server; other URLs use the real fetch.
 function installFetch(server) {
   const realFetch = window.fetch.bind(window);
