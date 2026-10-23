@@ -20,6 +20,7 @@ import {
 import { json } from '../db.js';
 import * as D from '../lib/dates.js';
 import { isIcc } from './meta.js';
+import { poshCompletedAt, poshCourseId, poshTrainedCount } from '../services/training.js';
 
 // Allowed policy categories.
 const CATEGORIES = ['Leave', 'General', 'Compliance', 'POSH', 'IT', 'Finance', 'HR'];
@@ -265,9 +266,8 @@ export default function policyRoutes(r, { db, uploads, upload }) {
       "SELECT COUNT(*) FROM employees WHERE status != 'Exited' AND join_date <= ?",
       T,
     );
-    const trained = db.value(
-      "SELECT COUNT(*) FROM posh_training t JOIN employees e ON e.id = t.employee_id WHERE e.status != 'Exited'",
-    );
+    // POSH awareness is a course in Training; its completions count here
+    const trained = poshTrainedCount(db);
     const policy = db.get(
       "SELECT id, version FROM policies WHERE category = 'POSH' ORDER BY updated_at DESC LIMIT 1",
     );
@@ -313,16 +313,6 @@ export default function policyRoutes(r, { db, uploads, upload }) {
           req.user.employeeId,
         )
       : [];
-    // Staff who haven't completed training, for HR follow-up.
-    const untrained = isHR(req.user)
-      ? db
-          .all(
-            `SELECT e.id, e.first_name, e.last_name, e.code, d.name AS department FROM employees e LEFT JOIN departments d ON d.id = e.department_id
-      LEFT JOIN posh_training t ON t.employee_id = e.id WHERE e.status != 'Exited' AND e.join_date <= ? AND t.employee_id IS NULL ORDER BY e.first_name`,
-            T,
-          )
-          .map((e) => ({ ...e, name: fullName(e) }))
-      : [];
     res.json({
       stats: {
         headcount: current,
@@ -344,27 +334,9 @@ export default function policyRoutes(r, { db, uploads, upload }) {
           }
         : null,
       mine,
-      myTraining: req.user.employeeId
-        ? db.value(
-            'SELECT completed_at FROM posh_training WHERE employee_id = ?',
-            req.user.employeeId,
-          ) || null
-        : null,
-      untrained,
+      myTraining: req.user.employeeId ? poshCompletedAt(db, req.user.employeeId) : null,
+      trainingId: poshCourseId(db) || null,
     });
-  });
-
-  // Marks POSH training complete for the caller, or for another employee (HR only).
-  r.post('/posh/training', (req, res) => {
-    const target = req.body.employee_id ? id(req.body.employee_id) : req.user.employeeId;
-    if (!target) fail(400, 'Your login is not linked to an employee record');
-    if (target !== req.user.employeeId) requireHR(req);
-    db.run(
-      'INSERT INTO posh_training (employee_id, completed_at) VALUES (?, ?) ON CONFLICT(employee_id) DO UPDATE SET completed_at = excluded.completed_at',
-      target,
-      new Date().toISOString(),
-    );
-    res.json({ ok: true });
   });
 
   // Files a POSH complaint (optionally anonymous) with a yearly ref no. and a 90-day
@@ -437,18 +409,5 @@ export default function policyRoutes(r, { db, uploads, upload }) {
     });
     audit(db, req.user, 'icc.update', 'settings', null);
     res.json({ ok: true });
-  });
-
-  // Reminds everyone without POSH training to complete it. HR only.
-  r.post('/posh/remind-training', (req, res) => {
-    requireHR(req);
-    const users = db
-      .all(
-        `SELECT u.id FROM users u JOIN employees e ON e.id = u.employee_id LEFT JOIN posh_training t ON t.employee_id = e.id
-      WHERE u.active = 1 AND e.status != 'Exited' AND t.employee_id IS NULL`,
-      )
-      .map((u) => u.id);
-    notifyUsers(db, users, 'Reminder: please complete your POSH awareness training', '/posh');
-    res.json({ ok: true, sent: users.length });
   });
 }

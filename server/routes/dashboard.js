@@ -3,6 +3,7 @@ import * as D from '../lib/dates.js';
 import { balances } from '../services/leave.js';
 import { calendarCtx, dayStatuses } from '../services/calendar.js';
 import { runSummary } from '../services/payroll.js';
+import { poshTrainedCount } from '../services/training.js';
 
 // Percentage to one decimal place, 0 when the base is 0.
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
@@ -262,12 +263,7 @@ export default function dashboardRoutes(r, { db }) {
       );
       fullyAcked = acks.filter((a) => a.n >= required.length).length;
     }
-    const poshTrained = ids.length
-      ? db.value(
-          `SELECT COUNT(*) FROM posh_training WHERE employee_id IN (${ids.map(() => '?').join(',')})`,
-          ...ids,
-        )
-      : 0;
+    const poshTrained = poshTrainedCount(db, ids);
 
     res.json({
       today: T,
@@ -442,7 +438,14 @@ export default function dashboardRoutes(r, { db }) {
         "SELECT id, status, last_working_day FROM resignations WHERE employee_id = ? AND status NOT IN ('Rejected','Withdrawn') ORDER BY id DESC LIMIT 1",
         empId,
       ),
-      poshTrained: Boolean(db.value('SELECT 1 FROM posh_training WHERE employee_id = ?', empId)),
+      // Unfinished training, for the reminder at the top of My Space
+      training: db.get(
+        `SELECT COUNT(*) AS toDo, COALESCE(SUM(due_date < ?), 0) AS overdue
+         FROM training_assignments a JOIN trainings t ON t.id = a.training_id
+         WHERE a.employee_id = ? AND a.completed_at IS NULL AND t.active = 1`,
+        T,
+        empId,
+      ),
       requests: db.all(
         'SELECT * FROM requests WHERE employee_id = ? ORDER BY created_at DESC LIMIT 5',
         empId,

@@ -30,6 +30,7 @@ import { salaryStructure, estimateMonthlyTds } from '../lib/payroll.js';
 import { balances } from '../services/leave.js';
 import { calendarCtx, dayStatuses } from '../services/calendar.js';
 import { IFSC_RE, ACCOUNT_RE } from '../services/payroll.js';
+import { assignNewJoinerCourses, poshCompletedAt } from '../services/training.js';
 
 const TYPES = ['Full-time', 'Part-time', 'Contract', 'Intern'];
 const STATUSES = ['Active', 'Notice', 'Exited'];
@@ -395,8 +396,7 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
         LEFT JOIN policy_acks a ON a.policy_id = p.id AND a.employee_id = ? WHERE p.requires_ack = 1 ORDER BY p.title`,
         eid,
       ),
-      poshTraining:
-        db.value('SELECT completed_at FROM posh_training WHERE employee_id = ?', eid) || null,
+      poshTraining: poshCompletedAt(db, eid),
       leave: {
         balances: balances(db, e, D.yearOf(T), T, calendarCtx(db)),
         requests: db.all(
@@ -500,6 +500,8 @@ export default function employeeRoutes(r, { db, uploads, upload }) {
           must_change_password: 1,
         });
       }
+      // Courses every new joiner takes (POSH awareness, induction)
+      assignNewJoinerCourses(db, newId, { by: req.user.id, today: today(db) });
       return newId;
     });
     audit(db, req.user, 'employee.create', 'employee', eid);

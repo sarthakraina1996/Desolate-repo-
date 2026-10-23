@@ -182,6 +182,47 @@ CREATE TABLE IF NOT EXISTS passkeys (
 );
 CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id);
 
+-- Training courses: an online course or video link, a classroom session, or reading in the app.
+-- system_key marks built-in courses (POSH awareness) that can't be archived.
+CREATE TABLE IF NOT EXISTS trainings (
+  id INTEGER PRIMARY KEY,
+  system_key TEXT UNIQUE,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Skills',
+  format TEXT NOT NULL DEFAULT 'Online course',
+  description TEXT,
+  content TEXT,
+  link TEXT,
+  file TEXT, file_name TEXT,
+  policy_id INTEGER REFERENCES policies(id) ON DELETE SET NULL,
+  session_at TEXT, venue TEXT,
+  duration_min INTEGER,
+  mandatory INTEGER NOT NULL DEFAULT 0,
+  open_enrol INTEGER NOT NULL DEFAULT 0,
+  auto_new_joiners INTEGER NOT NULL DEFAULT 0,
+  due_days INTEGER,
+  needs_certificate INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL
+);
+
+-- Who has to take which course, by when, and how far they got.
+CREATE TABLE IF NOT EXISTS training_assignments (
+  id INTEGER PRIMARY KEY,
+  training_id INTEGER NOT NULL REFERENCES trainings(id) ON DELETE CASCADE,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at TEXT NOT NULL,
+  due_date TEXT,
+  started_at TEXT,
+  completed_at TEXT,
+  completed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  certificate TEXT, certificate_name TEXT,
+  UNIQUE (training_id, employee_id)
+);
+CREATE INDEX IF NOT EXISTS idx_train_assign_emp ON training_assignments(employee_id);
+
 -- Browsers and phones each person has signed in from (a hashed device cookie), to spot new ones.
 CREATE TABLE IF NOT EXISTS user_devices (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ShieldCheck,
   GraduationCap,
   Scale,
   Lock,
   HandHeart,
-  Bell,
   Pencil,
   CircleCheck,
   FileText,
@@ -35,39 +34,14 @@ import {
 import { Ring, STATUS } from '../components/charts.jsx';
 import { PolicyModal } from './MySpace.jsx';
 
-// POSH awareness training content as [question, answer] pairs.
-const TRAINING = [
-  [
-    'What is sexual harassment?',
-    'Any unwelcome act or behaviour, directly or by implication: physical contact or advances, a demand or request for sexual favours, sexually coloured remarks, showing pornography, or any other unwelcome physical, verbal or non-verbal conduct of a sexual nature.',
-  ],
-  [
-    'Where does the policy apply?',
-    'Everywhere you work for BrainADZ: offices, client sites, event venues, exhibition halls, travel, company parties, and online on email, chat and social media.',
-  ],
-  [
-    'How do I raise a concern?',
-    'Use “Raise a concern” on this page or write to any ICC member. You can stay anonymous. Complaints should be made within 3 months of the incident (extendable by 3 months).',
-  ],
-  [
-    'What happens next?',
-    'The ICC acknowledges the complaint, hears both sides and completes the inquiry within 90 days. Interim relief such as a change of reporting line is possible. Everything is kept confidential.',
-  ],
-  [
-    'What about retaliation?',
-    'Retaliating against anyone who raises a concern or helps an inquiry is misconduct and is acted on.',
-  ],
-];
-
 // POSH page: compliance stats, the ICC, training, and raising or handling complaints.
 // Case details are only sent to ICC members; everyone else sees just their own concerns.
 export default function Posh() {
-  const { isHR, toast, user } = useApp();
+  const { isHR, user } = useApp();
   const [sp, setSp] = useSearchParams();
   const { data, error, reload } = useApi('/posh');
   // A ?raise link opens the complaint form straight away
   const [modal, setModal] = useState(sp.get('raise') ? 'raise' : null);
-  const [run, busy] = useAction(toast);
   if (error && !data) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return <Loading />;
   const s = data.stats;
@@ -194,26 +168,13 @@ export default function Posh() {
               sub={`${s.trained} / ${s.headcount}`}
             />
           </div>
-          {isHR && (
-            <div className="row mt-16" style={{ gap: 8, justifyContent: 'center' }}>
-              <Button
-                size="sm"
-                icon={Bell}
-                loading={busy}
-                onClick={() =>
-                  run(
-                    () => api.post('/posh/remind-training'),
-                    (r) => `Reminder sent to ${r.sent} people`,
-                  )
-                }
-              >
-                Remind untrained
-              </Button>
-              {data.untrained.length > 0 && (
-                <Button size="sm" onClick={() => setModal('untrained')}>
-                  View {data.untrained.length} pending
-                </Button>
-              )}
+          {/* Who still has to do it, and reminders, are in Training */}
+          {isHR && data.trainingId && (
+            <div className="row mt-16" style={{ justifyContent: 'center' }}>
+              <Link className="btn sm" to={`/training?tab=tracking&open=${data.trainingId}`}>
+                <GraduationCap size={15} />
+                Track training
+              </Link>
             </div>
           )}
         </Card>
@@ -253,6 +214,7 @@ export default function Posh() {
       </div>
       {/* Training, and the case list (ICC) or the employee's rights */}
       <div className="grid">
+        {/* The course itself lives in Training; this shows where you are with it */}
         <Card
           className="span-6"
           title="POSH awareness training"
@@ -264,36 +226,23 @@ export default function Posh() {
             )
           }
         >
-          {TRAINING.map(([q, a], i) => (
-            <div key={q} className="mb-12">
-              <div className="b6 small">
-                {i + 1}. {q}
-              </div>
-              <div className="small" style={{ color: 'var(--text-2)', lineHeight: 1.55 }}>
-                {a}
-              </div>
-            </div>
-          ))}
-          {/* Completion date, or a button to record that the user finished the training */}
+          <p className="small" style={{ marginTop: 0, color: 'var(--text-2)', lineHeight: 1.55 }}>
+            Everyone takes this 10-minute course on joining: what sexual harassment is, where the
+            policy applies, how to raise a concern, and what happens next.
+          </p>
           {user.employeeId &&
             (data.myTraining ? (
               <div className="row gap-6 green b6">
                 <CircleCheck size={18} />
-                Completed on {fmtDate(data.myTraining)}
+                You completed it on {fmtDate(data.myTraining)}
               </div>
             ) : (
-              <Button
-                variant="primary"
-                loading={busy}
-                onClick={async () => {
-                  if (
-                    await run(() => api.post('/posh/training', {}), 'Training recorded. Thank you!')
-                  )
-                    reload();
-                }}
-              >
-                I have completed this training
-              </Button>
+              data.trainingId && (
+                <Link className="btn primary" to={`/training?open=${data.trainingId}`}>
+                  <GraduationCap size={16} />
+                  Take the training
+                </Link>
+              )
             ))}
         </Card>
         {data.canSeeCases ? (
@@ -350,29 +299,6 @@ export default function Posh() {
       {modal === 'raise' && <RaiseModal onClose={close} onDone={reload} />}
       {modal === 'icc' && <IccModal icc={data.icc} onClose={close} onDone={reload} />}
       {modal === 'policy' && <PolicyModal id={data.policyId} onClose={close} onDone={reload} />}
-      {/* HR list of untrained employees, each can be marked trained */}
-      {modal === 'untrained' && (
-        <Modal title="Training not completed" onClose={close}>
-          {data.untrained.map((e) => (
-            <div key={e.id} className="list-item">
-              <Person name={e.name} sub={`${e.code} · ${e.department || ''}`} id={e.id} size={30} />
-              <span className="grow" />
-              <Button
-                size="xs"
-                onClick={async () => {
-                  await run(
-                    () => api.post('/posh/training', { employee_id: e.id }),
-                    `Marked ${e.name} as trained`,
-                  );
-                  reload();
-                }}
-              >
-                Mark trained
-              </Button>
-            </div>
-          ))}
-        </Modal>
-      )}
       {modal?.case && <CaseModal c={modal.case} onClose={close} onDone={reload} />}
     </div>
   );

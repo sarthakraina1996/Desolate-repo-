@@ -23,6 +23,7 @@ const SettingsPage = lazy(() => import('./pages/Settings.jsx'));
 const Print = lazy(() => import('./pages/Print.jsx'));
 const Documents = lazy(() => import('./pages/Documents.jsx'));
 const HolidayCalendar = lazy(() => import('./pages/HolidayCalendar.jsx'));
+const Training = lazy(() => import('./pages/Training.jsx'));
 
 // Redirects users whose role is not allowed back to their own home page.
 function Guard({ roles, children }) {
@@ -143,6 +144,7 @@ function AppRoutes() {
                       }
                     />
                     <Route path="/performance" element={<Performance />} />
+                    <Route path="/training" element={<Training />} />
                     <Route path="/attendance" element={<Attendance />} />
                     <Route path="/posh" element={<Posh />} />
                     <Route path="/resignation" element={<Resignation />} />

@@ -20,6 +20,7 @@ import { json } from '../db.js';
 import * as D from '../lib/dates.js';
 import { hashPassword, tempPassword } from '../auth.js';
 import { estimateMonthlyTds } from '../lib/payroll.js';
+import { assignNewJoinerCourses } from '../services/training.js';
 
 // Pipeline stages in order; a candidate's max_stage is the index of the furthest one reached.
 export const STAGES = [
@@ -660,6 +661,8 @@ export default function hiringRoutes(r, { db }) {
         joining_date: joinDate,
         updated_at: new Date().toISOString(),
       });
+      // Courses every new joiner takes (POSH awareness, induction)
+      assignNewJoinerCourses(db, newId, { by: req.user.id, today: today(db) });
       return newId;
     });
     logActivity(db, c.id, `Hired · employee record created (joining ${joinDate})`, req.user);

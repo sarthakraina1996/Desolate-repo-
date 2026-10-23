@@ -20,6 +20,7 @@ import { hashPassword, tempPassword, checkPasswordStrength } from '../auth.js';
 import { seedDemo, LEAVE_TYPES, holidaysFor, policyLibrary } from '../seed.js';
 import * as D from '../lib/dates.js';
 import { GEOFENCE_MODES, geofencePolicy } from '../services/geofence.js';
+import { ensureTraining } from '../services/training.js';
 
 // Master tables managed from settings, with their editable fields.
 const MASTERS = {
@@ -443,6 +444,8 @@ export default function settingsRoutes(r, { db, saveFile }) {
     'requests',
     'posh_complaints',
     'posh_training',
+    'training_assignments',
+    'trainings',
     'policy_acks',
     'policies',
     'notices',
@@ -541,6 +544,8 @@ export default function settingsRoutes(r, { db, saveFile }) {
           db.insert('holidays', { date, name, type });
       for (const p of policyLibrary(D.todayIn('Asia/Kolkata'))) db.insert('policies', p);
     });
+    // The built-in POSH awareness course
+    ensureTraining(db, D.todayIn(getSettings(db).timezone));
     res.json({ ok: true });
   });
 }

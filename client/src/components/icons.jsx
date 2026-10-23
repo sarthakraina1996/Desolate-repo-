@@ -43,6 +43,8 @@ const C = {
   statusHalo: '#D4EEDD',
   peach: '#FADCCF',
   exhibits: '#22A04B',
+  teal: '#0E9384',
+  tealSoft: '#CDEFEA',
 };
 
 // Shared 24 x 24 SVG wrapper; hidden from screen readers unless given a `title`.
@@ -297,6 +299,21 @@ export const IconPerformance = (p) => (
   </Svg>
 );
 
+// Training: a graduation cap with its tassel.
+export const IconTraining = (p) => (
+  <Svg {...p}>
+    <path
+      d="M6.2 11.4v4.7c0 1.8 2.6 3.3 5.8 3.3s5.8-1.5 5.8-3.3v-4.7"
+      fill={C.tealSoft}
+      stroke={C.teal}
+      strokeWidth="2"
+    />
+    <path d="M12 4.2 22 9l-10 4.8L2 9Z" fill="#E9F8F5" stroke={C.teal} strokeWidth="2" />
+    <path d="M20.4 9.8v4.8" stroke={C.teal} strokeWidth="2" />
+    <circle cx="20.4" cy="16.3" r="1.4" fill={C.teal} />
+  </Svg>
+);
+
 // Attendance: a clock face.
 export const IconAttendance = (p) => (
   <Svg {...p}>
@@ -542,6 +559,14 @@ export const MODULES = [
     color: C.violetBar,
     soft: C.violetSoft,
     ink: '#6A3FD6',
+  },
+  {
+    path: '/training',
+    label: 'Training',
+    Icon: IconTraining,
+    color: C.teal,
+    soft: C.tealSoft,
+    ink: '#0B6F64',
   },
   {
     path: '/attendance',

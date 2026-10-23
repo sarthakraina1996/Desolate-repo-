@@ -229,12 +229,14 @@ function Overview() {
         </div>
       )}
       <PasskeyBanner />
-      {!data.poshTrained && (
-        <div className="alert info mb-16">
+      {/* Unfinished training, with how many are overdue */}
+      {data.training?.toDo > 0 && (
+        <div className={`alert ${data.training.overdue ? 'warn' : 'info'} mb-16`}>
           <CircleAlert size={18} />
           <span>
-            You have not completed POSH awareness training. <Link to="/posh">Take it now</Link> (10
-            minutes).
+            You have {data.training.toDo} training{data.training.toDo === 1 ? '' : 's'} to finish
+            {data.training.overdue ? ` (${data.training.overdue} overdue)` : ''}.{' '}
+            <Link to="/training">Open Training</Link>
           </span>
         </div>
       )}

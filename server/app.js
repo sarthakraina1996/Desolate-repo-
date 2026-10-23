@@ -20,6 +20,8 @@ import payrollRoutes from './routes/payroll.js';
 import hiringRoutes from './routes/hiring.js';
 import screenerRoutes from './routes/screener.js';
 import passkeyRoutes from './routes/passkeys.js';
+import trainingRoutes from './routes/training.js';
+import { ensureTraining } from './services/training.js';
 import { deviceMiddleware } from './services/devices.js';
 import resignationRoutes from './routes/resignations.js';
 import performanceRoutes from './routes/performance.js';
@@ -51,6 +53,9 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
         );
     }
   }
+
+  // Built-in POSH awareness course; older databases move their POSH completions into Training.
+  ensureTraining(db, companyToday(db));
 
   // Closes work clocks left running overnight and raises short-hours alerts
   // for earlier days. Runs at start and every 30 minutes.
@@ -143,6 +148,7 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
     reportRoutes,
     settingsRoutes,
     passkeyRoutes,
+    trainingRoutes,
   ]) {
     register(api, ctx);
   }

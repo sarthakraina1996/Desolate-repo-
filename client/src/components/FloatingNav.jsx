@@ -33,6 +33,7 @@ const KEYWORDS = {
   '/calendar': 'holidays festivals public',
   '/payroll': 'salary payslip pay ctc',
   '/performance': 'reviews goals appraisal ratings',
+  '/training': 'courses learning workshop certificate induction posh',
   '/attendance': 'clock check in timesheet hours location office',
   '/posh': 'complaint harassment committee',
   '/resignation': 'exit notice offboarding',

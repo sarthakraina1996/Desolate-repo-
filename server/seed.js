@@ -17,6 +17,7 @@ import {
 } from './services/workday.js';
 import { textPdf } from './lib/pdf.js';
 import { distanceM } from './services/geofence.js';
+import { ensureTraining, poshCourseId } from './services/training.js';
 
 // Every seeded login shares this password; DEMO_ACCOUNTS are offered on the sign-in page.
 export const DEMO_PASSWORD = 'Brainadz@2026';
@@ -2007,13 +2008,8 @@ export function seedDemo(db, { today, saveFile = null } = {}) {
             acked_at: isoAt(D.addDays(T, -int(0, 60))),
           });
     });
-    // Most staff have done POSH training.
-    for (const e of currentEmps)
-      if (chance(0.78))
-        db.insert('posh_training', {
-          employee_id: e.id,
-          completed_at: isoAt(D.addDays(T, -int(5, 300))),
-        });
+    // Training: POSH awareness for everyone (most have done it) and the company's courses.
+    seedTraining(db, { T, currentEmps, byName, chance, int, isoAt, saveFile });
     // Internal Committee that handles POSH complaints.
     setSetting(db, 'icc', {
       presidingOfficerId: heads.Marketing.id,
@@ -2612,6 +2608,225 @@ export function policyLibrary(T) {
 }
 
 // True once the database has any employees.
+// Demo training: the built-in POSH course plus six company courses at different stages, so
+// "My trainings" and the tracking view have something real to show.
+function seedTraining(db, { T, currentEmps, byName, chance, int, isoAt, saveFile }) {
+  ensureTraining(db, T);
+  // Sets how far someone got with a course
+  const progress = (tid, eid, { started = null, completed = null, cert = null }) =>
+    db.run(
+      'UPDATE training_assignments SET started_at = ?, completed_at = ?, certificate = ?, certificate_name = ? WHERE training_id = ? AND employee_id = ?',
+      started || completed,
+      completed,
+      cert,
+      cert ? 'First aid certificate.pdf' : null,
+      tid,
+      eid,
+    );
+  // Gives a course to people, assigned `daysAgo` days back and due on `due`
+  const give = (c, emps, daysAgo, due) => {
+    for (const e of emps)
+      db.run(
+        'INSERT INTO training_assignments (training_id, employee_id, assigned_at, due_date) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        c.id,
+        e.id,
+        isoAt(D.addDays(T, -daysAgo)),
+        due,
+      );
+  };
+  const course = (c) => ({
+    ...c,
+    id: db.insert('trainings', { created_at: isoAt(D.addDays(T, -int(45, 120))), ...c }),
+  });
+  const aarav = byName['Aarav Mehta'];
+
+  // POSH awareness: 78% done; some of the rest are past their due date
+  const posh = poshCourseId(db);
+  for (const e of currentEmps) {
+    if (chance(0.78)) progress(posh, e.id, { completed: isoAt(D.addDays(T, -int(5, 300))) });
+    else if (D.addDays(e.join_date, 30) < T && chance(0.6))
+      db.run(
+        'UPDATE training_assignments SET due_date = ? WHERE training_id = ? AND employee_id = ?',
+        D.addDays(T, -int(2, 25)),
+        posh,
+        e.id,
+      );
+  }
+
+  // Induction for everyone who joined in the last six months; the newest are still on it
+  const welcome = course({
+    title: 'Welcome to BrainADZ',
+    category: 'Induction',
+    format: 'Reading',
+    duration_min: 30,
+    mandatory: 1,
+    auto_new_joiners: 1,
+    due_days: 14,
+    description:
+      'Your first-week guide: our three verticals, how we work, the tools you will use and who to ask.',
+    content: [
+      '## Who we are',
+      'BrainADZ works across three verticals: **Live** (events and experiences), **Marketing** (brand, digital and content) and **Exhibits** (stalls and exhibitions). Corporate teams support all three.',
+      '## How we work',
+      '- Check in when you start your day and check out when you finish; your manager sees the same clock you do.',
+      '- Apply for leave in Leave & Policies before you take it, except when you are unwell.',
+      '- Client work stays in the shared drives; never on personal accounts.',
+      '## Who to ask',
+      '- Your manager, for anything about your work and goals.',
+      '- HR, through Raise request in My Space, for pay, leave and documents.',
+      '- The ICC, for anything you need to raise in confidence (see POSH).',
+    ].join('\n\n'),
+  });
+  for (const e of currentEmps.filter((x) => x.join_date >= D.addDays(T, -180))) {
+    give(welcome, [e], Math.max(0, D.diffDays(e.join_date, T)), D.addDays(e.join_date, 14));
+    if (e.join_date < D.addDays(T, -10) || chance(0.4))
+      progress(welcome.id, e.id, {
+        completed: isoAt(
+          D.addDays(e.join_date, int(1, 9)) < T ? D.addDays(e.join_date, int(1, 9)) : T,
+        ),
+      });
+  }
+
+  // Phishing awareness for everyone: assigned five weeks ago, due two weeks ago
+  const phishing = course({
+    title: 'Spot a phishing email',
+    category: 'Compliance',
+    format: 'Online course',
+    link: 'https://phishingquiz.withgoogle.com/',
+    duration_min: 15,
+    mandatory: 1,
+    due_days: 21,
+    policy_id: db.value("SELECT id FROM policies WHERE title = 'IT & Information Security Policy'"),
+    description:
+      "Google's eight-question phishing quiz, then our IT & Information Security Policy. Required for everyone with a company email.",
+  });
+  give(phishing, currentEmps, 35, D.addDays(T, -14));
+  for (const e of currentEmps) {
+    if (e === aarav) continue; // left overdue so the demo employee has something to do
+    if (chance(0.72)) progress(phishing.id, e.id, { completed: isoAt(D.addDays(T, -int(1, 34))) });
+    else if (chance(0.3))
+      progress(phishing.id, e.id, { started: isoAt(D.addDays(T, -int(1, 20))) });
+  }
+
+  // Optional Excel videos, taken up by the number-heavy teams
+  const excel = course({
+    title: 'Excel for reporting',
+    category: 'Skills',
+    format: 'Video',
+    link: 'https://support.microsoft.com/en-us/office/excel-video-training-9bc05390-e94c-46af-a5b3-d7c22f6990bb',
+    duration_min: 90,
+    open_enrol: 1,
+    description:
+      "Microsoft's free Excel video course: tables, formulas, charts and PivotTables. Open to anyone; handy for client reports and MIS.",
+  });
+  const numbers = currentEmps.filter((e) =>
+    ['Finance', 'Operations', 'Client Servicing'].includes(e.d),
+  );
+  give(excel, [...numbers, aarav].filter(Boolean), 25, D.addDays(T, 20));
+  for (const e of numbers)
+    if (chance(0.5)) progress(excel.id, e.id, { completed: isoAt(D.addDays(T, -int(1, 24))) });
+    else if (chance(0.5)) progress(excel.id, e.id, { started: isoAt(D.addDays(T, -int(1, 20))) });
+  if (aarav) progress(excel.id, aarav.id, { started: isoAt(D.addDays(T, -3)) });
+
+  // A classroom workshop next week for client-facing teams
+  const session = D.addDays(T, 5);
+  const pitching = course({
+    title: 'Client presentation skills',
+    category: 'Skills',
+    format: 'Classroom',
+    session_at: `${session}T15:00`,
+    venue: 'Bengaluru office, Training room 2 (and on Google Meet)',
+    duration_min: 120,
+    description:
+      'A hands-on workshop: structuring a pitch, telling a story with data, and handling questions. Bring a deck you are working on.',
+  });
+  give(
+    pitching,
+    currentEmps.filter((e) =>
+      ['Sales', 'Client Servicing', 'Business Development', 'Marketing'].includes(e.d),
+    ),
+    6,
+    session,
+  );
+
+  // Last fortnight's fire drill: most attended, the rest are overdue
+  const drillDay = D.addDays(T, -12);
+  const drill = course({
+    title: 'Fire safety and evacuation drill',
+    category: 'Safety',
+    format: 'Classroom',
+    session_at: `${drillDay}T11:00`,
+    venue: 'All offices: meet your floor warden at reception',
+    duration_min: 45,
+    mandatory: 1,
+    description:
+      'The yearly drill: alarms, exits, assembly points and fire wardens. The office admin marks attendance.',
+  });
+  give(drill, currentEmps, 30, drillDay);
+  for (const e of currentEmps)
+    if (e === aarav || chance(0.88))
+      progress(drill.id, e.id, { completed: isoAt(drillDay, '11:45') });
+
+  // Reading for new managers
+  const managers = currentEmps.filter(
+    (e) => e.grade === 'Manager' && currentEmps.some((x) => x.manager_id === e.id),
+  );
+  const leading = course({
+    title: 'Leading your first team',
+    category: 'Leadership',
+    format: 'Reading',
+    duration_min: 25,
+    due_days: 30,
+    description:
+      'For new managers: one-to-ones, giving feedback, delegating, and approving time off fairly.',
+    content: [
+      '## One-to-ones',
+      'Meet each person for 30 minutes every two weeks. Their agenda first, yours second.',
+      '## Feedback',
+      'Say what you saw, the effect it had, and what you would like next time. Praise in public, correct in private.',
+      '## Delegating',
+      'Hand over the outcome, not just the task, and agree when you will check in.',
+      '## Time off',
+      'Approve leave in order of request, check team cover in Leave & Policies, and never ask someone to justify sick leave.',
+    ].join('\n\n'),
+  });
+  give(leading, managers, 20, D.addDays(T, 10));
+  for (const e of managers)
+    if (chance(0.5)) progress(leading.id, e.id, { completed: isoAt(D.addDays(T, -int(1, 18))) });
+
+  // First aid for the event crews, with an uploaded certificate
+  const firstAid = course({
+    title: 'First aid certificate',
+    category: 'Safety',
+    format: 'Online course',
+    link: 'https://www.indianredcross.org/',
+    duration_min: 240,
+    needs_certificate: 1,
+    open_enrol: 1,
+    description:
+      'For event and exhibition crews: complete a recognised first aid course (Indian Red Cross or St John Ambulance) and upload your certificate.',
+  });
+  const crews = currentEmps.filter((e) => e.d === 'Events');
+  give(firstAid, crews, 40, D.addDays(T, 30));
+  for (const e of crews)
+    if (saveFile && chance(0.35)) {
+      const file = `firstaid-${e.id}.pdf`;
+      saveFile(
+        'certificates',
+        file,
+        textPdf(
+          'Certificate of completion',
+          [
+            `${fullName(e)} has completed Basic First Aid (8 hours).`,
+            `Issued ${D.addDays(T, -int(2, 30))}.`,
+          ],
+          { footer: 'Demo certificate - not a real document' },
+        ),
+      );
+      progress(firstAid.id, e.id, { completed: isoAt(D.addDays(T, -int(1, 30))), cert: file });
+    }
+}
+
 export function hasData(db) {
   return Boolean(db.value('SELECT COUNT(*) FROM employees'));
 }
