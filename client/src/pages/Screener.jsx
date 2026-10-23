@@ -913,10 +913,7 @@ function Detail({ c, all, onClose, onAction, onPick }) {
               <h4 className="mt-12 mb-8" style={{ fontSize: 14 }}>
                 Key Highlights
               </h4>
-              <div
-                className="grid"
-                style={{ gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}
-              >
+              <div className="grid pair" style={{ gap: 10, marginBottom: 8 }}>
                 {[
                   [Briefcase, `${c.experience ?? '—'} Years`, 'Total Experience'],
                   [GraduationCap, c.education || '—', 'Education'],
@@ -1057,27 +1054,29 @@ function Detail({ c, all, onClose, onAction, onPick }) {
       {tab === 'AI Analysis' &&
         (ai ? (
           <div>
-            <table className="table compact">
-              <thead>
-                <tr>
-                  <th>Skill</th>
-                  <th className="num">Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ai.skills.map((s) => (
-                  <tr key={s.skill}>
-                    <td>
-                      <div className="b6 small">{s.skill}</div>
-                      <div className="xs muted">{s.evidence}</div>
-                    </td>
-                    <td className="num b6" style={{ color: scoreColor(s.score) }}>
-                      {s.score}%
-                    </td>
+            <div className="table-wrap">
+              <table className="table compact">
+                <thead>
+                  <tr>
+                    <th>Skill</th>
+                    <th className="num">Score</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {ai.skills.map((s) => (
+                    <tr key={s.skill}>
+                      <td>
+                        <div className="b6 small">{s.skill}</div>
+                        <div className="xs muted">{s.evidence}</div>
+                      </td>
+                      <td className="num b6" style={{ color: scoreColor(s.score) }}>
+                        {s.score}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {ai.knockout?.length > 0 && (
               <>
                 <h4 className="mt-12 mb-8" style={{ fontSize: 14 }}>

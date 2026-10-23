@@ -155,6 +155,29 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
   api.use((_req, _res, next) => next(new HttpError(404, 'API route not found')));
   app.use('/api', api);
 
+  // Play Store app link: tells Android that the app with this package and signing key belongs to
+  // this site, so it opens full screen with no address bar. Off until both settings are filled in.
+  app.get('/.well-known/assetlinks.json', (_req, res) => {
+    const pkg = (process.env.ANDROID_PACKAGE || '').trim();
+    // One or more SHA-256 signing-key fingerprints, comma separated (AB:CD:...).
+    const prints = (process.env.ANDROID_CERT_SHA256 || '')
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(s));
+    if (!/^[a-zA-Z]\w*(\.[a-zA-Z]\w*)+$/.test(pkg) || !prints.length)
+      return res.status(404).json([]);
+    res.json([
+      {
+        // Open this site full screen, and offer saved passkeys and passwords to the app.
+        relation: [
+          'delegate_permission/common.handle_all_urls',
+          'delegate_permission/common.get_login_creds',
+        ],
+        target: { namespace: 'android_app', package_name: pkg, sha256_cert_fingerprints: prints },
+      },
+    ]);
+  });
+
   // Serves the built React client, falling back to index.html for client-side routes.
   if (serveClient) {
     const dist = path.join(here, '..', 'client', 'dist');

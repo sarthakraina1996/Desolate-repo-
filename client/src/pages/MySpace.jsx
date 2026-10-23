@@ -554,40 +554,42 @@ function Payslips() {
       {/* Payslips table */}
       <Card className="span-7" title="Payslips" flush>
         {data.items.length ? (
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ paddingLeft: 18 }}>Month</th>
-                <th className="num">Gross</th>
-                <th className="num">Deductions</th>
-                <th className="num">Net pay</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((p) => (
-                <tr key={p.id}>
-                  <td style={{ paddingLeft: 18 }} className="b6">
-                    {p.label}
-                  </td>
-                  <td className="num">{inr(p.gross)}</td>
-                  <td className="num">{inr(p.deductions)}</td>
-                  <td className="num b7">{inr(p.net)}</td>
-                  <td className="right" style={{ paddingRight: 18 }}>
-                    <a
-                      className="btn sm"
-                      href={`/print/payslip/${p.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <Download size={15} />
-                      View / PDF
-                    </a>
-                  </td>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{ paddingLeft: 18 }}>Month</th>
+                  <th className="num">Gross</th>
+                  <th className="num">Deductions</th>
+                  <th className="num">Net pay</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.items.map((p) => (
+                  <tr key={p.id}>
+                    <td style={{ paddingLeft: 18 }} className="b6">
+                      {p.label}
+                    </td>
+                    <td className="num">{inr(p.gross)}</td>
+                    <td className="num">{inr(p.deductions)}</td>
+                    <td className="num b7">{inr(p.net)}</td>
+                    <td className="right" style={{ paddingRight: 18 }}>
+                      <a
+                        className="btn sm"
+                        href={`/print/payslip/${p.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Download size={15} />
+                        View / PDF
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div style={{ padding: 18 }}>
             <Empty icon={Wallet} text="Payslips appear here once payroll is paid" />

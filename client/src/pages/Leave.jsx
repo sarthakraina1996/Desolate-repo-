@@ -87,7 +87,8 @@ export default function Leave() {
       </div>
       {/* Tabs and policy year picker */}
       <div className="row between wrap" style={{ alignItems: 'flex-end' }}>
-        <div className="grow">
+        {/* Wide enough that the year picker drops below the tabs on phones */}
+        <div className="grow" style={{ flexBasis: 320 }}>
           <Tabs
             value={tab}
             onChange={(t) => setSp(t === 'overview' ? {} : { tab: t })}

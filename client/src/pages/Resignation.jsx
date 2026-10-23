@@ -306,7 +306,7 @@ function Detail({ id, onChanged, labels, isHR }) {
           </span>
         }
       >
-        <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 0 }}>
+        <div className="grid pair stack-sm" style={{ gap: 18, marginBottom: 0 }}>
           {/* Workflow timeline with the reason and decision note */}
           <div>
             <b className="small">Resignation & Offboarding Workflow</b>
@@ -485,54 +485,56 @@ function Detail({ id, onChanged, labels, isHR }) {
       </Card>
 
       {/* Department clearances; HR approves each one during offboarding */}
-      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 0 }}>
+      <div className="grid pair stack-sm" style={{ gap: 16, marginBottom: 0 }}>
         <Card title="Clearance Matrix">
-          <table className="table compact">
-            <thead>
-              <tr>
-                <th>Department</th>
-                <th>Status</th>
-                <th>Approved By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {labels.clearanceLabels.map(([key, label]) => {
-                const c = r.clearance[key] || { status: 'Pending' };
-                return (
-                  <tr key={key}>
-                    <td className="small">{label}</td>
-                    <td>
-                      {c.status === 'Approved' ? (
-                        <CircleCheck size={18} className="green" />
-                      ) : isHR && r.status === 'In Progress' ? (
-                        <Button
-                          size="xs"
-                          onClick={() =>
-                            act(
-                              () =>
-                                api.put(`/resignations/${r.id}/clearance`, {
-                                  key,
-                                  status: 'Approved',
-                                }),
-                              `${label} cleared`,
-                            )
-                          }
-                        >
-                          Approve
-                        </Button>
-                      ) : (
-                        <Clock size={18} className="amber" />
-                      )}
-                    </td>
-                    <td className="small">
-                      {c.by || 'Pending'}
-                      <div className="xs muted">{c.at ? fmtDate(c.at) : ''}</div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table className="table compact">
+              <thead>
+                <tr>
+                  <th>Department</th>
+                  <th>Status</th>
+                  <th>Approved By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {labels.clearanceLabels.map(([key, label]) => {
+                  const c = r.clearance[key] || { status: 'Pending' };
+                  return (
+                    <tr key={key}>
+                      <td className="small">{label}</td>
+                      <td>
+                        {c.status === 'Approved' ? (
+                          <CircleCheck size={18} className="green" />
+                        ) : isHR && r.status === 'In Progress' ? (
+                          <Button
+                            size="xs"
+                            onClick={() =>
+                              act(
+                                () =>
+                                  api.put(`/resignations/${r.id}/clearance`, {
+                                    key,
+                                    status: 'Approved',
+                                  }),
+                                `${label} cleared`,
+                              )
+                            }
+                          >
+                            Approve
+                          </Button>
+                        ) : (
+                          <Clock size={18} className="amber" />
+                        )}
+                      </td>
+                      <td className="small">
+                        {c.by || 'Pending'}
+                        <div className="xs muted">{c.at ? fmtDate(c.at) : ''}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
         {/* Rehire flag, exit letters, settlement and exit interview summary */}
         <Card title="Rehire & Documentation">

@@ -24,8 +24,13 @@ test('the installable app: manifest, icons and service worker', () => {
   assert.equal(m.start_url, '/');
   assert.ok(m.icons.some((i) => i.sizes === '192x192'));
   assert.ok(m.icons.some((i) => i.sizes === '512x512' && i.purpose === 'maskable'));
-  for (const src of [...m.icons, ...m.shortcuts.flatMap((s) => s.icons)].map((i) => i.src))
+  for (const src of [...m.icons, ...m.shortcuts.flatMap((s) => s.icons), ...m.screenshots].map(
+    (i) => i.src,
+  ))
     assert.ok(fs.existsSync(path.join(pub, src)), `${src} is missing`);
+  // Chrome's full install sheet needs a phone screenshot; desktop needs a wide one.
+  assert.ok(m.screenshots.some((s) => s.form_factor === 'narrow'));
+  assert.ok(m.screenshots.some((s) => s.form_factor === 'wide'));
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.match(html, /rel="manifest"/);
   assert.match(html, /apple-touch-icon/);
@@ -35,6 +40,37 @@ test('the installable app: manifest, icons and service worker', () => {
     /pathname\.startsWith\('\/api\/'\)\) return/,
     'personal data under /api is never stored on the device',
   );
+});
+
+test('Play Store app link: off until the package and signing key are set', async () => {
+  const site = ctx.base.replace(/\/api$/, '');
+  const get = async () => {
+    const r = await fetch(`${site}/.well-known/assetlinks.json`);
+    return { status: r.status, type: r.headers.get('content-type'), body: await r.json() };
+  };
+  const saved = [process.env.ANDROID_PACKAGE, process.env.ANDROID_CERT_SHA256];
+  const print = Array.from({ length: 32 }, (_, i) => i.toString(16).padStart(2, '0')).join(':');
+  try {
+    delete process.env.ANDROID_PACKAGE;
+    delete process.env.ANDROID_CERT_SHA256;
+    assert.equal((await get()).status, 404);
+    // A malformed fingerprint is ignored rather than published.
+    process.env.ANDROID_PACKAGE = 'com.brainadz.hrms';
+    process.env.ANDROID_CERT_SHA256 = 'not-a-fingerprint';
+    assert.equal((await get()).status, 404);
+    process.env.ANDROID_CERT_SHA256 = `${print}, nope`;
+    const r = await get();
+    assert.equal(r.status, 200);
+    assert.match(r.type, /application\/json/);
+    assert.equal(r.body[0].target.package_name, 'com.brainadz.hrms');
+    assert.deepEqual(r.body[0].target.sha256_cert_fingerprints, [print.toUpperCase()]);
+    assert.ok(r.body[0].relation.includes('delegate_permission/common.handle_all_urls'));
+  } finally {
+    if (saved[0] === undefined) delete process.env.ANDROID_PACKAGE;
+    else process.env.ANDROID_PACKAGE = saved[0];
+    if (saved[1] === undefined) delete process.env.ANDROID_CERT_SHA256;
+    else process.env.ANDROID_CERT_SHA256 = saved[1];
+  }
 });
 
 test('office Wi-Fi addresses for the phone QR code: signed-in people on the server computer only', async () => {

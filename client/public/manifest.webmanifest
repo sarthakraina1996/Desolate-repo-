@@ -10,6 +10,12 @@
   "background_color": "#f3f6fb",
   "theme_color": "#f3f6fb",
   "categories": ["business", "productivity"],
+  "screenshots": [
+    { "src": "/screenshots/phone-home.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "Check in and see your day" },
+    { "src": "/screenshots/phone-leave.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "Leave balance and requests" },
+    { "src": "/screenshots/phone-training.jpg", "sizes": "780x1688", "type": "image/jpeg", "form_factor": "narrow", "label": "Your trainings" },
+    { "src": "/screenshots/desktop-dashboard.jpg", "sizes": "1280x800", "type": "image/jpeg", "form_factor": "wide", "label": "HR dashboard" }
+  ],
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

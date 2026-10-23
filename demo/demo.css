@@ -146,3 +146,20 @@ body:has(.sheet, .fnav-panel) .demo-badge {
   opacity: 0;
   pointer-events: none;
 }
+/* Phones: a short badge above the bottom tabs, so it covers neither the tabs nor the last
+   demo account on the sign-in page */
+@media (max-width: 760px) {
+  .demo-badge {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    padding: 5px 6px 5px 10px;
+  }
+  .demo-badge .demo-note {
+    display: none;
+  }
+  .demo-notice {
+    bottom: calc(124px + env(safe-area-inset-bottom, 0px));
+  }
+  .login {
+    padding-bottom: 140px;
+  }
+}

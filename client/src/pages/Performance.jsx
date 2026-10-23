@@ -557,7 +557,7 @@ function ReviewModal({ id, onClose, onChanged }) {
         </div>
       )}
       <div className="divider" />
-      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 0 }}>
+      <div className="grid pair stack-sm" style={{ gap: 18, marginBottom: 0 }}>
         {/* Self review: draft or submit to the manager, or read-only */}
         <div>
           <b>Self review</b>

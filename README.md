@@ -162,6 +162,20 @@ On a phone the HRMS has bottom tabs for the pages each person uses most (for emp
 
 The app opens even without a connection and says so; people's data is never stored on the phone, so anything that needs the server waits until it is back. Installing it as a full app needs the online `https://` address (for example on Render). On the office Wi-Fi (`http://`) it works in the phone's browser and can be added to the home screen as a shortcut.
 
+### Put it in the Google Play Store
+
+Optional: installing from the browser (above) already gives everyone the full app. A Play Store listing helps people who look for apps there, and lets you hand out an `.apk` file. It needs the online `https://` address and, to publish, a Google Play developer account (one-time fee).
+
+1. Open [pwabuilder.com](https://www.pwabuilder.com), enter your HRMS address and choose **Package for stores → Android**.
+2. Set the package ID (for example `com.brainadz.hrms`) and let it create a new signing key. Download the zip: it has the `.aab` file for the Play Store, an `.apk` to try on a phone, and the signing key. **Keep the signing key and its passwords safe**: every future update must be signed with it.
+3. In your host's settings (Render: **Environment**), set `ANDROID_PACKAGE` to the package ID and `ANDROID_CERT_SHA256` to the SHA-256 fingerprint from `signing-key-info.txt` in the zip. Open `https://your-address/.well-known/assetlinks.json`: it should show both. This is what lets the app open full screen, without Chrome's address bar.
+4. Install the `.apk` on an Android phone to try it, then upload the `.aab` in the [Play Console](https://play.google.com/console).
+5. Google signs Play Store copies with its own key. In the Play Console's **App integrity** page, copy the **App signing key certificate** SHA-256 fingerprint and add it to `ANDROID_CERT_SHA256` after a comma, so both the `.apk` and Play Store copies open full screen.
+
+The Play Store app is the same HRMS in a full-screen Chrome window, so fingerprint check-in, office-only sign-in and updates work exactly as in the browser. Developers can build the same package with Google's Bubblewrap tool (`npx @bubblewrap/cli init --manifest=https://your-address/manifest.webmanifest`).
+
+**iPhone:** use **Add to Home Screen** (above). It supports Face ID check-in and location. An App Store listing needs an Apple developer account and a Mac with Xcode to build, and fingerprint check-in inside an App Store wrapper needs extra Apple setup, so it isn't worth it for an internal app.
+
 ## Turn on office-only sign-in
 
 1. Go to **Settings → Office Locations** and edit each office. Stand inside the office and press **Use my current location**, or paste the coordinates from Google Maps (right-click the building). A radius of 200–500 m suits most buildings.

@@ -601,66 +601,68 @@ export default function Hiring() {
           }
         >
           {data.onboarding.length ? (
-            <table className="table compact">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Vertical</th>
-                  <th>Join Date</th>
-                  <th>Onboarding Tasks</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.onboarding.map((o) => (
-                  <tr key={o.id}>
-                    <td>
-                      <Person
-                        name={o.name}
-                        sub={o.designation}
-                        id={o.id}
-                        hasPhoto={o.has_photo}
-                        size={28}
-                      />
-                    </td>
-                    <td>
-                      <span className="row gap-6 small">
-                        <span className="dot" style={{ background: o.vertical_color }} />
-                        {o.vertical}
-                      </span>
-                    </td>
-                    <td className="small nowrap">{fmtDate(o.join_date)}</td>
-                    <td style={{ minWidth: 120 }}>
-                      <div className="row gap-6">
-                        <div className="grow">
-                          <Progress
-                            value={(o.done / o.total) * 100}
-                            color="var(--blue)"
-                            height={6}
-                          />
-                        </div>
-                        <span className="xs muted">
-                          {o.done}/{o.total}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <Badge
-                        tone={
-                          o.status === 'Completed'
-                            ? 'green'
-                            : o.status === 'In Progress'
-                              ? 'amber'
-                              : 'red'
-                        }
-                      >
-                        {o.status}
-                      </Badge>
-                    </td>
+            <div className="table-wrap">
+              <table className="table compact">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Vertical</th>
+                    <th>Join Date</th>
+                    <th>Onboarding Tasks</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.onboarding.map((o) => (
+                    <tr key={o.id}>
+                      <td>
+                        <Person
+                          name={o.name}
+                          sub={o.designation}
+                          id={o.id}
+                          hasPhoto={o.has_photo}
+                          size={28}
+                        />
+                      </td>
+                      <td>
+                        <span className="row gap-6 small">
+                          <span className="dot" style={{ background: o.vertical_color }} />
+                          {o.vertical}
+                        </span>
+                      </td>
+                      <td className="small nowrap">{fmtDate(o.join_date)}</td>
+                      <td style={{ minWidth: 120 }}>
+                        <div className="row gap-6">
+                          <div className="grow">
+                            <Progress
+                              value={(o.done / o.total) * 100}
+                              color="var(--blue)"
+                              height={6}
+                            />
+                          </div>
+                          <span className="xs muted">
+                            {o.done}/{o.total}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <Badge
+                          tone={
+                            o.status === 'Completed'
+                              ? 'green'
+                              : o.status === 'In Progress'
+                                ? 'amber'
+                                : 'red'
+                          }
+                        >
+                          {o.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <Empty text="No new hires being onboarded" />
           )}
@@ -853,10 +855,7 @@ export function CandidatePanel({ id, onChanged }) {
       {/* Overview tab: key facts, skills match, education and resume */}
       {tab === 'Overview' && (
         <div>
-          <div
-            className="grid"
-            style={{ gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}
-          >
+          <div className="grid pair" style={{ gap: 10, marginBottom: 12 }}>
             {[
               ['Experience', c.experience != null ? `${c.experience} years` : '—'],
               ['Current Company', c.current_company || '—'],

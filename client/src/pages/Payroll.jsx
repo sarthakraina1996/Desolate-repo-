@@ -393,24 +393,26 @@ export default function Payroll() {
         <Card className="span-4" title="Bank Transfer Batch Status">
           {r?.bankBatch ? (
             <div>
-              <table className="table compact">
-                <thead>
-                  <tr>
-                    <th>Batch ID</th>
-                    <th>Bank</th>
-                    <th>Employees</th>
-                    <th className="num">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="small">{r.bankBatch.id}</td>
-                    <td>{r.bankBatch.bank}</td>
-                    <td>{r.bankBatch.count}</td>
-                    <td className="num">{inr(r.bankBatch.amount)}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div className="table-wrap">
+                <table className="table compact">
+                  <thead>
+                    <tr>
+                      <th>Batch ID</th>
+                      <th>Bank</th>
+                      <th>Employees</th>
+                      <th className="num">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="small">{r.bankBatch.id}</td>
+                      <td>{r.bankBatch.bank}</td>
+                      <td>{r.bankBatch.count}</td>
+                      <td className="num">{inr(r.bankBatch.amount)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
               <div className="row between mt-12">
                 <span className="small muted">
                   Initiated {fmtDate(r.bankBatch.initiatedAt)} · pay date{' '}
@@ -611,34 +613,36 @@ function Structure({ line, lines, onSelect }) {
         ))}
       </select>
       {/* Earnings with their share of gross, then deductions */}
-      <table className="table compact">
-        <tbody>
-          {rows.map(([l, v]) => (
-            <tr key={l}>
-              <td>{l}</td>
-              <td className="num">{inr(v)}</td>
-              <td className="num small muted">{Math.round((v / gross) * 100)}%</td>
+      <div className="table-wrap">
+        <table className="table compact">
+          <tbody>
+            {rows.map(([l, v]) => (
+              <tr key={l}>
+                <td>{l}</td>
+                <td className="num">{inr(v)}</td>
+                <td className="num small muted">{Math.round((v / gross) * 100)}%</td>
+              </tr>
+            ))}
+            <tr style={{ background: 'var(--blue-soft)' }}>
+              <td className="b7 blue">Gross Earnings</td>
+              <td className="num b7 blue">{inr(p.totalEarnings)}</td>
+              <td className="num small blue">100%</td>
             </tr>
-          ))}
-          <tr style={{ background: 'var(--blue-soft)' }}>
-            <td className="b7 blue">Gross Earnings</td>
-            <td className="num b7 blue">{inr(p.totalEarnings)}</td>
-            <td className="num small blue">100%</td>
-          </tr>
-          {ded.map(([l, v]) => (
-            <tr key={l}>
-              <td>{l}</td>
-              <td className="num">{inr(v)}</td>
+            {ded.map(([l, v]) => (
+              <tr key={l}>
+                <td>{l}</td>
+                <td className="num">{inr(v)}</td>
+                <td />
+              </tr>
+            ))}
+            <tr style={{ background: 'var(--blue-soft)' }}>
+              <td className="b7 blue">Total Deductions</td>
+              <td className="num b7 blue">{inr(p.totalDeductions)}</td>
               <td />
             </tr>
-          ))}
-          <tr style={{ background: 'var(--blue-soft)' }}>
-            <td className="b7 blue">Total Deductions</td>
-            <td className="num b7 blue">{inr(p.totalDeductions)}</td>
-            <td />
-          </tr>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
       {/* Net pay */}
       <div
         className="row between mt-12"
@@ -799,32 +803,34 @@ export function PayslipView({ data: p, label, company = 'BrainADZ' }) {
         </dd>
       </dl>
       {/* Earnings and deductions side by side */}
-      <table className="table mt-16" style={{ border: '1px solid var(--border)' }}>
-        <thead>
-          <tr>
-            <th>Earnings</th>
-            <th className="num">Amount</th>
-            <th>Deductions</th>
-            <th className="num">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: n }, (_, i) => (
-            <tr key={i}>
-              <td>{earn[i]?.[0]}</td>
-              <td className="num">{earn[i] ? inr(earn[i][1]) : ''}</td>
-              <td>{ded[i]?.[0]}</td>
-              <td className="num">{ded[i] ? inr(ded[i][1]) : ''}</td>
+      <div className="table-wrap">
+        <table className="table mt-16" style={{ border: '1px solid var(--border)' }}>
+          <thead>
+            <tr>
+              <th>Earnings</th>
+              <th className="num">Amount</th>
+              <th>Deductions</th>
+              <th className="num">Amount</th>
             </tr>
-          ))}
-          <tr className="b7">
-            <td>Total Earnings</td>
-            <td className="num">{inr(p.totalEarnings)}</td>
-            <td>Total Deductions</td>
-            <td className="num">{inr(p.totalDeductions)}</td>
-          </tr>
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {Array.from({ length: n }, (_, i) => (
+              <tr key={i}>
+                <td>{earn[i]?.[0]}</td>
+                <td className="num">{earn[i] ? inr(earn[i][1]) : ''}</td>
+                <td>{ded[i]?.[0]}</td>
+                <td className="num">{ded[i] ? inr(ded[i][1]) : ''}</td>
+              </tr>
+            ))}
+            <tr className="b7">
+              <td>Total Earnings</td>
+              <td className="num">{inr(p.totalEarnings)}</td>
+              <td>Total Deductions</td>
+              <td className="num">{inr(p.totalDeductions)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       {/* Net pay */}
       <div
         className="row between mt-16"
@@ -1016,26 +1022,28 @@ function Statutory({ s, month }) {
     ['LWF', s.lwf, 'Labour Welfare Fund', s.lwf ? due('15') : '—'],
   ];
   return (
-    <table className="table compact">
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th className="num">Amount</th>
-          <th>Due by</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map(([l, v, hint, d]) => (
-          <tr key={l} title={hint}>
-            <td>{l}</td>
-            <td className="num">{inr(v)}</td>
-            <td>
-              <Badge tone={v ? 'green' : 'gray'}>{v ? d : 'Nil'}</Badge>
-            </td>
+    <div className="table-wrap">
+      <table className="table compact">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th className="num">Amount</th>
+            <th>Due by</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map(([l, v, hint, d]) => (
+            <tr key={l} title={hint}>
+              <td>{l}</td>
+              <td className="num">{inr(v)}</td>
+              <td>
+                <Badge tone={v ? 'green' : 'gray'}>{v ? d : 'Nil'}</Badge>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

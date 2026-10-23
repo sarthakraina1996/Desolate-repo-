@@ -1350,6 +1350,10 @@ body.fnav-dragging * {
   gap: 16px;
   margin-bottom: 16px;
 }
+/* Two equal columns that can shrink; .stack-sm puts them one above the other on phones */
+.grid.pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .span-2 {
   grid-column: span 2;
 }
@@ -3103,6 +3107,9 @@ table.table {
 .login .left .logo .h {
   color: #fff;
 }
+.login .left .logo .tg {
+  color: rgba(255, 255, 255, 0.72);
+}
 .login .left h2 {
   color: #fff;
   font-size: 40px;
@@ -3141,6 +3148,10 @@ table.table {
   border: 1px solid var(--border);
   background: #fff;
   cursor: pointer;
+}
+/* Long email addresses wrap instead of widening the sign-in column */
+.demo-acc .grow {
+  overflow-wrap: anywhere;
 }
 .demo-acc:hover {
   border-color: var(--blue);
@@ -3664,9 +3675,55 @@ table.table {
     gap: 8px;
     min-height: 64px;
   }
-  .search {
-    flex: 1;
+  /* Card headers wrap, and segmented pickers scroll sideways, rather than widen the page */
+  .card-head {
+    flex-wrap: wrap;
+  }
+  .card-head > * {
     min-width: 0;
+    max-width: 100%;
+  }
+  .card-head .row {
+    flex-wrap: wrap;
+  }
+  .grid.pair.stack-sm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .seg {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .seg button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  /* Search shrinks to an icon button and spans the bar while typing */
+  .topbar .spacer {
+    display: none;
+  }
+  .search {
+    flex: 0 0 42px;
+    min-width: 0;
+    margin-right: auto;
+  }
+  .search input {
+    padding-right: 0;
+  }
+  .search input::placeholder {
+    color: transparent;
+  }
+  .search:focus-within {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    z-index: 2;
+  }
+  .search:focus-within input {
+    padding-right: 14px;
+  }
+  .search:focus-within input::placeholder {
+    color: var(--faint);
   }
   .user-chip .who {
     display: none;
@@ -3697,7 +3754,7 @@ table.table {
     font-size: 24px;
   }
   .login {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .login .left {
     padding: 28px;

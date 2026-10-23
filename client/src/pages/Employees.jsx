@@ -1021,64 +1021,66 @@ function Documents({ data, reload }) {
       )}
       {/* Uploaded documents */}
       {data.documents.length ? (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Document</th>
-              <th>Category</th>
-              <th>Size</th>
-              <th>Uploaded</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {data.documents.map((d) => (
-              <tr key={d.id}>
-                <td className="row gap-6">
-                  <FileText size={16} className="blue" />
-                  {d.name}
-                </td>
-                <td>
-                  <Badge tone="gray">{d.category}</Badge>
-                </td>
-                <td className="small muted">
-                  {d.size ? `${Math.max(1, Math.round(d.size / 1024))} KB` : '—'}
-                </td>
-                <td className="small muted">{fmtDate(d.uploaded_at)}</td>
-                <td className="right nowrap">
-                  <Button
-                    size="xs"
-                    icon={Download}
-                    onClick={() => download(`/documents/${d.id}/download`)}
-                  >
-                    Download
-                  </Button>
-                  {isHR && (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Category</th>
+                <th>Size</th>
+                <th>Uploaded</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {data.documents.map((d) => (
+                <tr key={d.id}>
+                  <td className="row gap-6">
+                    <FileText size={16} className="blue" />
+                    {d.name}
+                  </td>
+                  <td>
+                    <Badge tone="gray">{d.category}</Badge>
+                  </td>
+                  <td className="small muted">
+                    {d.size ? `${Math.max(1, Math.round(d.size / 1024))} KB` : '—'}
+                  </td>
+                  <td className="small muted">{fmtDate(d.uploaded_at)}</td>
+                  <td className="right nowrap">
                     <Button
                       size="xs"
-                      variant="ghost"
-                      icon={Trash2}
-                      aria-label="Delete"
-                      onClick={async () => {
-                        if (
-                          await confirm({
-                            title: 'Delete document?',
-                            text: d.name,
-                            danger: true,
-                            confirmLabel: 'Delete',
-                          })
-                        ) {
-                          await run(() => api.del(`/documents/${d.id}`), 'Deleted');
-                          reload();
-                        }
-                      }}
-                    />
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      icon={Download}
+                      onClick={() => download(`/documents/${d.id}/download`)}
+                    >
+                      Download
+                    </Button>
+                    {isHR && (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        icon={Trash2}
+                        aria-label="Delete"
+                        onClick={async () => {
+                          if (
+                            await confirm({
+                              title: 'Delete document?',
+                              text: d.name,
+                              danger: true,
+                              confirmLabel: 'Delete',
+                            })
+                          ) {
+                            await run(() => api.del(`/documents/${d.id}`), 'Deleted');
+                            reload();
+                          }
+                        }}
+                      />
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <Empty icon={FileText} text="No documents uploaded yet" />
       )}
@@ -1216,38 +1218,40 @@ function LeaveTab({ data, onApply, canApply }) {
         Recent requests
       </h3>
       {data.leave.requests.length ? (
-        <table className="table compact">
-          <thead>
-            <tr>
-              <th>Type</th>
-              <th>Dates</th>
-              <th>Days</th>
-              <th>Status</th>
-              <th className="hide-sm">Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.leave.requests.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <span className="row gap-6">
-                    <span className="dot" style={{ background: r.color }} />
-                    {r.type}
-                  </span>
-                </td>
-                <td className="nowrap">
-                  {fmtDate(r.from_date)}
-                  {r.to_date !== r.from_date ? ` – ${fmtDate(r.to_date)}` : ''}
-                </td>
-                <td>{r.days}</td>
-                <td>
-                  <Badge>{r.status}</Badge>
-                </td>
-                <td className="hide-sm small muted">{r.reason}</td>
+        <div className="table-wrap">
+          <table className="table compact">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Dates</th>
+                <th>Days</th>
+                <th>Status</th>
+                <th className="hide-sm">Reason</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.leave.requests.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <span className="row gap-6">
+                      <span className="dot" style={{ background: r.color }} />
+                      {r.type}
+                    </span>
+                  </td>
+                  <td className="nowrap">
+                    {fmtDate(r.from_date)}
+                    {r.to_date !== r.from_date ? ` – ${fmtDate(r.to_date)}` : ''}
+                  </td>
+                  <td>{r.days}</td>
+                  <td>
+                    <Badge>{r.status}</Badge>
+                  </td>
+                  <td className="hide-sm small muted">{r.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <Empty text="No leave requests" />
       )}
@@ -1297,30 +1301,32 @@ function PerformanceTab({ data }) {
         Review history
       </h3>
       {p.reviews.length ? (
-        <table className="table compact">
-          <thead>
-            <tr>
-              <th>Cycle</th>
-              <th>Status</th>
-              <th>Self</th>
-              <th>Manager</th>
-              <th>Final</th>
-            </tr>
-          </thead>
-          <tbody>
-            {p.reviews.map((r) => (
-              <tr key={r.id}>
-                <td>{r.cycle_name}</td>
-                <td>
-                  <Badge>{r.status}</Badge>
-                </td>
-                <td>{r.self_rating ?? '—'}</td>
-                <td>{r.manager_rating ?? '—'}</td>
-                <td className="b7">{r.final_rating ?? '—'}</td>
+        <div className="table-wrap">
+          <table className="table compact">
+            <thead>
+              <tr>
+                <th>Cycle</th>
+                <th>Status</th>
+                <th>Self</th>
+                <th>Manager</th>
+                <th>Final</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {p.reviews.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.cycle_name}</td>
+                  <td>
+                    <Badge>{r.status}</Badge>
+                  </td>
+                  <td>{r.self_rating ?? '—'}</td>
+                  <td>{r.manager_rating ?? '—'}</td>
+                  <td className="b7">{r.final_rating ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <Empty text="No reviews yet" />
       )}
@@ -1349,24 +1355,26 @@ function Compensation({ data }) {
           <b>Salary structure</b>
           <span className="badge b-blue lg">CTC {lpa(c.ctc / 100000)}</span>
         </div>
-        <table className="table compact">
-          <thead>
-            <tr>
-              <th>Component</th>
-              <th className="num">Monthly</th>
-              <th className="num">Annual</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([l, v]) => (
-              <tr key={l} className={l === 'Gross Salary' || l === 'Cost to Company' ? 'b7' : ''}>
-                <td>{l}</td>
-                <td className="num">{inr(v)}</td>
-                <td className="num">{inr(v * 12)}</td>
+        <div className="table-wrap">
+          <table className="table compact">
+            <thead>
+              <tr>
+                <th>Component</th>
+                <th className="num">Monthly</th>
+                <th className="num">Annual</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map(([l, v]) => (
+                <tr key={l} className={l === 'Gross Salary' || l === 'Cost to Company' ? 'b7' : ''}>
+                  <td>{l}</td>
+                  <td className="num">{inr(v)}</td>
+                  <td className="num">{inr(v * 12)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div className="small muted mt-8">
           Estimated TDS: {inr(c.monthlyTds)}/month (new regime estimate; update after investment
           declaration).
@@ -1442,62 +1450,64 @@ function Assets({ data, reload }) {
       )}
       {/* Asset list with return / re-issue for HR */}
       {data.assets.length ? (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Asset</th>
-              <th>Serial</th>
-              <th>Issued</th>
-              <th>Status</th>
-              {isHR && <th />}
-            </tr>
-          </thead>
-          <tbody>
-            {data.assets.map((a) => (
-              <tr key={a.id}>
-                <td>
-                  <div className="b6">{a.name}</div>
-                  <div className="small muted">{a.type}</div>
-                </td>
-                <td className="small muted">{a.serial || '—'}</td>
-                <td className="small">{fmtDate(a.issued_on)}</td>
-                <td>
-                  <Badge>{a.status}</Badge>
-                  {a.returned_on && <div className="xs muted">{fmtDate(a.returned_on)}</div>}
-                </td>
-                {isHR && (
-                  <td className="right">
-                    {a.status === 'Issued' ? (
-                      <Button
-                        size="xs"
-                        onClick={async () => {
-                          await run(
-                            () => api.put(`/assets/${a.id}`, { status: 'Returned' }),
-                            'Marked returned',
-                          );
-                          reload();
-                        }}
-                      >
-                        Mark returned
-                      </Button>
-                    ) : (
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        onClick={async () => {
-                          await run(() => api.put(`/assets/${a.id}`, { status: 'Issued' }));
-                          reload();
-                        }}
-                      >
-                        Re-issue
-                      </Button>
-                    )}
-                  </td>
-                )}
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Serial</th>
+                <th>Issued</th>
+                <th>Status</th>
+                {isHR && <th />}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.assets.map((a) => (
+                <tr key={a.id}>
+                  <td>
+                    <div className="b6">{a.name}</div>
+                    <div className="small muted">{a.type}</div>
+                  </td>
+                  <td className="small muted">{a.serial || '—'}</td>
+                  <td className="small">{fmtDate(a.issued_on)}</td>
+                  <td>
+                    <Badge>{a.status}</Badge>
+                    {a.returned_on && <div className="xs muted">{fmtDate(a.returned_on)}</div>}
+                  </td>
+                  {isHR && (
+                    <td className="right">
+                      {a.status === 'Issued' ? (
+                        <Button
+                          size="xs"
+                          onClick={async () => {
+                            await run(
+                              () => api.put(`/assets/${a.id}`, { status: 'Returned' }),
+                              'Marked returned',
+                            );
+                            reload();
+                          }}
+                        >
+                          Mark returned
+                        </Button>
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={async () => {
+                            await run(() => api.put(`/assets/${a.id}`, { status: 'Issued' }));
+                            reload();
+                          }}
+                        >
+                          Re-issue
+                        </Button>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <Empty text="No assets issued" />
       )}
