@@ -132,14 +132,14 @@ export default function Team() {
       <ErrorNote error={error} retry={reload} />
       {loading && !data ? <Loading /> : data && (
         <>
-          <div className="kpis">
+          <section className="card stat-strip auto" aria-label="People and projects by vertical">
             {data.verticals.map((v) => (
-              <div key={v.id} className="card tight row" style={{ gap: 14 }}>
+              <div key={v.id} className="stat">
                 <span className="vbadge" style={{ background: alpha(v.color, 0.15), color: ink(v.color) }}>{v.code}</span>
-                <div><div className="b6">{v.name}</div><div className="small muted">{counts(v.id)} people · {v.projects} projects</div></div>
+                <span className="stat-txt"><span className="b6">{v.name}</span><span className="small muted">{counts(v.id)} people · {v.projects} projects</span></span>
               </div>
             ))}
-          </div>
+          </section>
           <div className="filters mb-12">
             <div className="input-icon"><Search size={16} /><input id="team-search" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people" aria-label="Search people" /></div>
             <label className="check"><input id="team-inactive" type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />Show people who have left</label>

@@ -15,14 +15,15 @@ function greeting() {
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
 
-function Kpi({ icon: Icon, tone, label, value, sub, onClick }) {
+// One figure in the summary box at the top of the page.
+function Stat({ icon: Icon, tone, label, value, sub, onClick }) {
   return (
-    <button type="button" className="card kpi kpi-btn" onClick={onClick}>
-      <div className={`ic tone-${tone}`}><Icon size={30} strokeWidth={2} /></div>
-      <div style={{ minWidth: 0, textAlign: 'left' }}>
-        <div className="lbl">{label}</div>
-        <div className="val">{value}{sub && <small>{sub}</small>}</div>
-      </div>
+    <button type="button" className="stat" onClick={onClick}>
+      <span className={`ic tone-${tone}`}><Icon size={22} strokeWidth={2} /></span>
+      <span className="stat-txt">
+        <span className="lbl">{label}</span>
+        <span className="val">{value}{sub && <small>{sub}</small>}</span>
+      </span>
     </button>
   );
 }
@@ -50,6 +51,12 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false);
   const { data, loading, error, reload, setData } = useLoad(() => api.get('/dashboard', { vertical }), [vertical]);
   if (!verticals.length) return <NoAccess />;
+
+  // A box only appears when it has something to show. "Needs attention" always shows,
+  // because "everything is on track" is worth knowing.
+  const showMine = data?.my_tasks.length > 0;
+  const showUpcoming = data?.upcoming.length > 0;
+  const showVerticals = data?.by_vertical.length > 1; // one vertical: the summary above already says it all
 
   const scope = vertical ? verticalById(vertical)?.name : verticals.length === 1 ? verticals[0].name : verticals.map((v) => v.short).join(', ');
   const complete = async (t) => {
@@ -81,15 +88,15 @@ export default function Dashboard() {
       <ErrorNote error={error} retry={reload} />
       {loading && !data ? <Loading /> : data && (
         <>
-          <div className="kpis">
-            <Kpi icon={FolderKanban} tone="blue" label="Active projects" value={data.kpis.active} sub={data.kpis.planning ? `+${data.kpis.planning} planning or on hold` : null} onClick={() => navigate('/projects')} />
-            <Kpi icon={CalendarClock} tone="purple" label="Tasks due this week" value={data.kpis.due_week} onClick={() => navigate('/my')} />
-            <Kpi icon={TriangleAlert} tone="red" label="Overdue tasks" value={data.kpis.overdue} sub={data.kpis.at_risk ? `${data.kpis.at_risk} projects need attention` : null} onClick={() => navigate('/projects')} />
-            <Kpi icon={Trophy} tone="green" label={`Delivered in ${today.slice(0, 4)}`} value={data.kpis.delivered} onClick={() => navigate('/archive')} />
-          </div>
+          <section className="card stat-strip" aria-label="Summary">
+            <Stat icon={FolderKanban} tone="blue" label="Active projects" value={data.kpis.active} sub={data.kpis.planning ? `+${data.kpis.planning} planning or on hold` : null} onClick={() => navigate('/projects')} />
+            <Stat icon={CalendarClock} tone="purple" label="Tasks due this week" value={data.kpis.due_week} onClick={() => navigate('/my')} />
+            <Stat icon={TriangleAlert} tone="red" label="Overdue tasks" value={data.kpis.overdue} sub={data.kpis.at_risk ? `${data.kpis.at_risk} projects need attention` : null} onClick={() => navigate('/projects')} />
+            <Stat icon={Trophy} tone="green" label={`Delivered in ${today.slice(0, 4)}`} value={data.kpis.delivered} onClick={() => navigate('/archive')} />
+          </section>
 
           <div className="grid">
-            <section className="card span-8">
+            <section className={`card ${showMine ? 'span-8' : 'span-12'}`}>
               <div className="card-head">
                 <h3>Needs attention <span className="sub">{data.attention.length ? `${data.attention.length} projects` : ''}</span></h3>
                 <Link to="/projects" className="link">View projects <ArrowUpRight size={14} /></Link>
@@ -123,14 +130,12 @@ export default function Dashboard() {
               )}
             </section>
 
-            <section className="card span-4">
-              <div className="card-head">
-                <h3>My tasks</h3>
-                <Link to="/my" className="link">My work <ArrowUpRight size={14} /></Link>
-              </div>
-              {data.my_tasks.length === 0 ? (
-                <Empty title="Nothing assigned to you">Tasks assigned to you across your projects show up here.</Empty>
-              ) : (
+            {showMine && (
+              <section className="card span-4">
+                <div className="card-head">
+                  <h3>My tasks</h3>
+                  <Link to="/my" className="link">My work <ArrowUpRight size={14} /></Link>
+                </div>
                 <div>
                   {data.my_tasks.map((t) => (
                     <div key={t.id} className="list-item">
@@ -144,12 +149,12 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              )}
-            </section>
+              </section>
+            )}
 
-            <section className="card span-7">
-              <div className="card-head"><h3>Coming up <span className="sub">next 60 days</span></h3><Link to="/calendar" className="link">Calendar <ArrowUpRight size={14} /></Link></div>
-              {data.upcoming.length === 0 ? <Empty title="No key dates in the next 60 days" /> : (
+            {showUpcoming && (
+              <section className={`card ${showVerticals ? 'span-7' : 'span-12'}`}>
+                <div className="card-head"><h3>Coming up <span className="sub">next 60 days</span></h3><Link to="/calendar" className="link">Calendar <ArrowUpRight size={14} /></Link></div>
                 <div>
                   {data.upcoming.map((u, i) => (
                     <Link key={i} to={`/projects/${u.project.id}`} className="list-item plain">
@@ -166,42 +171,46 @@ export default function Dashboard() {
                     </Link>
                   ))}
                 </div>
-              )}
-            </section>
+              </section>
+            )}
 
-            <section className="card span-5">
-              <div className="card-head"><h3>By vertical</h3></div>
-              <div className="col" style={{ gap: 16 }}>
-                {data.by_vertical.map((v) => {
-                  const max = Math.max(1, ...data.by_vertical.map((x) => x.open));
-                  return (
-                    <div key={v.id} className="vbar">
-                      <div className="row between">
-                        <span className="row gap-6"><span className="dot" style={{ background: v.color }} /><b>{v.short}</b></span>
-                        <span className="small muted">{v.open} open · {v.delivered} delivered</span>
+            {showVerticals && (
+              <section className={`card ${showUpcoming ? 'span-5' : 'span-12'}`}>
+                <div className="card-head"><h3>By vertical</h3></div>
+                <div className="col" style={{ gap: 16 }}>
+                  {data.by_vertical.map((v) => {
+                    const max = Math.max(1, ...data.by_vertical.map((x) => x.open));
+                    return (
+                      <div key={v.id} className="vbar">
+                        <div className="row between">
+                          <span className="row gap-6"><span className="dot" style={{ background: v.color }} /><b>{v.short}</b></span>
+                          <span className="small muted">{v.open} open · {v.delivered} delivered</span>
+                        </div>
+                        <div className="vbar-track" title={`${v.active} active, ${v.open - v.active} planning or on hold`}>
+                          <i style={{ width: `${(v.active / max) * 100}%`, background: v.color }} />
+                          <i style={{ width: `${((v.open - v.active) / max) * 100}%`, background: alpha(v.color, 0.35) }} />
+                        </div>
+                        <div className="row between xs muted">
+                          <span>{v.at_risk ? <span className="amber b6">{v.at_risk} need attention</span> : 'All on track'}</span>
+                          <span>{v.open_budget ? `${inrShort(v.open_budget)} in open work` : ''}</span>
+                        </div>
                       </div>
-                      <div className="vbar-track" title={`${v.active} active, ${v.open - v.active} planning or on hold`}>
-                        <i style={{ width: `${(v.active / max) * 100}%`, background: v.color }} />
-                        <i style={{ width: `${((v.open - v.active) / max) * 100}%`, background: alpha(v.color, 0.35) }} />
-                      </div>
-                      <div className="row between xs muted">
-                        <span>{v.at_risk ? <span className="amber b6">{v.at_risk} need attention</span> : 'All on track'}</span>
-                        <span>{v.open_budget ? `${inrShort(v.open_budget)} in open work` : ''}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div className="row gap-16 xs muted">
-                  <span className="row gap-6"><span className="sw" style={{ background: 'var(--text-2)' }} />Active</span>
-                  <span className="row gap-6"><span className="sw" style={{ background: alpha('#3b4866', 0.35) }} />Planning or on hold</span>
+                    );
+                  })}
+                  <div className="row gap-16 xs muted">
+                    <span className="row gap-6"><span className="sw" style={{ background: 'var(--text-2)' }} />Active</span>
+                    <span className="row gap-6"><span className="sw" style={{ background: alpha('#3b4866', 0.35) }} />Planning or on hold</span>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
 
-            <section className="card span-12">
-              <div className="card-head"><h3>Recent activity</h3></div>
-              <ActivityList items={data.activity} showProject />
-            </section>
+            {data.activity.length > 0 && (
+              <section className="card span-12">
+                <div className="card-head"><h3>Recent activity</h3></div>
+                <ActivityList items={data.activity} showProject />
+              </section>
+            )}
           </div>
         </>
       )}
