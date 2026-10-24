@@ -1,5 +1,6 @@
-// Module registry for navigation and status pages; mirrors docs/MODULE_STATUS.md.
-// status: live (built and tested) | partial (usable, scope incomplete) | planned (not started).
+// Module registry for navigation and status pages; mirrors docs/MODULE_STATUS.md, which holds
+// the test evidence and outstanding items for each module.
+// status: live (principal workflows usable) | partial (usable, scope incomplete) | planned (not started).
 export const MODULES = [
   { key: 'dashboard', label: 'Dashboard', path: '/', status: 'partial', phase: 1, summary: 'Executive and role dashboards from the metrics engine. GOP, EBITDA and net profit need the Finance module.' },
   { key: 'reservations', label: 'Reservations', path: '/reservations', status: 'live', phase: 1, summary: 'Bookings, multi-room and group reservations, quotes, modifications, cancellation and no-show with policy fees.' },

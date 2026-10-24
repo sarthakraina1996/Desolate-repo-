@@ -37,6 +37,8 @@ export const PERMISSIONS = [
   'guests.view',
   'guests.manage',
   'guests.pii',
+  // Data-subject requests (export, erasure): a privacy duty, not a front-desk one.
+  'guests.privacy',
   'housekeeping.view',
   'housekeeping.update',
   'housekeeping.assign',
@@ -110,6 +112,7 @@ const MATRIX = {
     'folio.adjust',
     'folio.transfer',
     'nightaudit.run',
+    'guests.privacy',
   ],
   revenue_manager: [
     'dashboard.view',
@@ -134,6 +137,7 @@ const MATRIX = {
     'folio.transfer',
     'nightaudit.run',
     'reports.view',
+    'guests.privacy',
   ],
   front_desk: FRONT_DESK,
   housekeeping_manager: [

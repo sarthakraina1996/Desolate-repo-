@@ -6,3 +6,4 @@ data/
 .DS_Store
 demo/dist
 hospitality/client/dist/
+hospitality/tests/e2e/output/

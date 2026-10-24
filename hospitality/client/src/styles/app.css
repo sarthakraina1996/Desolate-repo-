@@ -779,6 +779,7 @@ table.table {
 .table th.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap; /* a sign or currency symbol never splits from its amount */
 }
 .table tfoot td {
   font-weight: 700;

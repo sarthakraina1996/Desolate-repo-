@@ -70,12 +70,12 @@ export default function guestRoutes(r, { db }) {
     });
     res.json(presentGuest(db.get('SELECT * FROM guests WHERE id = ?', id), req.user));
   });
-  r.get('/guests/:id/export', perm('guests.pii'), (req, res) => {
+  r.get('/guests/:id/export', perm('guests.privacy'), (req, res) => {
     const data = exportGuest(db, req.user.orgId, int(req.params.id, { min: 1 }));
     res.setHeader('Content-Disposition', `attachment; filename="guest-${req.params.id}-export.json"`);
     res.json(data);
   });
-  r.post('/guests/:id/erase', perm('guests.pii', 'guests.manage'), (req, res) =>
+  r.post('/guests/:id/erase', perm('guests.privacy', 'guests.manage'), (req, res) =>
     res.json(anonymizeGuest(db, req.user, req.user.orgId, int(req.params.id, { min: 1 }), str(req.body?.reason, { required: true, max: 300, name: 'Reason' }))),
   );
 

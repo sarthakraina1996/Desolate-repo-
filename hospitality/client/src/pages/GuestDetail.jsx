@@ -41,8 +41,8 @@ function Guest({ d, reload }) {
         sub={`${d.stays.length} stay(s)${g.company_name ? ` · ${g.company_name}` : ''}`}
       >
         {can('guests.manage') && !g.anonymized_at && <Button icon={Pencil} onClick={() => setEdit(true)}>Edit</Button>}
-        {can('guests.pii') && <Button icon={Download} onClick={() => run(exportData, { success: 'Export downloaded' })}>Export data</Button>}
-        {can('guests.pii') && can('guests.manage') && !g.anonymized_at && <Button className="danger" icon={UserX} onClick={() => setErase(true)}>Erase</Button>}
+        {can('guests.privacy') && <Button icon={Download} onClick={() => run(exportData, { success: 'Export downloaded' })}>Export data</Button>}
+        {can('guests.privacy') && can('guests.manage') && !g.anonymized_at && <Button className="danger" icon={UserX} onClick={() => setErase(true)}>Erase</Button>}
       </PageHead>
       <div className="grid g-1-2">
         <div className="stack">
