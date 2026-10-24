@@ -57,7 +57,7 @@ const kb = (n) => (n ? `${Math.max(1, Math.round(n / 1024))} KB` : '—');
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt';
 
 // Uploads one document; HR picks the employee unless one is given, others upload their own.
-export function UploadModal({ employeeId, category, onClose, onDone }) {
+function UploadModal({ employeeId, category, onClose, onDone }) {
   const { meta, user, isHR, toast } = useApp();
   const [f, setF] = useState({
     employee: employeeId || (isHR ? '' : user.employeeId),

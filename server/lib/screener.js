@@ -84,7 +84,7 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const termRe = (t) => new RegExp(`(?<![a-z0-9])${esc(t.toLowerCase())}(?![a-z0-9])`, 'g');
 
 // Counts mentions of a skill (and its synonyms) and returns a snippet around the first one.
-export function countMentions(text, skill) {
+function countMentions(text, skill) {
   const lower = text.toLowerCase();
   const terms = SYNONYMS[skill.toLowerCase()] || [skill.toLowerCase()];
   let n = 0;

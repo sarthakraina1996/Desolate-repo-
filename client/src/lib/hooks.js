@@ -86,20 +86,6 @@ export function useClickOutside(onOutside) {
   return ref;
 }
 
-// Small form-state helper: const [f, set, setF] = useForm({...}); <input value={f.x} onChange={set('x')} />
-export function useForm(initial) {
-  const [values, setValues] = useState(initial);
-  const set = useCallback(
-    (k) => (e) => {
-      const v =
-        e && e.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e;
-      setValues((s) => ({ ...s, [k]: v }));
-    },
-    [],
-  );
-  return [values, set, setValues];
-}
-
 // Runs an async action with a busy flag and toast feedback.
 export function useAction(toast) {
   const [busy, setBusy] = useState(false);

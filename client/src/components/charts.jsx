@@ -1,6 +1,6 @@
 // Hand-rolled SVG charts. Palettes were checked with the dataviz validator:
 // CAT (categorical order), vertical brand colours, and status colours.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Tracks an element's rendered width so SVG text stays at real pixel size.
 function useWidth(fallback = 560) {
@@ -627,62 +627,6 @@ export function PipelineDots({ items }) {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Month grid with marked days (`marks` by date) and previous/next month buttons.
-export function MiniCalendar({ month, marks = {}, today, onPrev, onNext, title }) {
-  const days = useMemo(() => {
-    const [y, m] = month.split('-').map(Number);
-    const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
-    const count = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    return { first, count, y, m };
-  }, [month]);
-  // Blank cells up to the month's first weekday, then one cell per day.
-  const cells = [];
-  for (let i = 0; i < days.first; i++) cells.push(<div key={`b${i}`} />);
-  for (let d = 1; d <= days.count; d++) {
-    const date = `${month}-${String(d).padStart(2, '0')}`;
-    const mark = marks[date];
-    cells.push(
-      <div
-        key={date}
-        className={`d ${mark?.kind || ''} ${date === today ? 'today' : ''}`}
-        title={mark?.title}
-      >
-        {d}
-      </div>,
-    );
-  }
-  return (
-    <div>
-      {/* Month switcher */}
-      <div className="row between mb-8">
-        <button type="button" className="btn ghost sm" onClick={onPrev} aria-label="Previous month">
-          ‹
-        </button>
-        <b>
-          {title ||
-            new Date(Date.UTC(days.y, days.m - 1, 1)).toLocaleString('en-US', {
-              month: 'long',
-              year: 'numeric',
-              timeZone: 'UTC',
-            })}
-        </b>
-        <button type="button" className="btn ghost sm" onClick={onNext} aria-label="Next month">
-          ›
-        </button>
-      </div>
-      {/* Weekday headings and days */}
-      <div className="calendar">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-          <div key={d} className="dh">
-            {d}
-          </div>
-        ))}
-        {cells}
       </div>
     </div>
   );

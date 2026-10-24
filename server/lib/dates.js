@@ -5,7 +5,7 @@
 export const pad = (n) => String(n).padStart(2, '0');
 
 // Date object -> 'YYYY-MM-DD' (UTC fields).
-export function ymd(d) {
+function ymd(d) {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
@@ -50,16 +50,6 @@ export function todayIn(timeZone = 'Asia/Kolkata') {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date());
-}
-
-// Current 24-hour 'HH:MM' in a time zone.
-export function nowTimeIn(timeZone = 'Asia/Kolkata') {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
   }).format(new Date());
 }
 

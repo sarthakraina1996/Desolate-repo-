@@ -40,7 +40,7 @@ export function Card({ title, sub, action, children, className = '', flush, tigh
 }
 
 // Percentage change with an up/down arrow; `invert` marks a rise as bad (e.g. attrition).
-export function Delta({ value, label = 'vs. last month', invert = false }) {
+function Delta({ value, label = 'vs. last month', invert = false }) {
   if (value == null) return null;
   // No change: a neutral 0% without an arrow.
   if (value === 0)

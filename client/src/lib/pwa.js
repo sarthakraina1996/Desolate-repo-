@@ -30,10 +30,10 @@ export function registerApp() {
 }
 
 // True when running as the installed app (navigator.standalone covers iOS Safari).
-export const isStandalone = () =>
+const isStandalone = () =>
   window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
 // iPhone or iPad; iPadOS reports itself as a Mac, so touch support gives it away.
-export const isIOS = () =>
+const isIOS = () =>
   /iphone|ipad|ipod/i.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 export const isPhone = () => window.matchMedia?.('(max-width: 760px)').matches ?? false;

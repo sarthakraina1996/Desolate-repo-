@@ -11,7 +11,7 @@ export const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 export const ACCOUNT_RE = /^\d{9,18}$/;
 
 // Employees on the rolls for any part of the month, excluding drafts.
-export function eligibleEmployees(db, month) {
+function eligibleEmployees(db, month) {
   return db.all(
     `
     SELECT e.*, d.name AS department, v.name AS vertical, v.short AS vertical_short, l.name AS location

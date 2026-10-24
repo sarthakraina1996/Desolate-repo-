@@ -11,7 +11,7 @@ const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
 const change = (now, prev) => (prev ? Math.round(((now - prev) / prev) * 100) : now ? 100 : 0);
 
 // WHERE fragment limiting employees to the viewer's scope and, optionally, one vertical.
-export function employeeFilter(scope, vertical, alias = 'e') {
+function employeeFilter(scope, vertical, alias = 'e') {
   const parts = [];
   const params = [];
   if (scope !== null) {

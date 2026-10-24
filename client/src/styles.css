@@ -1335,12 +1335,6 @@ body.fnav-dragging * {
   font-size: 15px;
   margin-top: 4px;
 }
-.head-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: center;
-}
 
 /* ---------- grid ---------- */
 /* 12-column page grid; .span-N sets how many columns a card takes */
@@ -1366,9 +1360,6 @@ body.fnav-dragging * {
   padding: 6px 10px;
   white-space: normal;
   line-height: 1.2;
-}
-.span-2 {
-  grid-column: span 2;
 }
 .span-3 {
   grid-column: span 3;
@@ -2566,18 +2557,6 @@ table.table {
   gap: 10px;
   padding: 40px;
   color: var(--muted);
-}
-/* Shimmering placeholder block while data loads */
-.skeleton {
-  background: linear-gradient(90deg, #eef2f7 0%, #f6f8fb 50%, #eef2f7 100%);
-  background-size: 200% 100%;
-  animation: sk 1.2s infinite;
-  border-radius: 8px;
-}
-@keyframes sk {
-  to {
-    background-position: -200% 0;
-  }
 }
 /* Thin progress bar; the inner <i> width is the value */
 .progress {
@@ -3783,7 +3762,6 @@ table.table {
   .work-clock .lbl {
     display: none;
   }
-  .span-2,
   .span-3,
   .span-4 {
     grid-column: span 12;

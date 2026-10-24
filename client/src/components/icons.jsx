@@ -434,7 +434,7 @@ export const IconChevronDown = (p) => (
 );
 
 // Live vertical: a screen with a red play button.
-export const IconLive = (p) => (
+const IconLive = (p) => (
   <Svg {...p}>
     <rect x="2.4" y="3.8" width="19.2" height="13.4" rx="2" {...line} />
     <path d="M12 17.2v3.4M8 20.6h8" {...line} />
@@ -443,7 +443,7 @@ export const IconLive = (p) => (
 );
 
 // Marketing vertical: a megaphone.
-export const IconMarketing = (p) => (
+const IconMarketing = (p) => (
   <Svg {...p}>
     <path
       d="M4.2 9.2h3.4l8-4.6v14.8l-8-4.6H4.2a1.6 1.6 0 0 1-1.6-1.6v-2.4a1.6 1.6 0 0 1 1.6-1.6Z"
@@ -455,7 +455,7 @@ export const IconMarketing = (p) => (
 );
 
 // Exhibits vertical: four tiles, one in green.
-export const IconExhibits = (p) => (
+const IconExhibits = (p) => (
   <Svg {...p}>
     <rect x="3" y="3" width="7.6" height="7.6" rx="2" {...line} />
     <rect x="13.4" y="3" width="7.6" height="7.6" rx="2" stroke={C.exhibits} strokeWidth="1.9" />
@@ -487,7 +487,7 @@ export function Monogram({ className = '', height = 36, color = '#2B3C6D', label
 
 // Each portal section's look, taken from its sidebar icon: color for accents, soft for tiles,
 // ink for small text (at least 4.5:1 on white).
-export const MODULES = [
+const MODULES = [
   {
     path: '/my',
     label: 'My Space',

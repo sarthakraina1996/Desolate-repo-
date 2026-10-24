@@ -29,7 +29,7 @@ export function countLeaveDays(req, ctx) {
 }
 
 // Rounds to the nearest half day.
-export const roundHalf = (x) => Math.round(x * 2) / 2;
+const roundHalf = (x) => Math.round(x * 2) / 2;
 
 // Leave credited for `year` as of `asOf`. Annual types are credited up front,
 // pro-rated from the joining month; monthly types accrue at the start of each

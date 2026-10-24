@@ -776,7 +776,7 @@ function CandidateList({ title, query, onPick, onClose }) {
 
 // ---------------------------------------------------------------- candidate panel
 // Candidate profile with overview, interviews, scorecard, offer and activity tabs plus actions.
-export function CandidatePanel({ id, onChanged }) {
+function CandidatePanel({ id, onChanged }) {
   const { toast, isHR } = useApp();
   const nav = useNavigate();
   const { data, error, reload } = useApi(`/candidates/${id}`);

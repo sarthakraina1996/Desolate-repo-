@@ -75,7 +75,7 @@ export function shapeCandidate(c) {
 }
 
 // HR sees every job; managers see jobs they are hiring for.
-export function canAccessJob(user, job) {
+function canAccessJob(user, job) {
   return isHR(user) || (job && user.employeeId && job.hiring_manager_id === user.employeeId);
 }
 // Throws 403 unless the user is HR, the job's hiring manager or one of the interviewers.

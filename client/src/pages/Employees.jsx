@@ -360,7 +360,7 @@ function MiniStat({ icon: Icon, tone, label, value, dot }) {
 
 // ---------------------------------------------------------------- profile
 // Employee profile card: header, HR actions menu and the profile tabs.
-export function EmployeeProfile({ id, onChanged, isSelf }) {
+function EmployeeProfile({ id, onChanged, isSelf }) {
   const { isHR, toast, refreshMeta } = useApp();
   // Attendance month being viewed; null means the server's default (this month)
   const [month, setMonth] = useState(null);

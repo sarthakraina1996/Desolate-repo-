@@ -71,7 +71,7 @@ const setPip = (w) => {
 };
 
 // Opens the always-on-top clock window; false when the browser can't.
-export async function openFloatingClock() {
+async function openFloatingClock() {
   if (!canPopOut()) return false;
   if (pipWindow) return true;
   const win = await window.documentPictureInPicture.requestWindow({ width: 280, height: 168 });
@@ -157,7 +157,7 @@ function FloatingClock({ s }) {
 
 // ---------- reason for the gap ----------
 // Asks why the clock was paused before resuming; `welcome` is the version shown after sign-in.
-export function GapReasonModal({ welcome, onClose }) {
+function GapReasonModal({ welcome, onClose }) {
   const toast = useClockToast();
   const s = useWorkday();
   const now = useNow(30000);

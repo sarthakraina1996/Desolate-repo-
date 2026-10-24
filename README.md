@@ -216,15 +216,26 @@ Things to know:
 ## For developers
 
 ```bash
-npm run dev     # API on :3000 with auto-restart + Vite dev server on :5173
-npm test        # unit and API tests (node:test)
+npm run dev            # API on :3000 with auto-restart + Vite dev server on :5173
+npm test               # unit and API tests (node:test)
+npm run format         # format the code (settings under "prettier" in package.json)
+npm run build:demo     # rebuild the claude.ai demo
 ```
 
+What's where:
+
 - `server/`: Express 5 API on Node's built-in SQLite (`node:sqlite`, no native build step)
-  - `lib/`: pure rules (payroll, leave, dates, resume scoring), covered by tests
-  - `services/`: calendar/attendance derivation, payroll runs, leave balances, Claude client, resume text extraction
-  - `routes/`: one file per module
-  - `seed.js`: demo company
-- `client/`: React 19 + Vite. `src/pages/` has one file per module; `src/components/` holds the UI kit and hand-drawn SVG charts.
+  - `index.js` starts the server; `app.js` wires up every route; `db.js` holds the tables; `core.js` has the shared helpers (errors, validation, access control, notifications, audit log); `auth.js` handles passwords and sign-in sessions; `seed.js` builds the demo company; `reset.js` backs `npm run reset-demo`
+  - `routes/`: one file per module (employees, leave, payroll, training and so on)
+  - `services/`: work that reads and writes the database: attendance and the work clock, payroll runs, leave balances, trainings, passkeys and devices, the office geofence, Claude and resume text extraction
+  - `lib/`: pure rules with no database (payroll, leave, dates, resume scoring, PDFs, network addresses), covered by tests
+- `client/`: React 19 + Vite
+  - `src/pages/`: one file per module
+  - `src/components/`: the layout, phone navigation, UI kit, icons and hand-drawn SVG charts
+  - `src/lib/`: API calls, formatting, hooks, and the installable-app and passkey helpers
+  - `public/`: app icons, phone screenshots, the app manifest and the service worker
 - `tests/`: payroll, leave and screener rules; end-to-end API flows across roles; the Claude request format against a local stand-in for the API.
 - `demo/`: the interactive claude.ai demo. `npm run build:demo` bundles the client and the server into one page (`demo/dist/brainadz-hrms.html`) that runs entirely in the browser: SQLite via sql.js, uploads kept in memory, and Claude screening through the viewer's own claude.ai access. Node built-ins and the Anthropic SDK are swapped for the browser versions in `demo/shims/`; the route modules, payroll and leave rules, and seed are the same code. Data resets when the page reloads. It also writes `demo/dist/BrainADZ-HRMS.html`: the same app as one file anyone can double-click to run in their browser, with nothing to install (downloads work normally there; Claude screening uses the built-in rules).
+- `scripts/dev.js`: runs the API and the Vite dev server together for `npm run dev`.
+- `start-office.bat` / `start-office.command`: double-click starters for running on an office computer (Windows / Mac).
+- `Dockerfile` and `render.yaml`: the online server. The image holds only what's needed to run; tests, the demo and developer tools are left out.

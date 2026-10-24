@@ -31,7 +31,7 @@ export const dayLabel = (date) =>
 
 // Days recorded before sessions existed (or by the demo seed) only have the
 // attendance row; give them one session so every day reads the same way.
-export function ensureSessions(db, employeeId, date) {
+function ensureSessions(db, employeeId, date) {
   if (
     db.value(
       'SELECT COUNT(*) FROM work_sessions WHERE employee_id = ? AND date = ?',
@@ -57,7 +57,7 @@ export function ensureSessions(db, employeeId, date) {
 }
 
 // The day's sessions, or one built from the attendance row; read-only, unlike ensureSessions.
-export function sessionsFor(db, employeeId, date) {
+function sessionsFor(db, employeeId, date) {
   const rows = db.all(
     'SELECT * FROM work_sessions WHERE employee_id = ? AND date = ? ORDER BY start_at',
     employeeId,
@@ -92,7 +92,7 @@ export function workedMinutes(sessions, now = null) {
 }
 
 // Time away between sessions, with the reason given when the employee came back.
-export function gapsOf(sessions) {
+function gapsOf(sessions) {
   const out = [];
   for (let i = 1; i < sessions.length; i++) {
     const prev = sessions[i - 1];
@@ -223,7 +223,7 @@ export function endSession(
 
 // Sessions left running past midnight are closed at the end of that workday
 // (or where they started, if that was later).
-export function closeStaleSessions(db, today, settings = getSettings(db)) {
+function closeStaleSessions(db, today, settings = getSettings(db)) {
   const stale = db.all('SELECT * FROM work_sessions WHERE end_at IS NULL AND date < ?', today);
   for (const s of stale) {
     const end = D.zonedIso(s.date, settings.workdayEnd || '18:30', settings.timezone);

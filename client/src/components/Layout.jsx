@@ -66,7 +66,7 @@ export function Logo({ size = '' }) {
 // Brand colour of each vertical's name in its logo.
 const VSTYLE = { Live: '#E5243B', Marketing: '#E5243B', Exhibits: '#3C9A3A' };
 // A vertical's logo in the top bar; clicking shows only that vertical, clicking again shows all.
-export function VerticalLogo({ v, active, onClick }) {
+function VerticalLogo({ v, active, onClick }) {
   const Icon = VERTICAL_ICONS[v.short];
   return (
     <button
@@ -435,7 +435,7 @@ function Notifications() {
 }
 
 // Change-password dialog; when `forced` (temporary password) it can't be dismissed.
-export function ChangePassword({ onClose, forced }) {
+function ChangePassword({ onClose, forced }) {
   const { toast, loadMe } = useApp();
   const [f, setF] = useState({ current: '', next: '', confirm: '' });
   const [busy, setBusy] = useState(false);

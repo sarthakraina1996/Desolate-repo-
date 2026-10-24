@@ -12,7 +12,7 @@ const PURPOSE = {
 };
 
 // How long each kind stays up; warnings and errors stay longer so they can be read.
-export const TOAST_MS = { success: 4200, info: 4200, warning: 6000, error: 6500 };
+const TOAST_MS = { success: 4200, info: 4200, warning: 6000, error: 6500 };
 
 // One message, tinted with its module's colours; closes on its own or via the X.
 function Toast({ t, onDone }) {

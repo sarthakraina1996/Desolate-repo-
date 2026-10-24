@@ -1,7 +1,7 @@
 // Working-calendar context (weekly offs + company holidays) and the derived
 // day-by-day attendance status that leave, attendance and payroll all share.
 import { getSettings } from '../core.js';
-import { dow, eachDay, monthStart, monthEnd } from '../lib/dates.js';
+import { dow, eachDay } from '../lib/dates.js';
 import { isWorkingDay } from '../lib/leave.js';
 
 // Weekly offs and company holidays, the context isWorkingDay needs.
@@ -12,22 +12,9 @@ export function calendarCtx(db, settings = getSettings(db)) {
   return { weeklyOffs: settings.weeklyOffs, holidays };
 }
 
-// Holidays in a range by date; a company holiday wins over another type on the same day.
-export function holidayNames(db, from, to) {
-  const map = new Map();
-  for (const h of db.all(
-    'SELECT date, name, type FROM holidays WHERE date BETWEEN ? AND ?',
-    from,
-    to,
-  )) {
-    if (h.type === 'Company' || !map.has(h.date)) map.set(h.date, h);
-  }
-  return map;
-}
-
 // Approved leave for the given employees over [from, to], expanded per day.
 // Returns Map(employeeId -> Map(date -> { code, name, paid, kind, half }))
-export function approvedLeaveDays(db, employeeIds, from, to, ctx) {
+function approvedLeaveDays(db, employeeIds, from, to, ctx) {
   const out = new Map();
   if (!employeeIds.length) return out;
   const rows = db.all(
@@ -127,9 +114,4 @@ export function dayStatuses(db, employees, from, to, today, settings = getSettin
     result.set(e.id, m);
   }
   return result;
-}
-
-// [first day, last day] of a 'YYYY-MM' month.
-export function monthRange(month) {
-  return [monthStart(month), monthEnd(month)];
 }

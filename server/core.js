@@ -70,7 +70,7 @@ export function strList(v, { max = 30, itemMax = 80 } = {}) {
     .slice(0, max)
     .map((s) => s.slice(0, itemMax));
 }
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Validated, lower-cased email or null.
 export function email(v, { required = false } = {}) {
   const s = str(v, { max: 200, required, name: 'Email' });
@@ -199,10 +199,6 @@ export function requireHR(req) {
 export function requireAdmin(req) {
   if (!isAdmin(req.user)) fail(403, 'Only an administrator can do this');
 }
-export function requireEmployee(req) {
-  if (!req.user.employeeId) fail(400, 'Your login is not linked to an employee record');
-  return req.user.employeeId;
-}
 
 // SQL fragment limiting a query on employees alias `alias` to the scope.
 export function scopeSql(scope, alias = 'e') {
@@ -251,7 +247,7 @@ export function audit(db, user, action, entity, entityId, detail) {
 export const fullName = (e) => (e ? `${e.first_name}${e.last_name ? ` ${e.last_name}` : ''}` : '');
 
 // CSV for report downloads.
-export function toCsv(rows, columns) {
+function toCsv(rows, columns) {
   const esc = (v) => {
     if (v == null) return '';
     let s = String(v);

@@ -5,7 +5,7 @@ import * as D from '../lib/dates.js';
 
 export const CATEGORIES = ['Induction', 'Compliance', 'Skills', 'Safety', 'Leadership', 'Product'];
 export const FORMATS = ['Online course', 'Video', 'Classroom', 'Reading'];
-export const POSH_KEY = 'posh';
+const POSH_KEY = 'posh';
 
 // The POSH awareness course that every employee takes on joining (moved here from the POSH page).
 const POSH_COURSE = {

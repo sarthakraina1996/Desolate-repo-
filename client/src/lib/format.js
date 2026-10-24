@@ -41,10 +41,8 @@ export function fmtDate(s, opts = { month: 'short', day: 'numeric', year: 'numer
 }
 export const fmtShort = (s) => fmtDate(s, { month: 'short', day: 'numeric' });
 export const fmtDay = (s) => fmtDate(s, { weekday: 'short', day: 'numeric', month: 'short' });
-// Month keys ('YYYY-MM') as 'January 2026' / 'Jan 2026'.
+// Month key ('YYYY-MM') as 'January 2026'.
 export const fmtMonth = (m) => (m ? fmtDate(`${m}-01`, { month: 'long', year: 'numeric' }) : '—');
-export const fmtMonthShort = (m) =>
-  m ? fmtDate(`${m}-01`, { month: 'short', year: 'numeric' }) : '—';
 
 // 12-hour time from a timestamp or a plain 'HH:MM' shift time.
 export function fmtTime(s) {
@@ -129,8 +127,3 @@ export const addMonths = (m, n) => {
 };
 // Day of week, 0 = Sunday.
 export const dowOf = (s) => new Date(`${s}T00:00:00Z`).getUTCDay();
-// Number of days in a month.
-export const daysIn = (m) => {
-  const [y, mo] = m.split('-').map(Number);
-  return new Date(Date.UTC(y, mo, 0)).getUTCDate();
-};

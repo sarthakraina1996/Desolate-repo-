@@ -57,7 +57,7 @@ const BASE_SELECT = `
   LEFT JOIN employees m ON m.id = e.manager_id`;
 
 // IDs of employees on approved leave (not WFH) on date T.
-export function onLeaveToday(db, T) {
+function onLeaveToday(db, T) {
   return new Set(
     db
       .all(

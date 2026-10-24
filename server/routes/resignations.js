@@ -22,7 +22,7 @@ import { json } from '../db.js';
 import * as D from '../lib/dates.js';
 import { headcountOn } from './dashboard.js';
 
-export const REASONS = [
+const REASONS = [
   'Better Opportunities',
   'Career Growth',
   'Compensation',
@@ -34,7 +34,7 @@ export const REASONS = [
   'Other',
 ];
 // Offboarding checklist as [key, label]; every item must be done before completing.
-export const CHECKLIST = [
+const CHECKLIST = [
   ['manager_approval', 'Manager Approval'],
   ['hr_review', 'HR Review'],
   ['knowledge_transfer', 'Knowledge Transfer'],

@@ -1,7 +1,17 @@
+# Kept out of the server image: build output and data from this computer, plus files that
+# aren't needed to run the app (tests, the claude.ai demo, developer and office scripts).
 node_modules
 client/dist
 data
 .git
 *.log
 .env
-demo/dist
+demo
+tests
+scripts
+*.md
+start-office.*
+render.yaml
+Dockerfile
+.dockerignore
+.gitattributes
