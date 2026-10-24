@@ -26,7 +26,15 @@ export function Card({ title, sub, action, children, className = '', flush, id }
 }
 
 // Change vs the comparison period. `good` = whether up is good for this metric.
+// Change vs the comparison period. "partial": the comparison period holds records for fewer
+// days, so totals are not comparable (ratios still are).
 export function Delta({ change, isPercent = false, good = true, suffix }) {
+  if (change?.partial)
+    return (
+      <span className="delta flat" title="The comparison period has fewer days of records, so totals are not comparable">
+        partial
+      </span>
+    );
   if (!change || change.abs == null) return <span className="delta flat">—</span>;
   const v = isPercent ? change.abs : change.pct;
   if (v == null) return <span className="delta flat">new</span>;

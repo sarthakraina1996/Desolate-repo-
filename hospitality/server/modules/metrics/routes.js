@@ -25,9 +25,18 @@ export function periodFor(db, user, pids, q) {
 }
 
 const PERCENT = new Set(['occupancy_pct', 'occupancy_incl_comp_pct', 'cancellation_rate_pct', 'no_show_rate_pct', 'direct_pct']);
-export function deltas(cur, prior) {
+const RATIOS = new Set([...PERCENT, 'adr', 'revpar', 'trevpar', 'alos']);
+
+// Changes against the comparison period. Totals (revenue, rooms sold, …) are only compared when
+// both periods hold records for the same number of days; otherwise they are marked partial.
+// Ratios stay comparable because their denominators shrink with the records.
+export function deltas(cur, prior, curCoverage, priorCoverage) {
+  const comparable = curCoverage?.days != null && curCoverage.days === priorCoverage?.days;
   const out = {};
-  for (const [k, v] of Object.entries(cur)) if (typeof v === 'number' || v === null) out[k] = change(v, prior?.[k] ?? null, { isPercent: PERCENT.has(k) });
+  for (const [k, v] of Object.entries(cur)) {
+    if (typeof v !== 'number' && v !== null) continue;
+    out[k] = comparable || RATIOS.has(k) ? change(v, prior?.[k] ?? null, { isPercent: PERCENT.has(k) }) : { abs: null, pct: null, partial: Boolean(priorCoverage) };
+  }
   return out;
 }
 
@@ -49,9 +58,12 @@ export default function metricRoutes(r, { db }) {
           prior: prior && {
             coverage: prior.coverage,
             consolidated: prior.consolidated.metrics,
-            properties: prior.properties.map((p) => ({ id: p.id, coverage: p.coverage, metrics: p.metrics, reporting: p.reporting })),
+            properties: prior.properties.map((p) => {
+              const cur = current.properties.find((x) => x.id === p.id);
+              return { id: p.id, coverage: p.coverage, metrics: p.metrics, reporting: p.reporting, deltas: deltas(cur.reporting, p.reporting, cur.coverage, p.coverage) };
+            }),
           },
-          deltas: prior ? deltas(current.consolidated.metrics, prior.consolidated.metrics) : null,
+          deltas: prior ? deltas(current.consolidated.metrics, prior.consolidated.metrics, current.coverage, prior.coverage) : null,
         },
         req.user,
       ),

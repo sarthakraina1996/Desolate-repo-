@@ -66,7 +66,7 @@ use. No channel manager, payment gateway or e-invoicing connection is live.
 ## Tests
 
 ```bash
-npm run hos:test       # 54 unit, service, workflow, security and metrics tests
+npm run hos:test       # 55 unit, service, workflow, security and metrics tests
 npm run hos:e2e        # 6 Playwright journeys (desktop 1440×900, tablet 1024×768)
 npm run test:all       # HRMS + hospitality node:test suites
 ```

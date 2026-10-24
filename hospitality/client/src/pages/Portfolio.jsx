@@ -20,7 +20,7 @@ export default function Portfolio() {
       <Async q={q}>
         {(d) => {
           const ccy = d.reportingCurrency;
-          const rows = d.properties.map((p) => ({ ...p, prior: d.prior?.properties.find((x) => x.id === p.id)?.reporting }));
+          const rows = d.properties.map((p) => ({ ...p, deltas: d.prior?.properties.find((x) => x.id === p.id)?.deltas }));
           const by = (k) => rows.map((p) => ({ label: p.name, value: p.reporting[k] }));
           return (
             <div className="stack">
@@ -69,7 +69,7 @@ export default function Portfolio() {
                           <td className="num">{moneyCompact(p.reporting.room_revenue, ccy)}</td>
                           <td className="num">{moneyCompact(p.reporting.fnb_revenue, ccy)}</td>
                           <td className="num">{moneyCompact(p.reporting.total_operating_revenue, ccy)}</td>
-                          <td className="num">{p.prior ? <Delta change={{ abs: 1, pct: p.prior.total_operating_revenue ? ((p.reporting.total_operating_revenue - p.prior.total_operating_revenue) / p.prior.total_operating_revenue) * 100 : null }} /> : '—'}</td>
+                          <td className="num">{p.deltas ? <Delta change={p.deltas.total_operating_revenue} /> : '—'}</td>
                           <td className="num">{number(p.reporting.alos, 2)}</td>
                           <td className="num">{pct(p.reporting.direct_pct)}</td>
                         </tr>

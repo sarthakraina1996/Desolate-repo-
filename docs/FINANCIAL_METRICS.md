@@ -28,8 +28,11 @@ so the UI can show "how is this calculated?" for any number.
    history). Earlier days contribute nothing — not even available rooms — so a financial year
    that began before go-live is not diluted by empty months. A period with no covered day returns
    `null` for every metric (shown "—"); a partly covered period returns `coverage: { from, to,
-   partial: true }` so reports can say where records begin. Trend charts leave such months as
-   gaps.
+   partial: true, days }` so reports can say where records begin. Trend charts leave such
+   months as gaps. Changes against a comparison period compare **totals** (revenue, rooms sold,
+   rooms available) only when both periods hold records for the same number of days; otherwise
+   the change is returned as `partial` and shown as such. Ratios (occupancy, ADR, RevPAR, …)
+   remain comparable because their denominators shrink with the records.
 
 ## 2. Base measures
 

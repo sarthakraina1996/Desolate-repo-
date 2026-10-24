@@ -99,7 +99,7 @@ export default function dashboardRoutes(r, { db }) {
       provisional: current.provisional,
       kpis: current.consolidated.metrics,
       prior: prior?.consolidated.metrics ?? null,
-      deltas: prior ? deltas(current.consolidated.metrics, prior.consolidated.metrics) : null,
+      deltas: prior ? deltas(current.consolidated.metrics, prior.consolidated.metrics, current.coverage, prior.coverage) : null,
       properties: current.properties.map((p) => ({
         id: p.id,
         code: p.code,
@@ -109,6 +109,7 @@ export default function dashboardRoutes(r, { db }) {
         metrics: p.metrics,
         reporting: p.reporting,
         prior: prior?.properties.find((x) => x.id === p.id)?.reporting ?? null,
+        deltas: prior ? deltas(p.reporting, prior.properties.find((x) => x.id === p.id).reporting, p.coverage, prior.properties.find((x) => x.id === p.id).coverage) : null,
       })),
       coverage: current.coverage,
       priorCoverage: prior?.coverage ?? null,

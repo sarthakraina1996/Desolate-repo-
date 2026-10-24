@@ -244,8 +244,6 @@ function PropertyTable({ d, money$ }) {
           <tbody>
             {d.properties.map((p) => {
               const m = p.reporting;
-              const prior = p.prior;
-              const chg = prior?.total_operating_revenue ? ((m.total_operating_revenue - prior.total_operating_revenue) / prior.total_operating_revenue) * 100 : null;
               return (
                 <tr
                   key={p.id}
@@ -270,7 +268,7 @@ function PropertyTable({ d, money$ }) {
                   <td className="num">
                     {number(m.sold_room_nights)} / {number(m.available_room_nights)}
                   </td>
-                  {money$ && <td className="num">{chg == null ? '—' : <Delta change={{ abs: 1, pct: chg }} />}</td>}
+                  {money$ && <td className="num">{p.deltas ? <Delta change={p.deltas.total_operating_revenue} /> : '—'}</td>}
                 </tr>
               );
             })}

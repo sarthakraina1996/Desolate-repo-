@@ -13,6 +13,7 @@ import { createBooking } from '../server/modules/reservations/service.js';
 import { checkIn } from '../server/modules/frontdesk/service.js';
 import { runNightAudit } from '../server/modules/nightaudit/service.js';
 import { convert } from '../server/core/money.js';
+import { deltas } from '../server/modules/metrics/routes.js';
 
 const ID = { idType: 'passport', idNumber: 'X1234567', idCountry: 'PT', nowTime: '15:00' };
 const kpis = (f, from, to, pids = [f.prop.id]) => computeKpis(f.db, { orgId: f.orgId, propertyIds: pids, from, to });
@@ -37,9 +38,30 @@ test('days before records begin are "no data", never zero', () => {
     assert.equal(none.coverage, null);
     for (const k of ['available_room_nights', 'occupancy_pct', 'room_revenue', 'total_operating_revenue', 'adr']) assert.equal(none.consolidated.metrics[k], null, k);
     const part = kpis(f, '2026-10-20', BD);
-    assert.deepEqual(part.coverage, { from: BD, to: BD, partial: true });
+    assert.deepEqual(part.coverage, { from: BD, to: BD, partial: true, days: 1 });
     assert.equal(part.consolidated.metrics.available_room_nights, 8, 'only the covered day counts');
     assert.equal(part.properties[0].recordsFrom, BD);
+  } finally {
+    f.close();
+  }
+});
+
+test('totals are only compared when both periods hold records for the same number of days', () => {
+  const f = fixture();
+  try {
+    f.db.run("UPDATE properties SET records_from = '2026-10-20' WHERE id = ?", f.prop.id);
+    const cur = kpis(f, '2026-10-21', BD); // 4 covered days
+    const prev = kpis(f, '2026-10-17', '2026-10-20'); // 1 covered day
+    assert.deepEqual([cur.coverage.days, prev.coverage.days], [4, 1]);
+    const d = deltas(cur.consolidated.metrics, prev.consolidated.metrics, cur.coverage, prev.coverage);
+    assert.deepEqual(d.total_operating_revenue, { abs: null, pct: null, partial: true });
+    assert.deepEqual(d.available_room_nights, { abs: null, pct: null, partial: true });
+    assert.equal(d.occupancy_pct.partial, undefined, 'ratios stay comparable');
+    const same = kpis(f, '2026-10-20', '2026-10-21');
+    const d2 = deltas(same.consolidated.metrics, kpis(f, '2026-10-22', '2026-10-23').consolidated.metrics, same.coverage, { days: 2 });
+    assert.equal(d2.available_room_nights.abs, 0, 'equal coverage compares totals');
+    const none = deltas(cur.consolidated.metrics, kpis(f, '2026-10-01', '2026-10-05').consolidated.metrics, cur.coverage, null);
+    assert.deepEqual(none.total_operating_revenue, { abs: null, pct: null, partial: false }, 'no records: "—", not "new"');
   } finally {
     f.close();
   }

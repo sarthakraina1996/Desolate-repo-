@@ -2,7 +2,7 @@
 // nights, folio postings), converts to the reporting currency per month, then applies the
 // formulas. Ratios are always computed from summed numerators and denominators (weighted).
 import { fail } from '../../core/errors.js';
-import { addDays, monthEnd } from '../../core/dates.js';
+import { addDays, diffDays, monthEnd } from '../../core/dates.js';
 import { convert } from '../../core/money.js';
 import { inList } from '../../core/access.js';
 import { DIRECT_SOURCES } from '../reservations/service.js';
@@ -304,6 +304,7 @@ export function computeKpis(db, { orgId, propertyIds, from, to }) {
         from: covered.reduce((a, p) => (p.coverage.from < a ? p.coverage.from : a), to),
         to,
         partial: covered.length < perProperty.length || covered.some((p) => p.coverage.partial),
+        days: covered.reduce((a, p) => a + p.coverage.days, 0), // property-days with records
       }
     : null;
   return {
@@ -323,7 +324,7 @@ export function computeKpis(db, { orgId, propertyIds, from, to }) {
 function coverageOf(p, from, to) {
   const start = p.records_from > from ? p.records_from : from;
   if (start > to) return null;
-  return { from: start, to, partial: start > from };
+  return { from: start, to, partial: start > from, days: diffDays(start, to) + 1 };
 }
 
 const noData = (m) => Object.fromEntries(Object.keys(m).map((k) => [k, null]));

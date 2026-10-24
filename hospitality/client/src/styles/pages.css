@@ -60,6 +60,9 @@
   box-shadow: var(--shadow);
   width: 100%;
   max-width: 460px;
+}
+/* Beside the sign-in hero the card sits right; alone (e.g. while preparing) it is centred. */
+.login-grid .login-card {
   justify-self: end;
 }
 .demo-accounts {
@@ -97,7 +100,8 @@
   .login-grid {
     grid-template-columns: 1fr;
   }
-  .login-card {
+  .login-card,
+  .login-grid .login-card {
     justify-self: stretch;
     max-width: none;
   }

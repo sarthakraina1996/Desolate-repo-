@@ -5,7 +5,7 @@ principal workflows pass as automated tests; the evidence column names them. The
 registry (`hospitality/server/modules/system/modules.js`, shown on the Planned pages and in
 Settings → System status) mirrors this file.
 
-Test suites (`npm run hos:test`, 54 tests; `npm run hos:e2e`, 6 browser journeys):
+Test suites (`npm run hos:test`, 55 tests; `npm run hos:e2e`, 6 browser journeys):
 `unit` (U), `reservations` (RS), `workflows` (WF), `finance` (FN), `metrics` (MT), `security`
 (SC), `smoke` (SM), `e2e` (E2E).
 
@@ -26,7 +26,7 @@ Test suites (`npm run hos:test`, 54 tests; `npm run hos:e2e`, 6 browser journeys
 | Folios, routing, transfers, invoices, tax | Implemented but requiring improvements | WF-A; FN "postings, invoices and journals cannot be edited…", "a wrong charge is corrected by a reversal…", "allowances…", "same posting key never posts twice", "invoice numbers are sequential…"; U tax slabs and rounding | **Credit notes are not implemented**: an invoiced line cannot be corrected yet (the reversal is correctly refused). GST e-invoicing (IRN/QR) and Portuguese certified invoicing (ATCUD/SAF-T) not started |
 | General ledger, trial balance, city ledger, reconciliation R1–R6 | Completed and tested (revenue side) | FN "the general ledger only accepts balanced entries…"; WF trial balance + R1–R6 after every workflow; SM "the seeded demo reconciles" | Expense side (AP, OPEX), period close and manual journals UI are Phase 4 |
 | Night audit | Completed and tested | FN "night audit is atomic…", "night audit will not close a day…"; WF-A | Scheduled auto-run; audit reports pack |
-| Metrics engine (occupancy, ADR, RevPAR, TRevPAR, ALOS, cancellation, no-show, direct share, commission) | Completed and tested | U formulas and weighted consolidation; MT (6 tests: records coverage, provisional day, FX + weighting, OOO policy, drill-down sums, portfolio = sum of properties) | GOP, GOPPAR, CPOR, EBITDA need expenses (Phase 4); MPI/RGI/ARI need licensed comp-set data |
+| Metrics engine (occupancy, ADR, RevPAR, TRevPAR, ALOS, cancellation, no-show, direct share, commission) | Completed and tested | U formulas and weighted consolidation; MT (7 tests: records coverage, partial comparisons, provisional day, FX + weighting, OOO policy, drill-down sums, portfolio = sum of properties) | GOP, GOPPAR, CPOR, EBITDA need expenses (Phase 4); MPI/RGI/ARI need licensed comp-set data |
 | Executive and role dashboards | Partially implemented | MT "drill-downs sum to the metric, and the dashboard agrees with the KPI API"; E2E dashboard journey; SC redaction | Profit metrics shown as unavailable with the reason; budget vs actual (Phase 4) |
 | Reports (manager's report, monthly revenue, registers, CSV) | Partially implemented | SM; MT KPI agreement | Scheduled and custom reports; PDF packs |
 | Multi-property / portfolio | Partially implemented | MT FX consolidation and weighting; SC scoping | Central approvals, shared procurement, intercompany (Phase 6) |

@@ -5,7 +5,7 @@ Node's built-in runner (`node:test`) like the existing HRMS suite, plus Playwrig
 journeys. Evidence per module is recorded in [`MODULE_STATUS.md`](MODULE_STATUS.md).
 
 ```bash
-npm run hos:test        # unit, service, API, workflow, security and metrics tests (54)
+npm run hos:test        # unit, service, API, workflow, security and metrics tests (55)
 npm run hos:e2e         # Playwright journeys against the built client, desktop + tablet (6)
 npm test                # existing HRMS suite (unchanged)
 npm run test:all        # both node:test suites
