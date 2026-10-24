@@ -2,63 +2,65 @@
 
 No feature is marked complete until its principal workflows and tests pass. Tests run with
 Node's built-in runner (`node:test`) like the existing HRMS suite, plus Playwright for browser
-journeys.
+journeys. Evidence per module is recorded in [`MODULE_STATUS.md`](MODULE_STATUS.md).
 
 ```bash
-npm run hos:test        # unit + API + workflow tests (in-memory or temp-file SQLite)
-npm run hos:e2e         # Playwright journeys against a built client (desktop + tablet)
+npm run hos:test        # unit, service, API, workflow, security and metrics tests (54)
+npm run hos:e2e         # Playwright journeys against the built client, desktop + tablet (6)
 npm test                # existing HRMS suite (unchanged)
+npm run test:all        # both node:test suites
 ```
 
 ## 1. Test layers
 
 | Layer | What | Where |
 |---|---|---|
-| Unit | Pure functions: money rounding, tax slabs and components, period resolution, metric formulas, TOTP, state machine transitions, permission matrix | `tests/unit-*.test.js` |
-| Service / integration | Domain services against a real SQLite database: reservations, inventory, room locks, folios, journals, night audit, housekeeping, triggers | `tests/*.test.js` using `makeDb()` |
-| API contract | HTTP status codes, response shapes, validation messages, CSRF, auth, idempotency replay | `tests/api-*.test.js` using `boot()` |
-| Workflow | WF-A, WF-C (WP1) end to end through HTTP; others added with their modules | `tests/workflows.test.js` |
-| Security | RBAC per role, property scoping, tenant isolation, financial visibility, MFA | `tests/security.test.js` |
-| Reconciliation | R1–R6 on the seeded demo | `tests/seed.test.js` |
-| Browser e2e | Sign-in, dashboard, calendar drag-and-drop, reservation → check-in → folio → checkout, housekeeping inspection; desktop 1440×900 and tablet 1024×768 | `tests/e2e/*.mjs` |
-| Performance | Calendar and dashboard timing budgets on the full demo | `tests/perf.test.js` (Phase 7 load tests) |
+| Unit | Money rounding and allocation, currency conversion, tax slabs/components/inclusive extraction, period presets and comparisons, KPI formulas incl. weighted consolidation, TOTP (RFC 6238 vector), dates, reservation state machine | `tests/unit.test.js` |
+| Service / integration | Domain services against a real SQLite file built by `tests/fixture.js` (one property, 8 rooms, BAR + package plan, one user per role): inventory and room locks, pricing, restrictions, concurrency, folios, journals, night audit | `tests/reservations.test.js`, `tests/finance.test.js`, `tests/metrics.test.js` |
+| Workflow | WF-A (book → check-in → charges → night audits → payments → check-out → invoice), WF-C (inspection gate), settlement rules, company billing; every workflow ends with a balanced trial balance and R1–R6 | `tests/workflows.test.js` |
+| API contract & security | Over HTTP on a copy of the seeded demo (`boot()` in `tests/helpers.js`): authentication, cookie flags, CSRF, RBAC per role, property scoping, tenant isolation, financial redaction, PII masking, privacy permissions, MFA, Idempotency-Key replay | `tests/security.test.js`, `tests/smoke.test.js` |
+| Reconciliation | R1–R6 on the seeded demo | `tests/smoke.test.js` |
+| Browser e2e | Sign-in → dashboard first with top navigation (no left sidebar, no horizontal scroll); navigation between modules incl. the overflow menu; front-desk check-in from the arrivals board — at 1440×900 and 1024×768 | `tests/e2e/run.mjs` |
+| Performance | Calendar and dashboard timing budgets on the full demo | Planned (Phase 7) |
 
 ## 2. Mandatory negative cases
 
-| Case | Expected | WP |
+| Case | Expected | Covered by |
 |---|---|---|
-| Duplicate reservations (same idempotency key) | Second request replays the first response, one reservation exists | WP1 |
-| Overlapping room assignment | 409 with the conflicting reservation; database unique constraint holds | WP1 |
-| Concurrent room booking attempts | Exactly one succeeds | WP1 |
-| Room-type sold out | 409 unless override permission and allowance | WP1 |
-| Stale reservation version | 409 | WP1 |
-| Negative inventory | Rejected unless policy allows | WP2/3 |
-| Double-posted payments | Same idempotency key → one posting | WP1 |
-| Update/delete of a posting | Database trigger aborts | WP1 |
-| Unbalanced journal | Rejected before insert | WP1 |
-| Incorrect tax calculation | Slab boundaries (₹1,000 / ₹7,500), component split, rounding per line | WP1 |
-| Wrong currency conversion | Consolidation uses the dated rate; mixed currencies never summed raw | WP1 |
+| Duplicate reservations (same idempotency key) | One booking; the retry returns it | RS "booking creation is idempotent…" |
+| Overlapping room assignment | 409 naming the conflicting reservation; the database primary key holds even for raw inserts | RS "a room can never hold two stays…" |
+| Concurrent room booking attempts | Exactly one succeeds | RS "two connections assigning the same room…" |
+| Room-type sold out | 409 unless override **and** an overbooking allowance | RS "a room type cannot be sold beyond its rooms…" |
+| Stale reservation version | 409 `stale_version` | RS "stale edits are rejected…" |
+| Negative inventory (stock) | Rejected unless policy allows | Phase 3 (inventory module) |
+| Double-posted payments | Same key → one posting and one journal | FN "the same posting key…", SC "a retried payment…" |
+| Update/delete of a posting, invoice, journal, audit row | Database trigger aborts | FN "postings, invoices and journals cannot be edited or deleted" |
+| Unbalanced journal / unknown account / negative lines | Rejected before insert | FN "the general ledger only accepts balanced entries…" |
+| Incorrect tax calculation | Slab boundaries (₹1,000 / ₹7,500), dated rate change (12 % → 5 % on 22 Sep 2025), per-component rounding, inclusive VAT extraction | U "tax: …" |
+| Wrong currency conversion | Each night converted at its month's rate before summing; mixed currencies never summed raw | MT "portfolio figures convert each night…" |
 | Failed OTA update | Recorded as failed, retried, visible in sync history | Phase 5 |
-| Missing permissions | 403 for each protected action per role | WP1 |
-| Cross-tenant access | 404 | WP1 |
-| Interrupted night audit | Rollback; re-run posts each night exactly once | WP1 |
-| Sync retries | Outbox attempts and errors recorded; replay idempotent | WP1 (local), Phase 7 (transport) |
-| Checkout with open balance | Rejected unless transferred to an authorised city-ledger account | WP1 |
-| Check-in to an uninspected room under inspection policy | Rejected with reason | WP1 |
+| Missing permissions | 403 for protected actions per role | SC "roles only reach what their permissions allow" |
+| Cross-tenant access | 404 | SC "organisations are isolated from each other" |
+| Interrupted night audit | Full rollback (date, postings, no-shows); failed run recorded; re-run posts each night once | FN "night audit is atomic…" |
+| Sync retries | Outbox attempts and errors recorded; replay idempotent | Local outbox only; transport in Phase 7 |
+| Checkout with open balance or credit | Rejected unless settled, refunded or transferred to an authorised company | WF-A, WF "check-out: a credit…", WF "company billing…" |
+| Check-in to an uninspected room under inspection policy | Rejected with reason; only a supervisor can inspect | WF-C |
+| Days before records begin | "No data" (null), never zero | MT "days before records begin…" |
 
 ## 3. Test data
 
-- `makeDb()` creates an isolated database with the migrations applied and an optional minimal
-  fixture (one organisation, one property, a few rooms) for service tests.
-- `boot({ seed: 'test' })` runs the demo simulation with a compact profile (5 properties, ~60
-  days of history) for API tests; `seed.test.js` runs the full 12-month profile once and checks
-  reconciliation and timing.
-- Dates are fixed by passing `today` to the app factory, so tests do not depend on the clock.
+- `tests/fixture.js` builds an isolated database per test with the migrations applied and a
+  small, fully known hotel; services are called directly with role actors. Dates are fixed
+  (business date 2026-10-24).
+- `tests/helpers.js` `boot()` starts the HTTP app on a random port with a copy of the seeded
+  demo. The demo template (compact `test` profile: 5 properties, ~2 months of history) is built
+  once per server-source hash and cached in the OS temp directory, so suites start in seconds.
+- `today` is passed to the seed, so tests never depend on the wall clock.
 
 ## 4. Definition of done (per module)
 
-1. Principal workflow test passes through the API.
+1. Principal workflow test passes.
 2. RBAC and property-scope tests for every new route.
 3. Negative cases from §2 that apply to the module pass.
-4. UI screen has loading, empty and error states and is covered by an e2e smoke path.
+4. UI screen has loading, empty and error states and is covered by an e2e path.
 5. `MODULE_STATUS.md` updated with evidence (test names).

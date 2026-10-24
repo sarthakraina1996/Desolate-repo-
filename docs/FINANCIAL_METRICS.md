@@ -23,6 +23,13 @@ so the UI can show "how is this calculated?" for any number.
 6. **Every metric drills down** to the rows that produced it.
 7. **Money is integer minor units** in storage and aggregation; formulas return minor units for
    currency metrics.
+8. **Days without records are "no data", never zero.** Each property has `records_from`, the
+   first business date the system holds records for (its go-live, or the start of imported
+   history). Earlier days contribute nothing — not even available rooms — so a financial year
+   that began before go-live is not diluted by empty months. A period with no covered day returns
+   `null` for every metric (shown "—"); a partly covered period returns `coverage: { from, to,
+   partial: true }` so reports can say where records begin. Trend charts leave such months as
+   gaps.
 
 ## 2. Base measures
 

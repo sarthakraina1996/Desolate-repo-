@@ -8,7 +8,7 @@ The development log at the end records each cycle.
 - Audit of the existing repository (BrainADZ HRMS; no hospitality code).
 - Requirements, architecture (ADR-1…10), schema, metrics, test strategy, module status.
 
-## Phase 1 — Operational foundation (WP1)
+## Phase 1 — Operational foundation (WP1) ✅ delivered — see MODULE_STATUS for remaining items
 Scope: authentication, RBAC, property scoping, audit; property/building/floor/room-type/room
 masters; amenities with inheritance and exceptions; room blocks; rate plans, rate grid and
 restrictions; guests and companies; reservation engine; booking calendar; front desk.
@@ -23,7 +23,7 @@ Acceptance criteria
    occupancy; a drag to an occupied room is rejected with the conflicting booking.
 7. Arrivals/in-house/departures boards; check-in respects room readiness and ID policy.
 
-## Phase 2 — Guest operations (WP1 continued)
+## Phase 2 — Guest operations (WP1 continued) ✅ delivered except credit notes
 Scope: housekeeping status and tasks with inspection policy; folios (postings, taxes, payments,
 transfers, routing, reversals, invoices); general-ledger posting per folio transaction; night
 audit; checkout settlement; city ledger transfer.
@@ -35,7 +35,7 @@ Acceptance criteria
 4. Every posting creates a balanced journal; R1, R2, R4, R5 reconciliation checks pass.
 5. Night audit posts each in-house night once, even if re-run after an interruption.
 
-## Phase 2b — Metrics engine and executive dashboard (WP1 continued)
+## Phase 2b — Metrics engine and executive dashboard (WP1 continued) ✅ delivered for metrics with live sources
 Scope: metrics registry, formulas, periods/comparisons, consolidation with FX, drill-down,
 executive and role dashboards for the measures that have live sources; demo portfolio
 simulation (5 properties, 200+ rooms, 12 months history + forward bookings).
@@ -79,11 +79,19 @@ VAT, GDPR/DPDP workflows), deployment automation, observability. Acceptance: WF-
 ## Next work package after WP1
 
 **WP2 — Finance foundation for GOP (Phase 4 slice) before POS.** Rationale: the owner's core
-question (profit by department and property) is blocked on expenses, not on POS. Deliver OPEX
-capture (vendor, invoice, cost centre, approval, payment), AP, budgets, the departmental P&L and
-GOP/GOPPAR/CPOR on the dashboard, with room-level cost allocation using transparent drivers.
+question (profit by department and property) is blocked on expenses, not on POS. Deliver, in
+order:
 
-Acceptance criteria: an approved expense posts a balanced journal to the right department and
+1. **Credit notes** against issued invoices (WP1 gap): numbered from their own sequence, linked to
+   the original invoice, reversing the selected lines with their tax, reopening settlement on the
+   folio, and reconciled by R5.
+2. OPEX capture (vendor, invoice, cost centre, approval, payment) and accounts payable.
+3. Budgets per department and month, and the departmental P&L.
+4. GOP / GOPPAR / CPOR on the dashboard with drill-down to expenses; room-level cost allocation
+   using transparent drivers.
+
+Acceptance criteria: a credit note corrects an invoiced line without editing any posting or
+invoice, and R1–R6 still reconcile; an approved expense posts a balanced journal to the right department and
 cost centre; P&L for any property/period reconciles to the trial balance; GOP and GOPPAR appear on
 the executive dashboard with drill-down to expenses; budget variance per department; allocated
 room costs are labelled "allocated" with the driver shown.
@@ -93,3 +101,5 @@ room costs are labelled "allocated" with the driver shown.
 | Date | Cycle | Summary |
 |---|---|---|
 | 2026-10-24 | Phase 0 | Audit: repository contains BrainADZ HRMS only; hospitality product to be built in `hospitality/` on the same stack. Docs created. |
+| 2026-10-24 | WP1 | Hospitality server (`hospitality/server`): foundation, masters, reservation engine with room-night locks, calendar, front desk, housekeeping, folios/tax/invoices, general ledger with R1–R6, night audit, metrics engine with weighted FX consolidation, dashboards. Client with top navigation. Demo simulation (5 properties, 218 rooms, 12 months). |
+| 2026-10-24 | WP1 review | Visual review of every screen. Fixed: metrics counted days before a property's records as empty rooms and ₹0 (FYTD occupancy read 24.5 % instead of 71.2 %) — added `records_from` and "no data" coverage; trend chart gaps and month-to-date labelling; room "upcoming stays" dates; guest export/erasure moved from every front-desk agent to a new `guests.privacy` permission; numeric cells no longer wrap. Tests: 54 node:test + 6 Playwright journeys (desktop, tablet). Gap recorded: credit notes. |

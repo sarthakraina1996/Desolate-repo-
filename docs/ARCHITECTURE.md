@@ -155,7 +155,7 @@ Rules:
 | Property scoping | Users see all properties of their organisation only when the role is group-level and `all_properties` is set; otherwise only granted properties. Every query is filtered by allowed property ids |
 | Tenant isolation | Users, guests, companies and properties belong to an organisation; cross-organisation ids return 404 |
 | Financial visibility | `dashboard.financial` / `finance.view` gate monetary figures; operational users see counts and status only |
-| PII | Identity documents stored as type + masked number; full guest contact data requires `guests.pii`; erasure anonymises profiles while keeping financial records |
+| PII | Identity documents stored as type + masked number only; full guest contact data requires `guests.pii`; data-subject export and erasure require `guests.privacy` (general and front-office managers, not front-desk agents); erasure anonymises profiles while keeping financial records |
 | Payments | Only provider tokens, last four digits and authorisation references are stored; no PAN/CVV |
 | Audit | Append-only `audit_log` with actor, action, entity, before/after snapshot |
 
