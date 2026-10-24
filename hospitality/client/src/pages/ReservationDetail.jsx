@@ -6,7 +6,7 @@ import { Ban, CalendarClock, LogIn, LogOut, Pencil, Receipt } from 'lucide-react
 import { useApp } from '../context.jsx';
 import { useApi } from '../lib/hooks.js';
 import { api } from '../lib/api.js';
-import { date, dateTime, money, statusLabel, titleCase } from '../lib/format.js';
+import { date, dateTime, money, party, statusLabel, titleCase } from '../lib/format.js';
 import { Async, Badge, Button, Card, Field, Input, Modal, Notice, PageHead, Select, StatusBadge, Textarea, useAction } from '../components/ui.jsx';
 import { DataTable } from '../components/DataTable.jsx';
 import { CheckInModal, CheckOutModal } from './FrontDesk.jsx';
@@ -85,7 +85,7 @@ function Detail({ r, reload }) {
                 <dd>{r.nights_count}</dd>
                 <dt>Guests</dt>
                 <dd>
-                  {r.adults} adults{r.children ? `, ${r.children} children` : ''}
+                  {party(r.adults, r.children)}
                 </dd>
               </div>
               <div className="dl">

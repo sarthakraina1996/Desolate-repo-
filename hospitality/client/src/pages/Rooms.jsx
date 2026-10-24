@@ -6,7 +6,7 @@ import { Building, LayoutGrid, List, Layers } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { useApi, usePref } from '../lib/hooks.js';
 import { qs } from '../lib/api.js';
-import { number } from '../lib/format.js';
+import { number, plural } from '../lib/format.js';
 import { Async, Badge, Card, Empty, Input, PageHead, ROOM_CODES, RoomCode, Select, Tabs } from '../components/ui.jsx';
 import { DataTable } from '../components/DataTable.jsx';
 
@@ -158,7 +158,7 @@ function RoomTypes({ q }) {
                 </dd>
                 <dt>Occupancy</dt>
                 <dd>
-                  {t.max_adults} adults, {t.max_children} children (max {t.max_occupancy}){t.extra_beds ? ` · ${t.extra_beds} extra bed` : ''}
+                  {plural(t.max_adults, 'adult')}, {plural(t.max_children, 'child', 'children')} (max {t.max_occupancy}){t.extra_beds ? ` · ${t.extra_beds} extra bed` : ''}
                 </dd>
                 <dt>View</dt>
                 <dd>{t.view_type}</dd>

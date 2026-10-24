@@ -11,6 +11,7 @@ import { date, dateTime, money, number, pct, titleCase } from '../lib/format.js'
 import { Async, Badge, Button, Card, Empty, Field, Input, Modal, Notice, PageHead, RoomCode, Select, Tabs, useAction } from '../components/ui.jsx';
 import { DataTable } from '../components/DataTable.jsx';
 import { BlockForm } from './Calendar.jsx';
+import { WEB_DEMO } from '../lib/env.js';
 
 const LABELS = {
   area_sqft: 'Area (sq ft)',
@@ -99,7 +100,7 @@ function Room({ d, reload }) {
                 {!d.images.length && <div className="small" style={{ opacity: 0.85, marginTop: 4 }}>No photographs uploaded yet</div>}
               </div>
             </div>
-            {can('rooms.manage') && (
+            {can('rooms.manage') && !WEB_DEMO && (
               <label className="btn sm" style={{ alignSelf: 'flex-start' }}>
                 <ImagePlus size={14} /> Upload photo
                 <input type="file" accept=".jpg,.jpeg,.png,.webp" hidden onChange={(e) => e.target.files[0] && run(() => upload(e.target.files[0]), { success: 'Photo added' })} />

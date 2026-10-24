@@ -1,7 +1,7 @@
 // Guest profile: contact, preferences, identity, consent, stay history, spend by department,
 // and data-subject export / erasure for authorised users.
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Download, Pencil, UserX } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { useApi } from '../lib/hooks.js';
@@ -9,6 +9,7 @@ import { api } from '../lib/api.js';
 import { date, money, titleCase } from '../lib/format.js';
 import { Async, Badge, Button, Card, Confirm, Empty, Field, Input, Modal, Notice, PageHead, StatusBadge, Textarea, useAction } from '../components/ui.jsx';
 import { DataTable } from '../components/DataTable.jsx';
+import { WEB_DEMO } from '../lib/env.js';
 
 const DEPARTMENT_LABEL = { rooms: 'Rooms', fnb: 'F&B', banquets: 'Banquets', spa: 'Spa', other: 'Other services', misc: 'Miscellaneous' };
 
@@ -20,6 +21,7 @@ export default function GuestDetail() {
 
 function Guest({ d, reload }) {
   const { can } = useApp();
+  const navigate = useNavigate();
   const g = d.guest;
   const [edit, setEdit] = useState(false);
   const [erase, setErase] = useState(false);
@@ -41,7 +43,7 @@ function Guest({ d, reload }) {
         sub={`${d.stays.length} stay(s)${g.company_name ? ` · ${g.company_name}` : ''}`}
       >
         {can('guests.manage') && !g.anonymized_at && <Button icon={Pencil} onClick={() => setEdit(true)}>Edit</Button>}
-        {can('guests.privacy') && <Button icon={Download} onClick={() => run(exportData, { success: 'Export downloaded' })}>Export data</Button>}
+        {can('guests.privacy') && !WEB_DEMO && <Button icon={Download} onClick={() => run(exportData, { success: 'Export downloaded' })}>Export data</Button>}
         {can('guests.privacy') && can('guests.manage') && !g.anonymized_at && <Button className="danger" icon={UserX} onClick={() => setErase(true)}>Erase</Button>}
       </PageHead>
       <div className="grid g-1-2">
@@ -72,7 +74,7 @@ function Guest({ d, reload }) {
           <DataTable
             rows={d.stays}
             empty={<Empty title="No stays yet" />}
-            onRowClick={(s) => (window.location.href = `/reservations/${s.id}`)}
+            onRowClick={(s) => navigate(`/reservations/${s.id}`)}
             columns={[
               { key: 'conf_no', label: 'Booking' },
               { key: 'property_code', label: 'Property' },

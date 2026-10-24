@@ -4,6 +4,7 @@ import { LogIn, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { useApp } from '../context.jsx';
 import { Button, Field, Input, Notice } from '../components/ui.jsx';
+import liveLogo from '../assets/brand/brainadz-live-logo.svg';
 
 export default function Login() {
   const { setSession } = useApp();
@@ -39,7 +40,7 @@ export default function Login() {
     <div className="login-wrap">
       <div className="login-grid">
         <div className="login-hero">
-          <img src="/brand/brainadz-live-logo.svg" alt="BrainADZ Live" style={{ height: 74 }} />
+          <img src={liveLogo} alt="BrainADZ Live" style={{ height: 74 }} />
           <h1>BrainADZ Hospitality OS</h1>
           <p className="tagline">Intelligence for Hospitality. Control for Growth.</p>
           <ul className="login-points">

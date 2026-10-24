@@ -9,7 +9,7 @@ import { useApp } from '../context.jsx';
 import { useApi, usePref } from '../lib/hooks.js';
 import { api, qs } from '../lib/api.js';
 import { addDays, diffDays, dow } from '../lib/dates.js';
-import { date, dayName, money, statusLabel } from '../lib/format.js';
+import { date, dayName, money, party, statusLabel } from '../lib/format.js';
 import { Async, Badge, Button, Card, Confirm, Field, Input, Modal, Notice, PageHead, Select, Seg, StatusBadge, useAction } from '../components/ui.jsx';
 import { heat, heatText } from '../components/charts.jsx';
 import { BookingForm } from '../components/BookingForm.jsx';
@@ -428,7 +428,7 @@ function SegmentPanel({ seg, t, onClose, onChanged, onMove, onBlock }) {
           <dd>{room ? `${room.number} (${t.roomTypes.find((x) => x.id === room.room_type_id)?.name})` : 'Unassigned'}</dd>
           <dt>Guests</dt>
           <dd>
-            {seg.adults} adults{seg.children ? `, ${seg.children} children` : ''}
+            {party(seg.adults, seg.children)}
           </dd>
           <dt>Source</dt>
           <dd>{seg.channel || seg.source}</dd>

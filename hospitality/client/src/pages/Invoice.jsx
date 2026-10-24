@@ -4,6 +4,7 @@ import { Printer } from 'lucide-react';
 import { useApi } from '../lib/hooks.js';
 import { date, moneyExact } from '../lib/format.js';
 import { Async, Button } from '../components/ui.jsx';
+import { WEB_DEMO } from '../lib/env.js';
 
 export default function Invoice() {
   const { id } = useParams();
@@ -18,7 +19,7 @@ export default function Invoice() {
             <div className="row no-print" style={{ marginBottom: 12 }}>
               <Link to={`/folios/${i.folio_id}`}>← Back to folio</Link>
               <span className="spacer" />
-              <Button icon={Printer} onClick={() => window.print()}>Print / save as PDF</Button>
+              {!WEB_DEMO && <Button icon={Printer} onClick={() => window.print()}>Print / save as PDF</Button>}
             </div>
             <div className="invoice">
               {demo && <div className="notice warn" style={{ marginBottom: 16 }}>Demo document — fictional business, not a valid tax invoice.</div>}

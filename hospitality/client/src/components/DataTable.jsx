@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Download } from 'lucide-react';
 import { Button, Empty } from './ui.jsx';
+import { WEB_DEMO } from '../lib/env.js';
 
 function csvCell(v) {
   if (v == null) return '';
@@ -118,7 +119,7 @@ export function DataTable({
             {count ? `${p * pageSize + 1}–${Math.min(count, (p + 1) * pageSize)} of ${count.toLocaleString('en-IN')}` : '0 rows'}
           </span>
           <div className="spacer" />
-          {exportName && (
+          {exportName && !WEB_DEMO && (
             <Button size="sm" variant="ghost" icon={Download} onClick={() => exportCsv(exportName, columns, sorted)}>
               Export CSV
             </Button>

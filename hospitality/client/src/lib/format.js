@@ -63,3 +63,6 @@ export const initials = (name = '') =>
 export const plural = (n, one, many = `${one}s`) => `${number(n)} ${n === 1 ? one : many}`;
 export const titleCase = (s = '') => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 export const statusLabel = (s = '') => ({ in_house: 'In house', checked_out: 'Checked out', no_show: 'No-show', quote: 'Quote' })[s] || titleCase(s);
+
+// "1 adult", "2 adults, 1 child".
+export const party = (adults, children) => `${plural(adults, 'adult')}${children ? `, ${plural(children, 'child', 'children')}` : ''}`;

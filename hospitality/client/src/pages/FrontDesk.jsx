@@ -7,7 +7,7 @@ import { useApp } from '../context.jsx';
 import { useApi } from '../lib/hooks.js';
 import { api, newIdempotencyKey, qs } from '../lib/api.js';
 import { addDays } from '../lib/dates.js';
-import { date, dateTime, money, moneyExact, titleCase } from '../lib/format.js';
+import { date, dateTime, money, moneyExact, party, titleCase } from '../lib/format.js';
 import { Async, Badge, Button, Card, Confirm, Empty, Field, Input, Menu, Modal, Notice, PageHead, RoomCode, Select, StatusBadge, Tabs, Textarea, useAction } from '../components/ui.jsx';
 import { DataTable } from '../components/DataTable.jsx';
 
@@ -237,7 +237,7 @@ export function CheckInModal({ reservationId, onClose, onDone }) {
               </dd>
               <dt>Guests</dt>
               <dd>
-                {r.adults} adults{r.children ? `, ${r.children} children` : ''}
+                {party(r.adults, r.children)}
               </dd>
               {r.special_requests && (
                 <>

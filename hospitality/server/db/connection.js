@@ -64,6 +64,12 @@ export function openDb(file = ':memory:') {
   raw.exec(
     'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA cache_size = -65536; PRAGMA temp_store = MEMORY;',
   );
+  return wrapDb(raw);
+}
+
+// Query helpers over any driver with node:sqlite's DatabaseSync surface (exec, prepare →
+// all/get/run, close). The browser demo passes an adapter over sql.js here.
+export function wrapDb(raw) {
   migrate(raw);
 
   // Prepared statements are cached by SQL text so repeated queries skip re-preparing.

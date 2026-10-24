@@ -1107,8 +1107,25 @@ table.table {
   .hide-sm {
     display: none !important;
   }
+  /* Phones: scope and business date on one row, search across the full width below. */
   .contextbar {
-    overflow-x: auto;
+    flex-wrap: wrap;
+    height: auto;
+    row-gap: 6px;
+    padding-block: 6px;
+  }
+  .contextbar .chip,
+  .contextbar > .row {
+    white-space: nowrap;
+  }
+  .contextbar .spacer {
+    display: none;
+  }
+  .contextbar form {
+    flex-basis: 100%;
+  }
+  .contextbar input.search {
+    width: 100% !important;
   }
   .brand-text {
     display: none;

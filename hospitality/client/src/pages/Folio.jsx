@@ -10,6 +10,7 @@ import { api, newIdempotencyKey } from '../lib/api.js';
 import { date, dateTime, moneyExact, titleCase } from '../lib/format.js';
 import { Async, Badge, Button, Card, Empty, Field, Input, Modal, Notice, PageHead, Select, Tabs, useAction } from '../components/ui.jsx';
 import { DataTable } from '../components/DataTable.jsx';
+import { WEB_DEMO } from '../lib/env.js';
 
 export default function Folio() {
   const { id } = useParams();
@@ -38,7 +39,7 @@ function FolioView({ d, reload }) {
       >
         {open && can('folio.post') && <Button variant="primary" icon={Plus} onClick={() => setModal('charge')}>Post charge</Button>}
         {open && can('folio.payment') && <Button variant="primary" icon={CreditCard} onClick={() => setModal('payment')}>Take payment</Button>}
-        <Button icon={Printer} onClick={() => window.print()}>Print</Button>
+        {!WEB_DEMO && <Button icon={Printer} onClick={() => window.print()}>Print</Button>}
       </PageHead>
       {d.siblings.length > 1 && (
         <div className="row wrap" style={{ marginBottom: 12 }}>

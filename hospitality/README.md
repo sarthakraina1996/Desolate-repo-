@@ -63,6 +63,16 @@ Tax rates and invoice formats are **demonstration configurations** (India GST sl
 Portugal VAT as understood on the build date); verify them with a tax adviser before production
 use. No channel manager, payment gateway or e-invoicing connection is live.
 
+## Web demo on claude.ai
+
+`npm run hos:web` builds a version that runs entirely in the browser, for hosting as a claude.ai
+artifact (`hospitality/web/dist/`). The same server code runs in the page against SQLite
+compiled to WebAssembly (with a plain-JavaScript fallback where WebAssembly is not allowed),
+using the compact demo (about two months of history and a month ahead, same five hotels).
+Changes last until the page is reloaded. Printing, downloads and photo uploads are hidden there
+because the claude.ai frame does not allow them. `web/server.js` mirrors the request pipeline
+in `server/app.js`; keep the two in step when adding middleware.
+
 ## Tests
 
 ```bash

@@ -37,7 +37,7 @@ hospitality product must not use.
   Payroll Integration module (labour cost allocation), integrated through an API rather than by
   merging databases.
 - Brand: the BrainADZ wordmark is extracted as vector paths from the supplied BrainADZ Live
-  booklet (`hospitality/client/public/brand/`); the "Br" monogram is the trace already used by
+  booklet (`hospitality/client/src/assets/brand/`); the "Br" monogram is the trace already used by
   the HRMS.
 
 ## 2. Architecture decisions

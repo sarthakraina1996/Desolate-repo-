@@ -7,3 +7,5 @@ data/
 demo/dist
 hospitality/client/dist/
 hospitality/tests/e2e/output/
+hospitality/web/dist/
+hospitality/web/dist-vite/
