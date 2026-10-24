@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderKanban, CalendarClock, TriangleAlert, Trophy, Plus, ArrowUpRight, Diamond, Flag, CalendarCheck, Lock } from 'lucide-react';
+import { FolderKanban, CalendarClock, TriangleAlert, Trophy, Plus, ArrowUpRight, Diamond, Flag, CalendarCheck, Lock, Wallet } from 'lucide-react';
 import { useApp, useLoad } from '../store.jsx';
 import { api } from '../api.js';
 import { Link, useRouter } from '../router.jsx';
@@ -7,7 +7,7 @@ import {
   Loading, ErrorNote, Empty, VChip, HealthBadge, Progress, Avatar, DateBox, PriorityFlag, alpha, HEALTH,
 } from '../ui.jsx';
 import { ActivityList } from '../activity.jsx';
-import { dueText, relDay, inrShort, fmtDate } from '../format.js';
+import { dueText, relDay, inr, inrShort, fmtDate } from '../format.js';
 import { ProjectForm } from './ProjectForm.jsx';
 
 function greeting() {
@@ -57,6 +57,8 @@ export default function Dashboard() {
   const showMine = data?.my_tasks.length > 0;
   const showUpcoming = data?.upcoming.length > 0;
   const showVerticals = data?.by_vertical.length > 1; // one vertical: the summary above already says it all
+  const showMoney = data?.money.budget > 0;
+  const showCollect = data?.collect.length > 0;
 
   const scope = vertical ? verticalById(vertical)?.name : verticals.length === 1 ? verticals[0].name : verticals.map((v) => v.short).join(', ');
   const complete = async (t) => {
@@ -88,11 +90,16 @@ export default function Dashboard() {
       <ErrorNote error={error} retry={reload} />
       {loading && !data ? <Loading /> : data && (
         <>
-          <section className="card stat-strip" aria-label="Summary">
+          <section className={`card stat-strip ${showMoney ? 'n5' : ''}`} aria-label="Summary">
             <Stat icon={FolderKanban} tone="blue" label="Active projects" value={data.kpis.active} sub={data.kpis.planning ? `+${data.kpis.planning} planning or on hold` : null} onClick={() => navigate('/projects')} />
             <Stat icon={CalendarClock} tone="purple" label="Tasks due this week" value={data.kpis.due_week} onClick={() => navigate('/my')} />
             <Stat icon={TriangleAlert} tone="red" label="Overdue tasks" value={data.kpis.overdue} sub={data.kpis.at_risk ? `${data.kpis.at_risk} projects need attention` : null} onClick={() => navigate('/projects')} />
             <Stat icon={Trophy} tone="green" label={`Delivered in ${today.slice(0, 4)}`} value={data.kpis.delivered} onClick={() => navigate('/archive')} />
+            {showMoney && (
+              <Stat icon={Wallet} tone="amber" label="To collect from clients" value={inrShort(data.money.to_collect) || '₹0'}
+                sub={`${inrShort(data.money.received) || '₹0'} of ${inrShort(data.money.budget)} received`}
+                onClick={() => (showCollect ? document.getElementById('dash-collect')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : navigate('/projects'))} />
+            )}
           </section>
 
           <div className="grid">
@@ -152,6 +159,43 @@ export default function Dashboard() {
               </section>
             )}
 
+            {showCollect && (
+              <section id="dash-collect" className="card span-12">
+                <div className="card-head">
+                  <h3>Payments to collect <span className="sub">{inr(data.money.to_collect)} from {data.money.projects} {data.money.projects === 1 ? 'project' : 'projects'}</span></h3>
+                </div>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead><tr><th>Project</th><th className="hide-sm">Budget</th><th className="hide-sm" style={{ width: 200 }}>Received</th><th className="hide-sm" style={{ textAlign: 'right' }}>To collect</th></tr></thead>
+                    <tbody>
+                      {data.collect.map((c) => {
+                        const pct = Math.min(100, Math.round((c.received / c.budget) * 100));
+                        return (
+                          <tr key={c.id} className="click" onClick={() => navigate(`/projects/${c.id}`)}>
+                            <td>
+                              <div className="row gap-6"><span className="dot" style={{ background: c.vertical_color }} /><span className="b6 ellipsis" style={{ maxWidth: 300 }}>{c.client ? `${c.client} · ` : ''}{c.name}</span></div>
+                              <div className="xs muted" style={{ marginLeft: 14 }}>{c.code}{c.last_paid ? ` · last paid ${fmtDate(c.last_paid, { today })}` : ' · nothing received yet'}</div>
+                              {/* Phones: the amount sits under the name instead of in its own column. */}
+                              <div className={`only-sm small b7 ${c.delivered ? 'red' : 'amber'}`} style={{ marginLeft: 14 }}>
+                                {inrShort(c.to_collect)} to collect<span className="xs muted b6"> of {inrShort(c.budget)}{c.delivered ? ' · delivered' : ''}</span>
+                              </div>
+                            </td>
+                            <td className="hide-sm small">{inr(c.budget)}</td>
+                            <td className="hide-sm"><div className="row gap-6"><div className="grow"><Progress value={pct} color="var(--green)" /></div><span className="xs muted nowrap" style={{ width: 64 }}>{inrShort(c.received) || '₹0'}</span></div></td>
+                            <td className="hide-sm" style={{ textAlign: 'right' }}>
+                              <div className={`collect-amt ${c.delivered ? 'red' : ''}`}>{inrShort(c.to_collect)}</div>
+                              <div className="xs muted nowrap">{c.delivered ? <span className="red">Delivered · balance due</span> : `of ${inrShort(c.budget)}`}</div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {data.money.projects > data.collect.length && <div className="xs muted mt-8">Showing the {data.collect.length} largest. Every project shows its own balance under Budget & payments.</div>}
+              </section>
+            )}
+
             {showUpcoming && (
               <section className={`card ${showVerticals ? 'span-7' : 'span-12'}`}>
                 <div className="card-head"><h3>Coming up <span className="sub">next 60 days</span></h3><Link to="/calendar" className="link">Calendar <ArrowUpRight size={14} /></Link></div>
@@ -192,7 +236,7 @@ export default function Dashboard() {
                         </div>
                         <div className="row between xs muted">
                           <span>{v.at_risk ? <span className="amber b6">{v.at_risk} need attention</span> : 'All on track'}</span>
-                          <span>{v.open_budget ? `${inrShort(v.open_budget)} in open work` : ''}</span>
+                          <span>{[v.open_budget ? `${inrShort(v.open_budget)} in open work` : '', v.to_collect ? `${inrShort(v.to_collect)} to collect` : ''].filter(Boolean).join(' · ')}</span>
                         </div>
                       </div>
                     );

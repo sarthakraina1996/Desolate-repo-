@@ -119,7 +119,8 @@ export default function Archive() {
                           <span title="Key date">{p.key_date ? fmtDate(p.key_date, { year: true }) : '—'}</span>
                           <span title="Files"><Paperclip size={13} />{p.file_count}</span>
                           <span title="Final assets"><Star size={13} fill={p.final_count ? 'var(--amber)' : 'none'} color={p.final_count ? 'var(--amber)' : 'currentColor'} />{p.final_count}</span>
-                          {p.budget ? <span>{inrShort(p.budget)}</span> : null}
+                          {p.budget ? <span title="Budget">{inrShort(p.budget)}</span> : null}
+                          {p.to_collect > 0 && <span className="red b6" title="Still to come from the client">{inrShort(p.to_collect)} due</span>}
                         </div>
                         <div className="row between mt-12">
                           <div className="row gap-6"><Avatar name={p.owner_name} color={p.owner_color} size={24} /><span className="small">{p.owner_name}</span></div>

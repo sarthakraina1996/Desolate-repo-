@@ -3,7 +3,7 @@
 import initSqlJs from 'sql.js/dist/sql-wasm.js';
 import wasmB64 from 'virtual:sql-wasm';
 import { migrate, seedBasics } from '../../../core/setup.js';
-import { seedDemo, seedGroupChats, DEMO_ACCOUNTS, DEMO_PEOPLE, demoEmail } from '../../../core/demo-seed.js';
+import { seedDemo, seedGroupChats, seedPayments, DEMO_ACCOUNTS, DEMO_PEOPLE, demoEmail } from '../../../core/demo-seed.js';
 import { handle } from '../../../core/api.js';
 import { loadUser } from '../../../core/access.js';
 import { todayIn } from '../../../core/util.js';
@@ -166,6 +166,8 @@ export async function startDemo() {
     migrate(db);
     // Sample data saved before team groups existed gets sample chats too.
     if (saved && before < 4 && seedGroupChats(db, { today: today() })) await persist();
+    // ...and sample client payments, saved before payments existed.
+    if (saved && before < 6 && seedPayments(db, { today: today() })) await persist();
     if (!saved) {
       seedBasics(db);
       seedDemo(db, { today: today(), passwordHash: 'demo' });

@@ -1,7 +1,7 @@
 // Database schema shared by the Node server (node:sqlite) and the in-browser demo (sql.js).
 // Both run SQLite, so the same SQL works everywhere.
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 // Kept as a function so a migration can rebuild the table with the same definition.
 export function projectsTable(name) {
@@ -230,6 +230,21 @@ CREATE TABLE IF NOT EXISTS group_messages (
   delete_decided_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_group_messages_project ON group_messages(project_id, id);
+
+-- Money received from the client for a project. What is still to come is the project's
+-- budget minus these.
+CREATE TABLE IF NOT EXISTS payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  amount REAL NOT NULL CHECK (amount > 0),
+  received_on TEXT NOT NULL,
+  method TEXT NOT NULL DEFAULT 'bank' CHECK (method IN ('bank','upi','cheque','cash','card','other')),
+  reference TEXT NOT NULL DEFAULT '', -- UTR, cheque number and so on
+  note TEXT NOT NULL DEFAULT '',      -- e.g. "Advance, 40%"
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_payments_project ON payments(project_id);
 `;
 
 export const FILE_CATEGORIES = [

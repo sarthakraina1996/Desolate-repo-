@@ -21,8 +21,8 @@ export function toCsv(rows) {
 
 export function projectsCsv(items) {
   return toCsv([
-    ['Code', 'Vertical', 'Project', 'Client', 'Status', 'Health', 'Stage', 'Owner', 'Start', 'Key date', 'Due', 'Venue', 'City', 'Budget (INR)', 'Tasks done', 'Tasks total', 'Files', 'Tags'],
-    ...items.map((p) => [p.code, p.vertical, p.name, p.client, PROJECT_STATUS[p.status]?.label, HEALTH[p.health]?.label, p.stage, p.owner_name, p.start_date, p.key_date, p.due_date, p.venue, p.city, p.budget, p.task_done, p.task_total, p.file_count, p.tags.join('; ')]),
+    ['Code', 'Vertical', 'Project', 'Client', 'Status', 'Health', 'Stage', 'Owner', 'Start', 'Key date', 'Due', 'Venue', 'City', 'Budget (INR)', 'Received (INR)', 'To collect (INR)', 'Tasks done', 'Tasks total', 'Files', 'Tags'],
+    ...items.map((p) => [p.code, p.vertical, p.name, p.client, PROJECT_STATUS[p.status]?.label, HEALTH[p.health]?.label, p.stage, p.owner_name, p.start_date, p.key_date, p.due_date, p.venue, p.city, p.budget, p.received, p.to_collect, p.task_done, p.task_total, p.file_count, p.tags.join('; ')]),
   ]);
 }
 
@@ -39,6 +39,7 @@ function ProjectTable({ items, showVertical, onOpen, today }) {
               <th className="hide-sm">Owner</th>
               <th>Key date</th>
               <th style={{ width: 150 }} className="hide-sm">Progress</th>
+              <th className="hide-sm">Budget</th>
               <th>Health</th>
               <th>Status</th>
             </tr>
@@ -67,6 +68,10 @@ function ProjectTable({ items, showVertical, onOpen, today }) {
                   <td className="hide-sm">
                     <div className="row gap-6"><div className="grow"><Progress value={p.progress} color={p.vertical_color} /></div><span className="xs muted" style={{ width: 54 }}>{p.task_done}/{p.task_total}</span></div>
                     {p.task_overdue > 0 && <div className="xs red mt-4">{p.task_overdue} overdue</div>}
+                  </td>
+                  <td className="hide-sm nowrap small">
+                    {p.budget ? inrShort(p.budget) : '—'}
+                    {p.to_collect != null && <div className={`xs ${p.to_collect > 0 ? 'amber b6' : 'green'}`}>{p.to_collect > 0 ? `${inrShort(p.to_collect)} to collect` : 'Fully paid'}</div>}
                   </td>
                   <td><HealthBadge health={p.health} /></td>
                   <td><StatusBadge status={p.status} readyLabel={p.ready_label} /></td>
@@ -315,6 +320,7 @@ export default function Projects() {
     reload({ quiet: true });
   };
   const totalBudget = items.reduce((a, p) => a + (p.budget || 0), 0);
+  const totalToCollect = items.reduce((a, p) => a + (p.to_collect || 0), 0);
   const filtersOn = status || owner || health || mine || q;
 
   return (
@@ -325,6 +331,7 @@ export default function Projects() {
           <div className="sub">
             {data ? `${items.length} ${view === 'board' ? 'projects' : 'open projects'}` : 'Loading'}
             {totalBudget > 0 && ` · ${inrShort(totalBudget)} total budget`}
+            {totalToCollect > 0 && ` · ${inrShort(totalToCollect)} to collect`}
           </div>
         </div>
         <div className="head-actions">

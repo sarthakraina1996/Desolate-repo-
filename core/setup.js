@@ -77,6 +77,7 @@ export function migrate(db) {
   if (version < 3) upgradeTo3(db);
   if (version < 4) upgradeTo4(db);
   if (version < 5) upgradeTo5(db);
+  // Version 6: client payments. The payments table comes from SCHEMA, so there is nothing to change.
   db.exec('CREATE INDEX IF NOT EXISTS idx_files_message ON files(message_id);');
   db.run(
     "INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

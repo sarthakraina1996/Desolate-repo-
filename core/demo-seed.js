@@ -347,6 +347,7 @@ export function seedDemo(db, { today, passwordHash, now = new Date().toISOString
     }
 
     seedGroupChats(db, { today, now });
+    seedPayments(db, { today, now });
 
     // Everyone last looked two days ago, so the last two days of activity shows as new.
     const lastLook = ts(addDays(today, -2), 18, 0);
@@ -548,6 +549,49 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
   const lastLook = ts(addDays(today, -2), 18, 0);
   for (const u of db.all('SELECT id FROM users')) {
     for (const g of projects) db.run('INSERT OR IGNORE INTO seen (user_id, scope, seen_at) VALUES (?,?,?)', u.id, `group:${g.id}`, lastLook);
+  }
+  return true;
+}
+
+// Sample client payments, built from the projects already in the database: an advance once
+// work starts, a second instalment before the show or launch, and the balance after
+// delivery. Every third delivered project still waits for its last payment, so there is
+// money to collect. Returns false when there are payments already.
+export function seedPayments(db, { today, now = new Date().toISOString() }) {
+  if (db.get('SELECT COUNT(*) AS n FROM payments').n > 0) return false;
+  const projects = db.all("SELECT * FROM projects WHERE budget > 0 AND status != 'cancelled' ORDER BY id");
+  let n = 0;
+  const pay = (p, share, day, note) => {
+    const created = String(p.created_at || '').slice(0, 10);
+    const date = day < created ? created : day; // never before the project existed
+    const at = ts(date, 16, 30);
+    if (date > today || at >= now) return;
+    n += 1;
+    const amount = Math.round((p.budget * share) / 1000) * 1000;
+    // UPI only for small amounts, like real clients; larger sums come by bank transfer or cheque.
+    const method = amount <= 100000 ? 'upi' : (p.id + n) % 4 === 0 ? 'cheque' : 'bank';
+    const reference = method === 'cheque' ? `Cheque ${String(400000 + p.id * 97 + n * 13).slice(-6)}` : `UTR ${String(240000000000 + p.id * 7919 + n * 104729)}`;
+    db.run(
+      'INSERT INTO payments (project_id, amount, received_on, method, reference, note, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      p.id, amount, date, method, reference, note, p.created_by, at,
+    );
+    db.run(
+      'INSERT INTO activity (project_id, user_id, action, detail, created_at) VALUES (?,?,?,?,?)',
+      p.id, p.created_by, 'payment_added', `₹${amount.toLocaleString('en-IN')} (${note})`, at,
+    );
+  };
+  for (const p of projects) {
+    const created = String(p.created_at || today).slice(0, 10);
+    const start = p.start_date || created;
+    const before = addDays(p.key_date || p.due_date || start, -10);
+    if (p.status === 'planning') {
+      if (p.id % 2 === 0) pay(p, 0.25, addDays(created, 4), 'Advance, 25%');
+      continue;
+    }
+    pay(p, 0.4, addDays(start, 3), 'Advance, 40%');
+    if (p.status === 'on_hold') continue;
+    pay(p, 0.3, before, 'Second instalment, 30%');
+    if (p.status === 'completed' && p.id % 3 !== 0) pay(p, 0.3, addDays(String(p.completed_at || p.due_date || today).slice(0, 10), 15), 'Balance on delivery, 30%');
   }
   return true;
 }

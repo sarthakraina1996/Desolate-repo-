@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Pencil, Copy, Trash2, CheckCircle2, PauseCircle, RotateCcw, Ban, LayoutTemplate, Download, Plus, Diamond, MapPin,
   IndianRupee, CalendarRange, Users, Flag, X, LayoutList, Columns3, MessageSquare, Paperclip, Lock, Grid2x2, List, Send, Check,
-  MessagesSquare,
+  MessagesSquare, Wallet,
 } from 'lucide-react';
 import { useApp, useLoad, usePref } from '../store.jsx';
 import { api } from '../api.js';
@@ -136,6 +136,149 @@ function Milestones({ p, reload }) {
   );
 }
 
+// ---------------------------------------------------------------- client payments
+
+export const PAY_METHODS = { bank: 'Bank transfer', upi: 'UPI', cheque: 'Cheque', cash: 'Cash', card: 'Card', other: 'Other' };
+const toAmount = (v) => Number(String(v).replace(/[,₹\s]/g, ''));
+
+// What is left to collect, in a few words: "₹5,00,000 to collect", "Fully paid".
+export function collectText(p) {
+  if (p.to_collect == null) return null;
+  if (p.to_collect > 0) return `${inr(p.to_collect)} to collect`;
+  return p.received > p.budget ? `Paid ${inr(p.received - p.budget)} over budget` : 'Fully paid';
+}
+
+function PaymentForm({ p, onClose, onSaved }) {
+  const { today } = useApp();
+  const [f, setF] = useState({ amount: '', received_on: today, method: 'bank', reference: '', note: '' });
+  const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const n = toAmount(f.amount);
+  const left = p.to_collect;
+  let hint = left ? `${inr(left)} still to collect` : 'As it reached the bank';
+  if (n > 0) {
+    hint = inr(n);
+    if (left != null) hint += n < left ? ` · ${inr(left - n)} left to collect after this` : n === left ? ' · clears the balance' : ` · ${inr(n - left)} more than is left`;
+  }
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setErr('');
+    try {
+      await api.post(`/projects/${p.id}/payments`, f);
+      onSaved(n);
+    } catch (e2) {
+      setErr(e2.message);
+      setSaving(false);
+    }
+  };
+  return (
+    <Modal title="Record a client payment" sub={[p.client, p.name].filter(Boolean).join(' · ')} onClose={onClose}
+      footer={<>
+        <button type="button" className="btn" onClick={onClose}>Cancel</button>
+        <button type="submit" form="pay-form" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Record payment'}</button>
+      </>}>
+      <form id="pay-form" className="modal-body" onSubmit={submit}>
+        {err && <div className="alert error mb-12">{err}</div>}
+        <div className="form-grid">
+          <Field label="Amount received (₹)" htmlFor="pay-amount" hint={hint}>
+            <input id="pay-amount" className="input" inputMode="decimal" autoComplete="off" value={f.amount} onChange={set('amount')} placeholder={left ? String(Math.round(left)) : 'e.g. 500000'} required />
+          </Field>
+          <Field label="Date received" htmlFor="pay-date">
+            <input id="pay-date" type="date" className="input" value={f.received_on} max={today} onChange={set('received_on')} required />
+          </Field>
+          <Field label="Paid by" htmlFor="pay-method">
+            <select id="pay-method" className="select" value={f.method} onChange={set('method')}>
+              {Object.entries(PAY_METHODS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+          </Field>
+          <Field label="Reference" htmlFor="pay-ref" hint="UTR, cheque or transaction number">
+            <input id="pay-ref" className="input" value={f.reference} onChange={set('reference')} maxLength={120} autoComplete="off" />
+          </Field>
+          <Field label="Note" htmlFor="pay-note" className="full" hint="For example: Advance, 40%">
+            <input id="pay-note" className="input" value={f.note} onChange={set('note')} maxLength={300} />
+          </Field>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// The budget, what the client has paid so far and what is still to come.
+function Payments({ p, reload }) {
+  const { toast, confirm, today } = useApp();
+  const [adding, setAdding] = useState(false);
+  const [all, setAll] = useState(false);
+  const can = p.permissions.edit && p.status !== 'cancelled';
+  const budget = p.budget || 0;
+  const received = p.received || 0;
+  const pct = budget ? Math.min(100, Math.round((received / budget) * 100)) : 0;
+  const shown = all ? p.payments : p.payments.slice(0, 4);
+  const remove = async (pay) => {
+    const ok = await confirm({
+      title: `Remove the ${inr(pay.amount)} payment?`,
+      message: `Received ${fmtDate(pay.received_on, { year: true })}${pay.note ? ` (${pay.note})` : ''}. The amount goes back to what is still to collect.`,
+      confirmLabel: 'Remove payment', danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.del(`/payments/${pay.id}`);
+      toast('Payment removed', 'success');
+      reload({ quiet: true });
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h3><Wallet size={17} color="var(--green)" />Budget & payments</h3>
+        {can && <button type="button" className="link" onClick={() => setAdding(true)}><Plus size={14} />Record payment</button>}
+      </div>
+      <div className="money">
+        <div><span className="xs muted">Budget</span><b>{budget ? inr(budget) : '—'}</b></div>
+        <div><span className="xs muted">Received</span><b className="green">{inr(received)}</b></div>
+        <div>
+          <span className="xs muted">To collect</span>
+          <b className={p.to_collect > 0 ? (p.status === 'completed' ? 'red' : 'amber') : ''}>{p.to_collect == null ? '—' : inr(p.to_collect)}</b>
+        </div>
+      </div>
+      {budget > 0 && (
+        <div className="money-bar" title={`${pct}% of the budget received`}>
+          <Progress value={pct} color="var(--green)" />
+          <span className="xs muted">{pct}% received{received > budget ? ` · ${inr(received - budget)} over budget` : ''}</span>
+        </div>
+      )}
+      {!budget && <div className="small muted mt-8">No budget set{p.permissions.edit ? '. Add it with Edit to see what is left to collect.' : '.'}</div>}
+      {p.status === 'completed' && p.to_collect > 0 && <div className="alert warn mt-12">Delivered, and {inr(p.to_collect)} has still to come from the client.</div>}
+      {p.payments.length > 0 && (
+        <div className="pay-list">
+          {shown.map((pay) => (
+            <div key={pay.id} className="pay">
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="row between gap-6">
+                  <b className="small">{inr(pay.amount)}</b>
+                  <span className="xs muted nowrap">{fmtDate(pay.received_on, { today })}</span>
+                </div>
+                <div className="xs muted ellipsis" title={[pay.note, PAY_METHODS[pay.method], pay.reference].filter(Boolean).join(' · ')}>
+                  {[pay.note, PAY_METHODS[pay.method], pay.reference].filter(Boolean).join(' · ')}
+                </div>
+              </div>
+              {can && <button type="button" className="icon-btn sm-x" aria-label={`Remove the ${inr(pay.amount)} payment`} onClick={() => remove(pay)}><X size={14} /></button>}
+            </div>
+          ))}
+          {p.payments.length > 4 && <button type="button" className="link mt-8" onClick={() => setAll((a) => !a)}>{all ? 'Show fewer' : `Show all ${p.payments.length} payments`}</button>}
+        </div>
+      )}
+      {p.payments.length === 0 && budget > 0 && <div className="small muted mt-8">No payments recorded yet.</div>}
+      {adding && (
+        <PaymentForm p={p} onClose={() => setAdding(false)} onSaved={(n) => { setAdding(false); toast(`${inr(n)} recorded`, 'success'); reload({ quiet: true }); }} />
+      )}
+    </section>
+  );
+}
+
 function Team({ p, reload }) {
   const { users, toast } = useApp();
   const [open, setOpen] = useState(false);
@@ -228,6 +371,7 @@ function Overview({ p, reload }) {
         </section>
       </div>
       <div className="span-4 col" style={{ gap: 16 }}>
+        <Payments p={p} reload={reload} />
         <Milestones p={p} reload={reload} />
         <Team p={p} reload={reload} />
         <section className="card">
@@ -237,7 +381,6 @@ function Overview({ p, reload }) {
             <dt>Client</dt><dd>{p.client || '—'}</dd>
             <dt>{p.vertical === 'Marketing' ? 'Channels' : 'Venue'}</dt><dd>{p.venue || '—'}</dd>
             <dt>City</dt><dd>{p.city || '—'}</dd>
-            <dt>Budget</dt><dd>{p.budget ? inr(p.budget) : '—'}</dd>
             <dt>Priority</dt><dd><PriorityFlag priority={p.priority} label /></dd>
             <dt>Created</dt><dd>{fmtDate(p.created_at?.slice(0, 10), { year: true })}{p.created_by_user ? ` by ${p.created_by_user.name}` : ''}</dd>
             {p.completed_at && <><dt>Delivered</dt><dd>{fmtDate(p.completed_at.slice(0, 10), { year: true })}</dd></>}
@@ -745,7 +888,10 @@ export default function Project({ id, tab = 'overview', taskId }) {
           <Fact icon={Users} label="Owner">
             <span className="row gap-6"><Avatar name={p.owner_name} color={p.owner_color} size={20} />{p.owner_name || '—'}</span>
           </Fact>
-          <Fact icon={IndianRupee} label="Budget">{p.budget ? inr(p.budget) : '—'}</Fact>
+          <Fact icon={IndianRupee} label="Budget" tone={p.status === 'completed' && p.to_collect > 0 ? 'red' : ''}>
+            {p.budget ? inr(p.budget) : '—'}
+            {collectText(p) && <div className={`xs ${p.to_collect > 0 ? (p.status === 'completed' ? 'red' : 'amber') : 'green'}`}>{collectText(p)}</div>}
+          </Fact>
           <Fact icon={MapPin} label="Location">{p.city || p.venue || '—'}</Fact>
           <div className="fact ring-fact">
             <Ring value={p.progress} size={54} stroke={6} color={p.vertical_color} />

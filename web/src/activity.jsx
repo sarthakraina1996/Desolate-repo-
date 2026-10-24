@@ -35,6 +35,8 @@ export function describe(a) {
     case 'link_added': return <>added the link <b>{d}</b></>;
     case 'file_final': return <>marked <b>{d}</b> as a final asset</>;
     case 'file_deleted': return <>deleted the file <b>{d}</b></>;
+    case 'payment_added': return <>recorded a client payment of <b>{d}</b></>;
+    case 'payment_removed': return <>removed a client payment of <b>{d}</b></>;
     default: return `${a.action} ${d}`;
   }
 }

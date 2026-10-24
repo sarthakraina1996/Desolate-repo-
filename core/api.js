@@ -25,6 +25,7 @@ const DELETE_GRACE_MS = 5000; // allows for network delay between the click and 
 export const HEALTH = ['on_track', 'at_risk', 'off_track'];
 export const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 export const TASK_STATUSES = ['todo', 'in_progress', 'review', 'blocked', 'done'];
+export const PAYMENT_METHODS = ['bank', 'upi', 'cheque', 'cash', 'card', 'other'];
 const DEFAULT_STAGES = ['Plan', 'Execute', 'Deliver', 'Close'];
 
 const routes = [];
@@ -102,6 +103,7 @@ const PROJECT_COLS = `p.*, v.short AS vertical, v.name AS vertical_name, v.color
   (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.status != 'done' AND t.due_date < ?) AS task_overdue,
   (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id) AS file_count,
   (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id AND f.is_final = 1) AS final_count,
+  (SELECT COALESCE(SUM(pay.amount), 0) FROM payments pay WHERE pay.project_id = p.id) AS received,
   (SELECT f.id || '|' || COALESCE(f.storage_key, '') || '|' || f.mime FROM files f
     WHERE f.project_id = p.id AND f.mime LIKE 'image/%' ORDER BY f.is_final DESC, f.id DESC LIMIT 1) AS cover`;
 const PROJECT_FROM = 'FROM projects p JOIN verticals v ON v.id = p.vertical_id LEFT JOIN users o ON o.id = p.owner_id';
@@ -124,8 +126,13 @@ function shapeProject(row, today) {
     progress: row.task_total ? Math.round((row.task_done / row.task_total) * 100) : row.status === 'completed' ? 100 : 0,
     open,
     late: open && !!row.due_date && row.due_date < today,
+    // Still to come from the client; unknown without a budget, and nothing for cancelled work.
+    to_collect: row.budget > 0 && row.status !== 'cancelled' ? Math.max(0, row.budget - (row.received || 0)) : null,
   };
 }
+
+// ₹7,40,000
+const rupees = (n) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
 function getProjectRaw(ctx, id) {
   const p = ctx.db.get('SELECT * FROM projects WHERE id = ?', toId(id, 'Project'));
@@ -384,7 +391,11 @@ route('GET', '/dashboard', (ctx) => {
   const vids = scopeVerticals(ctx);
   const year = today.slice(0, 4);
   const weekEnd = addDays(today, 6);
-  const empty = { kpis: { active: 0, planning: 0, due_week: 0, overdue: 0, delivered: 0, at_risk: 0 }, my_tasks: [], attention: [], upcoming: [], by_vertical: [], activity: [] };
+  const empty = {
+    kpis: { active: 0, planning: 0, due_week: 0, overdue: 0, delivered: 0, at_risk: 0 },
+    money: { budget: 0, received: 0, to_collect: 0, projects: 0 }, collect: [],
+    my_tasks: [], attention: [], upcoming: [], by_vertical: [], activity: [],
+  };
   if (!vids.length) return empty;
   const inV = `p.vertical_id IN (${placeholders(vids)})`;
   const openP = `p.status IN ${OPEN_IN}`;
@@ -443,6 +454,35 @@ route('GET', '/dashboard', (ctx) => {
   }
   upcoming.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'key' ? -1 : 1));
 
+  // Client money for work that is open, or delivered but not fully paid. Cancelled work and
+  // projects without a budget are left out. Overpayments count up to the budget, so
+  // budget = received + to collect.
+  const moneyRows = db.all(
+    `SELECT p.id, p.vertical_id, p.code, p.name, p.client, p.status, p.budget, p.due_date, p.completed_at,
+      v.short AS vertical, v.color AS vertical_color,
+      (SELECT COALESCE(SUM(pay.amount), 0) FROM payments pay WHERE pay.project_id = p.id) AS received,
+      (SELECT MAX(pay.received_on) FROM payments pay WHERE pay.project_id = p.id) AS last_paid
+     FROM projects p JOIN verticals v ON v.id = p.vertical_id
+     WHERE ${inV} AND p.status != 'cancelled' AND p.budget > 0`,
+    ...vids,
+  )
+    .map((r) => ({ ...r, to_collect: Math.max(0, r.budget - r.received), delivered: r.status === 'completed' }))
+    .filter((r) => OPEN_STATUSES.includes(r.status) || r.to_collect > 0);
+  const money = { budget: 0, received: 0, to_collect: 0, projects: 0 };
+  const dueByVertical = new Map();
+  for (const r of moneyRows) {
+    money.budget += r.budget;
+    money.received += Math.min(r.received, r.budget);
+    money.to_collect += r.to_collect;
+    if (r.to_collect > 0) money.projects += 1;
+    dueByVertical.set(r.vertical_id, (dueByVertical.get(r.vertical_id) || 0) + r.to_collect);
+  }
+  // Delivered work still waiting for money comes first, then the largest amounts.
+  const collect = moneyRows
+    .filter((r) => r.to_collect > 0)
+    .sort((a, b) => b.delivered - a.delivered || b.to_collect - a.to_collect)
+    .slice(0, 8);
+
   const by_vertical = db.all(
     `SELECT v.id, v.short, v.name, v.color,
       SUM(CASE WHEN p.status IN ${OPEN_IN} THEN 1 ELSE 0 END) AS open,
@@ -463,7 +503,9 @@ route('GET', '/dashboard', (ctx) => {
     my_tasks: myTasks,
     attention,
     upcoming: upcoming.slice(0, 12),
-    by_vertical,
+    money,
+    collect,
+    by_vertical: by_vertical.map((v) => ({ ...v, to_collect: dueByVertical.get(v.id) || 0 })),
     activity: recentActivity(ctx, vids, null, 14),
   };
 });
@@ -652,11 +694,16 @@ route('GET', '/projects/:id', (ctx) => {
     p.id,
   ).map((t) => shapeTask(t, ctx.today));
   const created_by = userBrief(db, p.created_by);
+  const payments = db.all(
+    `SELECT pay.*, u.name AS created_by_name FROM payments pay LEFT JOIN users u ON u.id = pay.created_by
+     WHERE pay.project_id = ? ORDER BY pay.received_on DESC, pay.id DESC`,
+    p.id,
+  );
   const unseen = unseenByProject(ctx, [p.id]).get(p.id);
   const comment_total = db.get('SELECT COUNT(*) AS n FROM comments WHERE project_id = ?', p.id).n;
   const inGroup = groupMemberIds(db, p).has(uid(ctx)) || canManageVertical(ctx.user, p.vertical_id);
   const group = inGroup ? { unread: groupUnread(ctx, p.id), messages: db.get("SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ? AND kind != 'system'", p.id).n } : null;
-  return { ...p, unseen, comment_total, group, members, milestones, task_stats: taskStats, stage_stats: stageStats, upcoming_tasks: upcoming, created_by_user: created_by, permissions: permissionsFor(ctx.user, p) };
+  return { ...p, unseen, comment_total, group, members, milestones, payments, task_stats: taskStats, stage_stats: stageStats, upcoming_tasks: upcoming, created_by_user: created_by, permissions: permissionsFor(ctx.user, p) };
 });
 
 const FIELD_LABELS = {
@@ -994,6 +1041,41 @@ route('DELETE', '/milestones/:id', (ctx) => {
   const { m, p } = getMilestone(ctx);
   ctx.db.run('DELETE FROM milestones WHERE id = ?', m.id);
   log(ctx, p.id, 'milestone_deleted', m.title);
+  return { ok: true };
+});
+
+// ---------------------------------------------------------------- client payments
+
+// Money received from the client. Everyone on the project can see it (like the budget); the
+// project's owner, the vertical's managers and admins record and remove payments.
+route('POST', '/projects/:id/payments', (ctx) => {
+  const p = getProjectRaw(ctx, ctx.params.id);
+  if (!canEditProject(ctx.user, p)) throw forbidden('Only the project owner or a manager can record payments');
+  if (p.status === 'cancelled') throw bad('This project is cancelled');
+  const amount = Math.round(Number(String(ctx.body.amount ?? '').replace(/[,₹\s]/g, '')) * 100) / 100;
+  if (!Number.isFinite(amount) || amount <= 0) throw bad('Enter the amount received');
+  if (amount > 1e11) throw bad('That amount is too large');
+  const receivedOn = optDate(ctx.body.received_on, 'Date received') || ctx.today;
+  if (receivedOn > ctx.today) throw bad('The date received cannot be in the future');
+  const method = oneOf(ctx.body.method ?? 'bank', PAYMENT_METHODS, 'Payment method');
+  const reference = text(ctx.body.reference, { max: 120, label: 'Reference' }) || '';
+  const note = text(ctx.body.note, { max: 300, label: 'Note' }) || '';
+  const { id } = ctx.db.run(
+    'INSERT INTO payments (project_id, amount, received_on, method, reference, note, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)',
+    p.id, amount, receivedOn, method, reference, note, uid(ctx), ctx.now,
+  );
+  log(ctx, p.id, 'payment_added', note ? `${rupees(amount)} (${note})` : rupees(amount));
+  return ctx.db.get('SELECT pay.*, u.name AS created_by_name FROM payments pay LEFT JOIN users u ON u.id = pay.created_by WHERE pay.id = ?', id);
+});
+
+route('DELETE', '/payments/:id', (ctx) => {
+  const pay = ctx.db.get('SELECT * FROM payments WHERE id = ?', toId(ctx.params.id, 'Payment'));
+  if (!pay) throw notFound('Payment');
+  const p = ctx.db.get('SELECT * FROM projects WHERE id = ?', pay.project_id);
+  if (!canView(ctx.user, p)) throw notFound('Payment');
+  if (!canEditProject(ctx.user, p)) throw forbidden('Only the project owner or a manager can remove payments');
+  ctx.db.run('DELETE FROM payments WHERE id = ?', pay.id);
+  log(ctx, p.id, 'payment_removed', `${rupees(pay.amount)} received ${pay.received_on}`);
   return { ok: true };
 });
 
