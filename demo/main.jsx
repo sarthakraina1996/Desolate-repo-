@@ -106,7 +106,10 @@ let place = 'office';
 
 // Inside the combined HRMS + Projects demo page (opened as "hrms.html#suite"): Projects counts as
 // connected, and choosing it hands the one-time pass to that page instead of leaving this one.
-const suite = /(^|[#&])suite\b/.test(window.location.hash) && window.parent !== window;
+// The frame's name is the main signal (an address's "#" part can be lost on the way).
+const suite =
+  window.parent !== window &&
+  (window.name === 'brainadz-suite' || /(^|[#&])suite\b/.test(window.location.hash));
 if (suite) {
   process.env.PROJECTS_URL = 'https://projects.brainadz.demo';
   // Demo-only secret; the suite page checks passes with the same one.

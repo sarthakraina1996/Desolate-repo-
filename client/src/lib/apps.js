@@ -2,24 +2,32 @@
 // opening Projects with a one-time pass instead of a second password.
 import { api } from './api.js';
 
-// Session flags: show the picker once after this sign-in, or go straight to Projects.
+// Session flags: show the picker after this sign-in, go straight to Projects, or an app was
+// already chosen in this visit (so the landing picker doesn't come back).
 const PICK = 'brainadz.pick';
 const NEXT = 'brainadz.next';
+const CHOSEN = 'brainadz.chosen';
 
-// sessionStorage can be blocked (private windows); the flags then simply don't stick.
+// Kept in sessionStorage (so a reload keeps them) and in memory, because some browsers block
+// storage in embedded pages such as the claude.ai demo; the picker must still show there.
+const memory = new Map();
 const read = (k) => {
   try {
-    return sessionStorage.getItem(k);
+    const v = sessionStorage.getItem(k);
+    if (v !== null) return v;
   } catch {
-    return null;
+    // Storage blocked: memory below.
   }
+  return memory.get(k) ?? null;
 };
 const write = (k, v) => {
+  if (v) memory.set(k, v);
+  else memory.delete(k);
   try {
     if (v) sessionStorage.setItem(k, v);
     else sessionStorage.removeItem(k);
   } catch {
-    // Nothing to do: the picker just won't show.
+    // Storage blocked: memory has it for this visit.
   }
 };
 
@@ -35,11 +43,17 @@ export function takeAppRequest() {
 
 export const wantsProjects = () => read(NEXT) === 'projects';
 export const pickPending = () => read(PICK) === '1';
+export const appChosen = () => read(CHOSEN) === '1';
 // Called on a successful sign-in: the picker shows next, unless Projects was asked for.
-export const markSignedIn = () => write(PICK, wantsProjects() ? null : '1');
+export const markSignedIn = () => {
+  write(CHOSEN, null);
+  write(PICK, wantsProjects() ? null : '1');
+};
+// An app was chosen: no picker again in this visit.
 export const clearAppFlags = () => {
   write(PICK, null);
   write(NEXT, null);
+  write(CHOSEN, '1');
 };
 
 // Gets a one-time pass for the signed-in person and opens Projects with it. True when this

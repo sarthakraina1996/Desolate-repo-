@@ -208,7 +208,7 @@ Things to know:
 
 BrainADZ HRMS and [BrainADZ Projects](https://github.com/sarthakraina1996/Desolate-repo-/tree/claude/funny-pascal-rm5wvi) can share one sign-in. People sign in to the HRMS, then pick the app they want:
 
-- **After signing in:** a "Which app do you want to open?" screen with **BrainADZ HRMS** and **BrainADZ Projects**. Choosing Projects opens it already signed in, with no second password.
+- **Landing page:** after signing in, and whenever you open the HRMS address, a "Which app do you want to open?" screen with **BrainADZ HRMS** and **BrainADZ Projects**. Choosing Projects opens it already signed in, with no second password. Links to a particular page go straight there.
 - **Switching later:** **Open BrainADZ Projects** under your name in the HRMS, and **Open BrainADZ HRMS** under your name in Projects.
 - **Starting from Projects:** its sign-in page has **Sign in with BrainADZ HRMS**, which comes here and goes straight back once you're signed in.
 
@@ -261,6 +261,7 @@ What's where:
   - `public/`: app icons, phone screenshots, the app manifest and the service worker
 - `tests/`: payroll, leave and screener rules; end-to-end API flows across roles; the Claude request format against a local stand-in for the API.
 - `demo/`: the interactive claude.ai demo. `npm run build:demo` bundles the client and the server into one page (`demo/dist/brainadz-hrms.html`) that runs entirely in the browser: SQLite via sql.js, uploads kept in memory, and Claude screening through the viewer's own claude.ai access. Node built-ins and the Anthropic SDK are swapped for the browser versions in `demo/shims/`; the route modules, payroll and leave rules, and seed are the same code. Data resets when the page reloads. It also writes `demo/dist/BrainADZ-HRMS.html`: the same app as one file anyone can double-click to run in their browser, with nothing to install (downloads work normally there; Claude screening uses the built-in rules).
+- `demo/suite/`: the combined claude.ai demo of the shared sign-in, with the HRMS and Projects demos side by side (`python3 demo/suite/build.py <Projects checkout>` after building both demos).
 - `scripts/dev.js`: runs the API and the Vite dev server together for `npm run dev`.
 - `start-office.bat` / `start-office.command`: double-click starters for running on an office computer (Windows / Mac).
 - `Dockerfile` and `render.yaml`: the online server. The image holds only what's needed to run; tests, the demo and developer tools are left out.

@@ -1,12 +1,12 @@
-import { Component, lazy, Suspense, useState } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Component, lazy, Suspense, useRef, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from './context.jsx';
 import Layout from './components/Layout.jsx';
 import { Loading } from './components/ui.jsx';
 import Login from './pages/Login.jsx';
 import { OfflineBanner } from './components/InstallApp.jsx';
 import AppPicker from './components/AppPicker.jsx';
-import { clearAppFlags, pickPending, wantsProjects } from './lib/apps.js';
+import { appChosen, clearAppFlags, pickPending, wantsProjects } from './lib/apps.js';
 
 // Pages are split into their own chunks and loaded on first visit.
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
@@ -91,19 +91,30 @@ export default function App() {
 function AppRoutes() {
   const { user, meta } = useApp();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  // Where this visit began: opening the home address lands on the app picker.
+  const startPath = useRef(pathname).current;
   // Bumped when someone picks HRMS, so the picker gives way to the app.
   const [, setPicked] = useState(0);
   // Wait for the sign-in check and the shared lookup data before rendering any page
   if (user === undefined || (user && !meta)) return <Loading text="Loading BrainADZ HRMS…" />;
   if (!user) return <Login />;
-  // Just signed in with Projects connected: choose an app (after any forced password change).
-  if (meta.projectsUrl && !user.mustChangePassword && (wantsProjects() || pickPending()))
+  // With Projects connected, the app picker is the landing page: after signing in, when a visit
+  // starts at the home address, and at /apps. Links to a page go straight there. Any forced
+  // password change comes first.
+  const landing = !appChosen() && (pickPending() || ['/', '/my'].includes(startPath));
+  if (
+    meta.projectsUrl &&
+    !user.mustChangePassword &&
+    (wantsProjects() || landing || pathname === '/apps')
+  )
     return (
       <AppPicker
         direct={wantsProjects()}
         onHrms={() => {
           clearAppFlags();
-          setPicked((n) => n + 1);
+          if (pathname === '/apps') navigate('/', { replace: true });
+          else setPicked((n) => n + 1);
         }}
       />
     );
