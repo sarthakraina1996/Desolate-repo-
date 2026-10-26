@@ -568,12 +568,14 @@ body.fnav-dragging, body.fnav-dragging * { user-select: none !important; -webkit
   background: radial-gradient(circle at 32% 26%, #33489c 0%, #1f2b7b 52%, #151d5a 100%);
   box-shadow: 0 10px 26px rgba(21, 29, 90, .34), 0 3px 8px rgba(16, 24, 40, .16), inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 -2px 6px rgba(0, 0, 0, .18);
   transition: transform .15s ease, box-shadow .15s ease; animation: fnav-pop .36s cubic-bezier(.34, 1.56, .64, 1); }
+/* A few invisible pixels round the circle, so it is easy to grab. */
+.fnav-btn::before { content: ''; position: absolute; inset: -8px; border-radius: 50%; }
 .fnav-btn::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid rgba(31, 43, 123, .22); opacity: 0; transform: scale(.9); transition: opacity .2s, transform .2s; pointer-events: none; }
 .fnav-btn:hover { transform: scale(1.06); box-shadow: 0 14px 32px rgba(21, 29, 90, .38), 0 4px 10px rgba(16, 24, 40, .18), inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 -2px 6px rgba(0, 0, 0, .18); }
 .fnav-btn.open::after, .fnav-btn:focus-visible::after { opacity: 1; transform: none; }
 .fnav-btn:focus-visible { outline: none; }
 .fnav-float.dragging .fnav-btn { transform: scale(1.1); cursor: grabbing; box-shadow: 0 18px 40px rgba(21, 29, 90, .42), 0 6px 14px rgba(16, 24, 40, .2), inset 0 1px 0 rgba(255, 255, 255, .22); }
-.fnav-badge { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; border: 2px solid #fff; background: var(--red); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 16px; text-align: center; pointer-events: none; }
+.fnav-badge { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; border: 2px solid #fff; background: var(--red); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 16px; text-align: center; }
 @keyframes fnav-pop { from { opacity: 0; transform: scale(.4); } }
 
 .fnav-panel { position: fixed; z-index: 91; display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid var(--border); border-radius: 16px;

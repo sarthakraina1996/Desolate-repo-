@@ -60,23 +60,21 @@ function useMedia(query) {
 // Drag with mouse, touch or pen. While dragging, the element follows the pointer once per
 // frame by moving it directly (no re-rendering), so it stays smooth; React only hears about
 // the final position. Under 5px of movement counts as a tap, so a click never moves
-// anything and a drag never clicks.
-function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
+// anything and a drag never clicks. The pointer is followed across the whole window until
+// it is released, so the drag never stops halfway, wherever the pointer goes.
+function useDrag(options) {
+  const opts = useRef(options);
+  opts.current = options;
   const s = useRef(null);
   const frame = useRef(0);
+  const stop = useRef(null); // removes the window listeners of the drag in progress
   const paint = () => {
     frame.current = 0;
     const d = s.current;
-    if (d?.next && elRef.current) elRef.current.style.transform = `translate3d(${d.next.x}px, ${d.next.y}px, 0)`;
+    const el = opts.current.elRef.current;
+    if (d?.next && el) el.style.transform = `translate3d(${d.next.x}px, ${d.next.y}px, 0)`;
   };
-  const onPointerDown = (e) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (ignore?.(e)) return;
-    const p = getPos();
-    s.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: p.x, y: p.y, moved: false, next: null };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
-  const onPointerMove = (e) => {
+  const move = (e) => {
     const d = s.current;
     if (!d || d.id !== e.pointerId || d.done) return;
     const dx = e.clientX - d.sx;
@@ -84,34 +82,62 @@ function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
     if (!d.moved && Math.hypot(dx, dy) < 5) return;
     if (!d.moved) {
       d.moved = true;
-      elRef.current?.classList.add('dragging');
+      opts.current.elRef.current?.classList.add('dragging');
       document.body.classList.add('fnav-dragging');
-      onStart?.();
+      opts.current.onStart?.();
     }
-    const { w, h } = getSize();
+    const { w, h } = opts.current.getSize();
     d.next = keepOnScreen({ x: d.x + dx, y: d.y + dy }, w, h);
     if (!frame.current) frame.current = requestAnimationFrame(paint);
   };
   const finish = (e) => {
     const d = s.current;
     if (!d || d.id !== e.pointerId || d.done) return;
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    stop.current?.();
     if (!d.moved) {
       s.current = null;
       return;
     }
     cancelAnimationFrame(frame.current);
     paint();
-    elRef.current?.classList.remove('dragging');
+    opts.current.elRef.current?.classList.remove('dragging');
     document.body.classList.remove('fnav-dragging');
-    if (d.next) onEnd?.(d.next);
+    if (d.next) opts.current.onEnd?.(d.next);
     // The click that follows a drag must not open anything.
     s.current = { done: true };
     setTimeout(() => {
       if (s.current?.done) s.current = null;
     }, 400);
   };
+  const onPointerDown = (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (opts.current.ignore?.(e)) return;
+    stop.current?.();
+    const p = opts.current.getPos();
+    s.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: p.x, y: p.y, moved: false, next: null };
+    const target = e.currentTarget;
+    try {
+      target.setPointerCapture(e.pointerId); // keeps the pointer even outside the page's frame
+    } catch {
+      /* the window listeners below still follow it */
+    }
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+    stop.current = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      try {
+        target.releasePointerCapture(e.pointerId);
+      } catch {
+        /* already released */
+      }
+      stop.current = null;
+    };
+  };
   useEffect(() => () => {
+    stop.current?.();
     cancelAnimationFrame(frame.current);
     document.body.classList.remove('fnav-dragging');
   }, []);
@@ -120,7 +146,9 @@ function useDrag({ elRef, getPos, getSize, onStart, onEnd, ignore }) {
     if (was) s.current = null;
     return was;
   };
-  return { justDragged, handlers: { onPointerDown, onPointerMove, onPointerUp: finish, onPointerCancel: finish } };
+  const dragging = () => !!s.current?.moved && !s.current.done;
+  // The browser's own drag (of an image or text) would take the pointer away.
+  return { justDragged, dragging, handlers: { onPointerDown, onDragStart: (e) => e.preventDefault() } };
 }
 
 // Animated open/close: stays mounted while it plays its closing animation.
@@ -184,9 +212,10 @@ export function FloatingNav({ counts, onDock, focusOnMount }) {
       setSaved(spot);
     },
   });
-  // Keep its place (and stay on screen) when the window changes size.
+  // Keep its place (and stay on screen) when the window changes size. Not mid-drag: phones
+  // resize when the address bar hides, and the button must stay under the finger.
   useEffect(() => {
-    const onResize = () => setPos(fromSaved(spotRef.current));
+    const onResize = () => !btnDrag.dragging() && setPos(fromSaved(spotRef.current));
     onResize();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
@@ -414,6 +443,7 @@ function QuickAccess({ anchor, items, counts, path, closing, onGo, onMenu, onDoc
   }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onResize = () => {
+      if (drag.dragging()) return;
       const { w, h } = size();
       setPos(keepOnScreen(posRef.current, w, h));
     };
