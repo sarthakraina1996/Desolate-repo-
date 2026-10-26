@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Diamond, Flag, CircleCheck, Circle, Plus } f
 import { useApp, useLoad, usePref } from '../store.jsx';
 import { api } from '../api.js';
 import { useRouter } from '../router.jsx';
-import { Loading, ErrorNote, Seg, alpha } from '../ui.jsx';
+import { ErrorNote, Seg, alpha } from '../ui.jsx';
 import { addDays, MONTHS, DOW, fmtDate, fmtDow } from '../format.js';
 import { NoAccess } from './Dashboard.jsx';
 import { ProjectForm } from './ProjectForm.jsx';

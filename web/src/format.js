@@ -90,9 +90,4 @@ export function initials(name = '') {
   return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
 }
 
-export function monthLabel(ym) {
-  const [y, m] = ym.split('-').map(Number);
-  return `${MONTHS[m - 1]} ${y}`;
-}
-
 export { MONTHS, DOW };

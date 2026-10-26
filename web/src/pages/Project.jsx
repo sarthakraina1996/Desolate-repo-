@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Pencil, Copy, Trash2, CheckCircle2, PauseCircle, RotateCcw, Ban, LayoutTemplate, Download, Plus, Diamond, MapPin,
-  IndianRupee, CalendarRange, Users, Flag, X, LayoutList, Columns3, MessageSquare, Paperclip, Lock, Grid2x2, List, Send, Check,
+  IndianRupee, CalendarRange, Users, Flag, X, LayoutList, Columns3, MessageSquare, Paperclip, Lock, Grid2x2, List, Check,
   MessagesSquare, Wallet, Play,
 } from 'lucide-react';
 import { useApp, useLoad, usePref } from '../store.jsx';
@@ -9,12 +9,12 @@ import { api } from '../api.js';
 import { Link, useRouter } from '../router.jsx';
 import {
   Loading, ErrorNote, Empty, VChip, StatusBadge, HealthBadge, Avatar, Ring, Menu, Seg, PriorityFlag, TaskStatusBadge, Modal, Field,
-  UserSelect, Progress, TASK_STATUS, HEALTH, PRIORITY, alpha, CountPill, NewTag, GROUP_GOES,
+  UserSelect, Progress, TASK_STATUS, HEALTH, PRIORITY, CountPill, NewTag, GROUP_GOES,
 } from '../ui.jsx';
 import { ActivityList, Composer, CommentItem, stampReceived } from '../activity.jsx';
 import { Board, Cover, Labels, Badges, DueBadge, labelColor } from '../board.jsx';
 import { UploadZone, LinkForm, FileCard, FileRow, FilePreview, AddLinkButton } from '../files.jsx';
-import { fmtDate, relDay, daysFrom, dueText, inr, fmtTime, timeAgo } from '../format.js';
+import { fmtDate, relDay, daysFrom, dueText, inr } from '../format.js';
 import { ProjectForm } from './ProjectForm.jsx';
 import { TaskModal } from './TaskModal.jsx';
 import { toCsv } from './Projects.jsx';

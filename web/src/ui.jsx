@@ -3,7 +3,7 @@ import {
   X, Flag, Loader2, MoreHorizontal, FileText, FileImage, FileVideo, FileSpreadsheet, FileArchive, File as FileIco,
   Link2, Presentation, Inbox,
 } from 'lucide-react';
-import { initials, fmtDate, MONTHS } from './format.js';
+import { initials, MONTHS } from './format.js';
 import { api } from './api.js';
 
 export const PROJECT_STATUS = {
@@ -371,8 +371,3 @@ export function FileThumb({ file }) {
   );
 }
 
-export function dateRange(a, b, today) {
-  if (!a && !b) return '—';
-  if (a && b) return `${fmtDate(a, { today })} – ${fmtDate(b, { today })}`;
-  return fmtDate(a || b, { today });
-}

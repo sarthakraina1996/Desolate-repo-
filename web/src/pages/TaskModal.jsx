@@ -3,7 +3,7 @@ import { X, Trash2, Check, Plus, Paperclip, Lock } from 'lucide-react';
 import { useApp, useLoad } from '../store.jsx';
 import { api } from '../api.js';
 import { Link } from '../router.jsx';
-import { Loading, Avatar, UserSelect, VChip, Field, TASK_STATUS, PRIORITY, Empty } from '../ui.jsx';
+import { Loading, UserSelect, VChip, Field, TASK_STATUS, PRIORITY, Empty } from '../ui.jsx';
 import { UploadZone, FileRow, FilePreview, LinkForm } from '../files.jsx';
 import { fmtTime, timeAgo, dueText } from '../format.js';
 import { describe, Composer, CommentItem, stampReceived } from '../activity.jsx';

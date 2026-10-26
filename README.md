@@ -81,36 +81,18 @@ This adds a fictional team and about twenty projects. Every sample person signs 
 
 ```bash
 npm run dev            # API on :3000 and the web app with hot reload on :5173
-npm test               # access-control and server tests
 ```
 
-## Host it from this repository
+## Host it on Railway
 
-### Option 1: GitHub Pages (free, demo only)
+`railway.json` and the `Dockerfile` describe the whole setup.
 
-`docs/index.html` is the one-file browser demo. GitHub can serve it straight from this repository:
+1. In [Railway](https://railway.com), choose **New Project → Deploy from GitHub repo** and pick this repository and the branch that holds this code. Railway builds it from the `Dockerfile`.
+2. In the service, add a **Volume** mounted at `/data`. The database and uploaded files live there, so they survive deploys and restarts.
+3. Under **Variables**, set `ADMIN_NAME`, `ADMIN_EMAIL` and `ADMIN_PASSWORD` for the first admin, plus `SECURE_COOKIES=1`.
+4. Under **Settings → Networking**, generate a domain (or add your own, such as `projects.brainadz.com`), open it, sign in as that admin and add your team under **Team & Access**.
 
-1. On GitHub, open **Settings → Pages**.
-2. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
-3. Pick the branch that holds this code and the **/docs** folder, then press **Save**.
-4. After a minute the site is live at `https://<github-user>.github.io/<repo-name>/`.
-
-Every visitor gets their own copy of the sample data, kept in their browser. Use it for showing the app, not for real work. After changing the code, run `npm run build:pages` and commit `docs/` to update it.
-
-### Option 2: Render (the real app for your team)
-
-`render.yaml` describes the whole setup: a Node web service plus a 5 GB disk for the database and uploaded files.
-
-1. Sign in at [render.com](https://render.com) with your GitHub account.
-2. Choose **New → Blueprint**, pick this repository and the branch that holds this code.
-3. Fill in `ADMIN_NAME`, `ADMIN_EMAIL` and `ADMIN_PASSWORD` for the first admin, then **Apply**.
-4. When the deploy finishes, open the `onrender.com` address Render shows, sign in as that admin, and add your team under **Team & Access**.
-
-The disk needs a paid instance (Render's Starter plan). Everything people add lives on the disk at `/var/data`, which Render keeps across deploys and restarts. A custom domain such as `projects.brainadz.com` can be added in the service's **Settings → Custom Domains**.
-
-### Other hosts
-
-Any host that runs Node.js 22 or Docker works. Build with `npm ci --include=dev && npm run build`, start with `npm start`, and point `DATA_DIR` at storage that survives restarts. With Docker:
+Any other host that runs Docker works the same way:
 
 ```bash
 docker build -t brainadz-projects .
@@ -122,7 +104,7 @@ docker run -p 3000:3000 -v brainadz-data:/data \
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `3000` | Port to listen on |
-| `DATA_DIR` | `./data` | Database and uploaded files. Back up this folder. |
+| `DATA_DIR` | `./data` (`/data` in Docker) | Database and uploaded files. Back up this folder. |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | generated | First admin account (first start only) |
 | `SECURE_COOKIES` | off | Set to `1` behind HTTPS |
 | `MAX_UPLOAD_MB` | `200` | Largest file someone can upload |
@@ -130,7 +112,7 @@ docker run -p 3000:3000 -v brainadz-data:/data \
 
 ### Install it as an app
 
-Once the app is hosted on an HTTPS address (any of the options above), each person can install it from that address:
+Once the app is hosted on an HTTPS address, each person can install it from that address:
 
 - **Android (Chrome, Edge, Samsung Internet):** open the profile menu (your initials, top right) and choose **Install app**, or use the browser's **Install app** / **Add to Home screen** option.
 - **iPhone and iPad:** open the address in Safari, choose **Add to Home Screen** in the profile menu for the steps, or tap **Share → Add to Home Screen** directly.
@@ -149,7 +131,7 @@ core/      the API, access rules, schema, templates and demo data (shared by ser
 server/    Express server: sign-in, sessions, uploads and downloads, static files
 web/src/   React app (pages/, shared UI, theme.css copied from the HRMS)
 web/public/ app icons, manifest and service worker that make it installable on phones
-tests/     node:test suites for vertical isolation, comments, boards, team groups and the HTTP server
+scripts/   turns the demo build into one HTML file
 ```
 
 Security notes: passwords are hashed with scrypt; sessions are http-only cookies; every write needs a custom header so other sites cannot submit forms on your behalf; repeated failed sign-ins are slowed down; and uploaded files are served as downloads with a locked-down content policy. `npm audit` reports one moderate advisory in the Vite development server. It does not affect the production build or the server.

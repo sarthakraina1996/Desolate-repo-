@@ -502,7 +502,6 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
     const b = others[1] || a;
     const fill = (t) => t.replace('{owner}', first(owner)).replace('{a}', first(a));
     const creator = head[g.short] || admin || owner;
-    const due = g.due_date || today;
     const startedAt = g.created_at || at(-30, 10, 0);
     db.run('UPDATE projects SET group_started_at = ? WHERE id = ?', startedAt, g.id);
     post(g.id, creator, 'system', `${nameById.get(creator)} started this group for everyone working on ${g.code} · ${g.name}.`, startedAt);

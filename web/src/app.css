@@ -44,7 +44,7 @@
 .icon-btn.sm-x:disabled { opacity: .35; cursor: default; }
 .link.xs { font-size: 12px; font-weight: 500; }
 .btn:focus-visible, .link:focus-visible, .pick-chip:focus-visible, .check-btn:focus-visible, .trow-main:focus-visible,
-.fcard:focus-visible, .pcard:focus-visible, .kcard:focus-visible, .arch:focus-visible, .mcal-day:focus-visible, .agenda-it:focus-visible, .step:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.fcard:focus-visible, .arch:focus-visible, .mcal-day:focus-visible, .agenda-it:focus-visible, .step:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 /* round checkbox used for tasks and milestones */
 .check-btn { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-strong); background: #fff; flex-shrink: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; color: #fff; padding: 0; transition: background .12s, border-color .12s; }

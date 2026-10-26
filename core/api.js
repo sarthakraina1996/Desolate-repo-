@@ -1519,7 +1519,7 @@ route('GET', '/groups', (ctx) => {
 
 route('GET', '/groups/:id', (ctx) => {
   const { db } = ctx;
-  const { p, member, head } = getGroup(ctx, ctx.params.id);
+  const { p, member } = getGroup(ctx, ctx.params.id);
   const v = db.get('SELECT short, name, color, ready_label, key_date_label FROM verticals WHERE id = ?', p.vertical_id);
   const team = new Set(db.all('SELECT user_id FROM project_members WHERE project_id = ?', p.id).map((r) => r.user_id));
   const openTasks = new Map(db.all(

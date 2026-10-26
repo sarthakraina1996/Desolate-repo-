@@ -4,7 +4,7 @@ import { useApp, useLoad } from '../store.jsx';
 import { api } from '../api.js';
 import { Link, useRouter } from '../router.jsx';
 import {
-  Loading, ErrorNote, Empty, VChip, HealthBadge, Progress, Avatar, DateBox, PriorityFlag, alpha, HEALTH,
+  Loading, ErrorNote, Empty, VChip, Progress, Avatar, DateBox, PriorityFlag, alpha, HEALTH,
 } from '../ui.jsx';
 import { ActivityList } from '../activity.jsx';
 import { dueText, relDay, inr, inrShort, fmtDate } from '../format.js';

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, ListChecks } from 'lucide-react';
 import { useApp, useLoad } from '../store.jsx';
 import { api } from '../api.js';
-import { Link, useRouter } from '../router.jsx';
+import { useRouter } from '../router.jsx';
 import { Loading, ErrorNote, Empty, PriorityFlag, TaskStatusBadge, Seg, Avatar, CountPill, NewTag } from '../ui.jsx';
-import { addDays, daysFrom, fmtDate, fmtDow, dueText } from '../format.js';
+import { daysFrom, fmtDate, fmtDow, dueText } from '../format.js';
 import { NoAccess } from './Dashboard.jsx';
 
 function bucket(today, t) {
