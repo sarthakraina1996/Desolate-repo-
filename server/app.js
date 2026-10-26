@@ -21,6 +21,8 @@ import hiringRoutes from './routes/hiring.js';
 import screenerRoutes from './routes/screener.js';
 import passkeyRoutes from './routes/passkeys.js';
 import trainingRoutes from './routes/training.js';
+import appRoutes from './routes/apps.js';
+import { projectsLinkProblem } from './services/sso.js';
 import { ensureTraining } from './services/training.js';
 import { deviceMiddleware } from './services/devices.js';
 import resignationRoutes from './routes/resignations.js';
@@ -56,6 +58,9 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
 
   // Built-in POSH awareness course; older databases move their POSH completions into Training.
   ensureTraining(db, companyToday(db));
+  // Half-configured shared sign-in: say why the Projects option is hidden.
+  const ssoProblem = projectsLinkProblem();
+  if (ssoProblem) console.warn(`BrainADZ Projects sign-in is off: ${ssoProblem}.`);
 
   // Closes work clocks left running overnight and raises short-hours alerts
   // for earlier days. Runs at start and every 30 minutes.
@@ -149,6 +154,7 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
     settingsRoutes,
     passkeyRoutes,
     trainingRoutes,
+    appRoutes,
   ]) {
     register(api, ctx);
   }

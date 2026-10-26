@@ -12,6 +12,7 @@ import {
   ChevronsLeft,
   Fingerprint,
   Smartphone,
+  FolderKanban,
 } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
@@ -49,6 +50,7 @@ import { BottomBar, MoreSheet } from './MobileNav.jsx';
 import { GetAppModal, InstallBanner } from './InstallApp.jsx';
 import { canOfferApp, useInstall } from '../lib/pwa.js';
 import { useWorkday } from '../lib/workday.js';
+import { openProjects } from '../lib/apps.js';
 
 // BrainADZ HRMS wordmark; the small size drops the tagline.
 export function Logo({ size = '' }) {
@@ -506,9 +508,9 @@ function ChangePassword({ onClose, forced }) {
   );
 }
 
-// Account chip and menu: My Space, profile, password, the app and sign-out.
+// Account chip and menu: My Space, profile, password, the app, switching to Projects and sign-out.
 function UserMenu({ onGetApp }) {
-  const { user, logout } = useApp();
+  const { user, meta, logout, toast } = useApp();
   const workday = useWorkday();
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState(false);
@@ -605,6 +607,18 @@ function UserMenu({ onGetApp }) {
             >
               <Smartphone size={16} />
               Get the mobile app
+            </div>
+          )}
+          {meta.projectsUrl && (
+            <div
+              className="item"
+              onClick={() => {
+                setOpen(false);
+                openProjects().catch((e) => toast(e.message, 'error'));
+              }}
+            >
+              <FolderKanban size={16} />
+              Open BrainADZ Projects
             </div>
           )}
           <div className="item" style={{ color: 'var(--red)' }} onClick={signOut}>

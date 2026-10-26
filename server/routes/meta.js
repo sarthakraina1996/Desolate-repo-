@@ -18,6 +18,7 @@ import {
 import { aiEnabled } from '../services/ai.js';
 import { lanAddresses, isLoopback } from '../lib/network.js';
 import { geofencePolicy, exemption } from '../services/geofence.js';
+import { projectsLink } from '../services/sso.js';
 
 // App-wide data: lookups, photos, global search, notifications, notices and helpdesk.
 export default function metaRoutes(r, { db, uploads }) {
@@ -36,6 +37,8 @@ export default function metaRoutes(r, { db, uploads }) {
         workHours: s.workHours,
         requiredDocuments: s.requiredDocuments,
       },
+      // BrainADZ Projects, when it shares sign-in with this HRMS.
+      projectsUrl: projectsLink()?.url ?? null,
       documentCategories: DOC_CATEGORIES,
       verticals: db.all('SELECT * FROM verticals ORDER BY id'),
       departments: db.all('SELECT * FROM departments ORDER BY name'),

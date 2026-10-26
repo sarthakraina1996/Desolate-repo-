@@ -147,6 +147,7 @@ Environment variables:
 | `HRMS_AI_MODEL` | `claude-opus-5-5` | Claude model for screening |
 | `TRUST_PROXY` | | Set to `1` behind a load balancer / HTTPS proxy |
 | `COOKIE_SECURE` | | Set to `true` when served over HTTPS |
+| `PROJECTS_URL`, `SSO_SECRET` | | One sign-in with BrainADZ Projects (see below) |
 
 **Backups:** copy the whole `DATA_DIR` folder (it holds the database and every uploaded resume, document and photo). A nightly copy is enough for most teams.
 
@@ -202,6 +203,30 @@ Things to know:
 - People are told whenever fingerprint check-in is set up or reset on their account, and whenever their account signs in from a new device, so a setup they didn't make doesn't go unnoticed.
 - Fingerprints never leave the phone; the HRMS stores only a public key. Passkeys belong to one web address: if you move to a new domain, everyone sets it up again.
 - No software can stop someone handing over their unlocked phone and its PIN. What this does is make that deliberate, and the Location log shows it.
+
+## One sign-in for HRMS and Projects
+
+BrainADZ HRMS and [BrainADZ Projects](https://github.com/sarthakraina1996/Desolate-repo-/tree/claude/funny-pascal-rm5wvi) can share one sign-in. People sign in to the HRMS, then pick the app they want:
+
+- **After signing in:** a "Which app do you want to open?" screen with **BrainADZ HRMS** and **BrainADZ Projects**. Choosing Projects opens it already signed in, with no second password.
+- **Switching later:** **Open BrainADZ Projects** under your name in the HRMS, and **Open BrainADZ HRMS** under your name in Projects.
+- **Starting from Projects:** its sign-in page has **Sign in with BrainADZ HRMS**, which comes here and goes straight back once you're signed in.
+
+To connect them (both apps must be online at their `https://` addresses):
+
+1. Make up a long random secret, at least 32 characters (for example, run `openssl rand -hex 32`). Keep it private: anyone who has it could sign in to Projects as anyone.
+2. In the HRMS host's settings (Render: **Environment**), set `PROJECTS_URL` to the Projects address (for example `https://projects.brainadz.com`) and `SSO_SECRET` to the secret.
+3. In the Projects host's settings (Railway: **Variables**), set `HRMS_URL` to this HRMS's address and `SSO_SECRET` to the **same** secret.
+4. Make sure each person's Projects account has the **same email** as their HRMS sign-in. Add people in Projects under **Team & Access**; they don't need a Projects password.
+
+How it stays safe: choosing Projects gives the browser a pass that works once, for one minute, and only for that person. It's signed with the shared secret, so it can't be made up or changed, and it travels after the `#` in the address, so it never appears in server logs. Someone without a Projects account sees a message asking them to request access.
+
+Good to know:
+
+- Each app keeps its own session: signing out of one doesn't sign you out of the other.
+- If office-only sign-in is on, it applies to this shared sign-in too, so people outside the office can't open Projects this way either (unless they're on approved WFH or leave). Anyone with a Projects password can still sign in to Projects directly.
+- Someone who arrives from the HRMS while still on a temporary Projects password has that temporary password cancelled, since they no longer need it. An admin can reset it under Team & Access if they ever want one.
+- If either setting is missing or the secret is too short, the server says so when it starts and the Projects option stays hidden.
 
 ## Security notes
 

@@ -1764,8 +1764,8 @@ body.fnav-dragging * {
 .btn.block {
   width: 100%;
 }
-/* Spinning icon while a button is busy */
-.btn .spin {
+/* Spinning icon while something loads or a button is busy */
+.spin {
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin {
@@ -3135,6 +3135,131 @@ table.table {
 .login .box {
   width: 100%;
   max-width: 410px;
+}
+/* App picker after sign-in: BrainADZ HRMS or BrainADZ Projects */
+.picker {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+.picker-box {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.picker-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: var(--navy);
+}
+.picker-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--navy);
+}
+.picker-box h1 {
+  font-size: 28px;
+  letter-spacing: -0.5px;
+  margin-top: 20px;
+}
+.picker-box .alert {
+  width: 100%;
+  text-align: left;
+}
+.picker-apps {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 4px;
+}
+/* One app: coloured icon, name and what it's for, and an arrow */
+.picker-app {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    transform 0.15s var(--ease-out);
+}
+.picker-app:hover:not(:disabled) {
+  border-color: var(--blue);
+  transform: translateY(-1px);
+}
+.picker-app:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.picker-app:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.picker-ic {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.picker-ic.hrms {
+  background: var(--navy);
+}
+.picker-ic.projects {
+  background: var(--red);
+}
+.picker-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.picker-text b {
+  font-size: 16px;
+  color: var(--text);
+}
+.picker-text span {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.picker-go {
+  flex-shrink: 0;
+  color: var(--faint);
+}
+/* "Opening BrainADZ Projects…" while handing over */
+.picker-wait {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .picker-app {
+    transition: none;
+  }
 }
 /* Demo account buttons that sign in with one click */
 .demo-acc {

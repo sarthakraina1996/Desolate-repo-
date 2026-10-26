@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
-import { LogIn, Users, CalendarDays, CreditCard, Sparkles, MapPin } from 'lucide-react';
+import {
+  LogIn,
+  Users,
+  CalendarDays,
+  CreditCard,
+  Sparkles,
+  MapPin,
+  FolderKanban,
+} from 'lucide-react';
 import { api } from '../lib/api.js';
 import { withLocation } from '../lib/location.js';
 import { useApp } from '../context.jsx';
+import { markSignedIn, wantsProjects } from '../lib/apps.js';
 import { Avatar, Field, Input } from '../components/ui.jsx';
 import { Logo } from '../components/Layout.jsx';
 
@@ -47,6 +56,8 @@ export default function Login() {
           }),
         { onLocating: setLocating },
       );
+      // With Projects connected, the app picker comes next.
+      if (cfg?.projectsUrl) markSignedIn();
       await loadMe();
     } catch (ex) {
       // Office-location failures get an extra hint about WFH and leave days.
@@ -59,24 +70,47 @@ export default function Login() {
     }
   };
 
+  // One sign-in for HRMS and Projects once the two are connected.
+  const shared = Boolean(cfg?.projectsUrl);
   return (
     <div className="login">
       {/* Brand panel */}
       <div className="left">
-        <Logo />
+        {shared ? (
+          // One sign-in for both apps: the company name, with the apps where the tagline goes.
+          <div className="logo">
+            <div className="b">BrainADZ</div>
+            <div className="tg">HRMS &nbsp;|&nbsp; Projects</div>
+          </div>
+        ) : (
+          <Logo />
+        )}
         <div>
-          <h2>Unified people operations across all BrainADZ verticals.</h2>
+          <h2>
+            {shared
+              ? 'One sign-in for everything at BrainADZ.'
+              : 'Unified people operations across all BrainADZ verticals.'}
+          </h2>
           <p>
-            Hiring, onboarding, attendance, leave, payroll, performance, POSH and exits for BrainADZ
-            Live, Marketing and Exhibits, in one place.
+            {shared
+              ? 'HRMS for attendance, leave, payslips and people. Projects for the events, exhibitions and campaigns of BrainADZ Live, Marketing and Exhibits.'
+              : 'Hiring, onboarding, attendance, leave, payroll, performance, POSH and exits for BrainADZ Live, Marketing and Exhibits, in one place.'}
           </p>
           <div className="row wrap mt-16" style={{ gap: 18, marginTop: 28 }}>
-            {[
-              [Users, 'Employee records'],
-              [CalendarDays, 'Leave & attendance'],
-              [CreditCard, 'Indian payroll'],
-              [Sparkles, 'AI resume screening'],
-            ].map(([I, t]) => (
+            {(shared
+              ? [
+                  [Users, 'People & attendance'],
+                  [CreditCard, 'Payroll & payslips'],
+                  [FolderKanban, 'Projects & tasks'],
+                  [Sparkles, 'AI resume screening'],
+                ]
+              : [
+                  [Users, 'Employee records'],
+                  [CalendarDays, 'Leave & attendance'],
+                  [CreditCard, 'Indian payroll'],
+                  [Sparkles, 'AI resume screening'],
+                ]
+            ).map(([I, t]) => (
               <span
                 key={t}
                 className="row"
@@ -96,7 +130,13 @@ export default function Login() {
       <div className="right">
         <div className="box">
           <h1 style={{ fontSize: 28, letterSpacing: '-0.5px' }}>Sign in</h1>
-          <p className="muted mt-8">Welcome back to {cfg?.companyName || 'BrainADZ'} HRMS.</p>
+          <p className="muted mt-8">
+            {!shared
+              ? `Welcome back to ${cfg?.companyName || 'BrainADZ'} HRMS.`
+              : wantsProjects()
+                ? 'Sign in to continue to BrainADZ Projects.'
+                : 'One sign-in for BrainADZ HRMS and Projects.'}
+          </p>
           {cfg?.officeOnly && (
             <p className="small muted mt-8 row gap-6">
               <MapPin size={15} />
