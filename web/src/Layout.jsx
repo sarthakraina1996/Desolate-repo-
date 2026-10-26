@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search, Bell, Menu as MenuIcon, LogOut, KeyRound, UserRound, ChevronDown, ChevronLeft, FileText, FolderOpen, CheckCircle2,
-  Smartphone, Share, SquarePlus,
+  Smartphone, Share, SquarePlus, UsersRound,
 } from 'lucide-react';
 import { useNavItems, isActivePath, navCount, CountBadge } from './nav.jsx';
 import { FloatingNav } from './FloatingNav.jsx';
@@ -13,6 +13,7 @@ import { api } from './api.js';
 import { Avatar, useClickOutside, alpha, Modal } from './ui.jsx';
 import { useInstallApp } from './installApp.js';
 import { timeAgo } from './format.js';
+import { useHrmsUrl } from './sso.js';
 
 
 export function Logo({ size = '' }) {
@@ -278,6 +279,7 @@ function UserMenu({ onSignOut }) {
   const close = useCallback(() => setOpen(false), []);
   const ref = useClickOutside(close);
   const { navigate } = useRouter();
+  const hrmsUrl = useHrmsUrl(api.isDemo());
   const role = me.role === 'admin' ? 'Admin · all verticals' : verticals.map((v) => v.short).join(' · ') || 'No verticals yet';
   return (
     <div className="menu-wrap" ref={ref}>
@@ -302,6 +304,8 @@ function UserMenu({ onSignOut }) {
               <Smartphone size={16} />{installApp.kind === 'ios' ? 'Add to Home Screen' : 'Install app'}
             </button>
           )}
+          {/* Back to the HRMS, which keeps its own sign-in. */}
+          {hrmsUrl && <button type="button" className="item" role="menuitem" onClick={() => window.location.assign(hrmsUrl)}><UsersRound size={16} />Open BrainADZ HRMS</button>}
           <button type="button" className="item danger" role="menuitem" onClick={() => (close(), onSignOut())}><LogOut size={16} />{api.isDemo() ? 'Switch person' : 'Sign out'}</button>
         </div>
       )}

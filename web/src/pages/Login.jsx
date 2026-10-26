@@ -4,6 +4,7 @@ import { useApp } from '../store.jsx';
 import { api } from '../api.js';
 import { Logo } from '../Layout.jsx';
 import { Avatar, Field } from '../ui.jsx';
+import { passProblem, useHrmsUrl } from '../sso.js';
 
 export default function Login() {
   const { loadBoot } = useApp();
@@ -13,6 +14,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [company, setCompany] = useState('BrainADZ');
   const demo = api.isDemo();
+  const hrmsUrl = useHrmsUrl(demo);
 
   useEffect(() => {
     if (!demo) fetch('/api/auth/config').then((r) => r.json()).then((c) => setCompany(c.company_name || 'BrainADZ')).catch(() => {});
@@ -75,12 +77,22 @@ export default function Login() {
           ) : (
             <>
               <h1 style={{ fontSize: 28, letterSpacing: '-0.5px' }}>Sign in</h1>
-              <p className="muted mt-8">Welcome back to {company} Projects.</p>
-              <form className="col" style={{ gap: 14, marginTop: 24 }} onSubmit={signIn}>
+              <p className="muted mt-8">{hrmsUrl ? 'One sign-in for BrainADZ HRMS and Projects.' : `Welcome back to ${company} Projects.`}</p>
+              {passProblem && <div className="alert error" style={{ marginTop: 16 }}>{passProblem}</div>}
+              {hrmsUrl && (
+                <>
+                  {/* The HRMS signs people in and sends them back here with a one-time pass. */}
+                  <a className="btn primary lg block" style={{ marginTop: 24 }} href={`${hrmsUrl}/?app=projects`}>
+                    <LogIn size={18} />Sign in with BrainADZ HRMS
+                  </a>
+                  <p className="xs muted" style={{ textAlign: 'center', marginTop: 16 }}>or use a Projects password</p>
+                </>
+              )}
+              <form className="col" style={{ gap: 14, marginTop: hrmsUrl ? 12 : 24 }} onSubmit={signIn}>
                 {err && <div className="alert error">{err}</div>}
                 <Field label="Work email" htmlFor="login-email"><input id="login-email" type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required autoFocus /></Field>
                 <Field label="Password" htmlFor="login-pass"><input id="login-pass" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required /></Field>
-                <button type="submit" className="btn primary lg block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+                <button type="submit" className={`btn ${hrmsUrl ? '' : 'primary '}lg block`} disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
                 <p className="xs muted">Forgot your password? Ask an admin to reset it under Team & Access.</p>
               </form>
             </>

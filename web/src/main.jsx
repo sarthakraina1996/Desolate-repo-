@@ -5,6 +5,7 @@ import App from './App.jsx';
 import { AppProvider } from './store.jsx';
 import { RouterProvider } from './router.jsx';
 import { setupInstallableApp } from './installApp.js';
+import { signInWithPassInAddress } from './sso.js';
 
 setupInstallableApp();
 
@@ -26,6 +27,9 @@ async function start() {
       root.render(<div className="demo-boot"><b>The demo could not start</b><span>{String(e?.message || e)}</span></div>);
       return;
     }
+  } else {
+    // Arrived from the BrainADZ HRMS with a one-time pass: sign in with it first.
+    await signInWithPassInAddress();
   }
   root.render(
     <RouterProvider>

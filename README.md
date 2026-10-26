@@ -109,6 +109,7 @@ docker run -p 3000:3000 -v brainadz-data:/data \
 | `SECURE_COOKIES` | off | Set to `1` behind HTTPS |
 | `MAX_UPLOAD_MB` | `200` | Largest file someone can upload |
 | `TIMEZONE` | `Asia/Kolkata` | Decides what "today" and "overdue" mean |
+| `HRMS_URL`, `SSO_SECRET` | | One sign-in with the BrainADZ HRMS (see below) |
 
 ### Install it as an app
 
@@ -119,6 +120,14 @@ Once the app is hosted on an HTTPS address, each person can install it from that
 - **Windows and Mac (Chrome, Edge):** choose **Install app** in the profile menu, or the install icon in the address bar.
 
 The installed app always shows the latest version: it checks the server first and only falls back to the saved copy when there is no connection, and it never saves project data on the device. The browser demo is a single file, so it cannot be installed.
+
+## One sign-in with the BrainADZ HRMS
+
+Projects can use the BrainADZ HRMS sign-in, so people sign in once and pick the app they want. The sign-in page then shows **Sign in with BrainADZ HRMS**; after signing in there, people land back here already signed in. In the HRMS, an app picker after sign-in and **Open BrainADZ Projects** under your name bring people here too, and **Open BrainADZ HRMS** under your name here takes them back.
+
+To connect the two, set `HRMS_URL` to the HRMS address (for example `https://hrms.brainadz.com`) and `SSO_SECRET` to a private secret of at least 32 characters (for example from `openssl rand -hex 32`). Set the HRMS's `PROJECTS_URL` to this app's address and its `SSO_SECRET` to the **same** secret. People are matched by email, so each person's account here needs the same email as their HRMS sign-in; they don't need a Projects password. The HRMS README has the details.
+
+The HRMS hands over a pass that works once, for one minute, for one person, signed with the shared secret. Someone without an account here is asked to request access from an admin. Projects passwords keep working alongside, and each app keeps its own session. If a setting is missing, or the secret differs between the two apps, the server log says so.
 
 ## Browser demo
 

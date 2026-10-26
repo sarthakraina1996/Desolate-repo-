@@ -7,6 +7,7 @@ import { handle, fileForDownload } from '../core/api.js';
 import { loadUser } from '../core/access.js';
 import { HttpError, todayIn } from '../core/util.js';
 import { hashPassword, verifyPassword, newToken, loginGuard } from './auth.js';
+import { hrmsLink, hrmsLinkProblem, readPass } from './sso.js';
 
 const COOKIE = 'bpm_session';
 const SESSION_DAYS = 30;
@@ -85,9 +86,53 @@ export function createApp({ db, dataDir, distDir, timeZone = 'Asia/Kolkata', sec
 
   // ---------------------------------------------------------------- auth
 
+  // One sign-in with the BrainADZ HRMS, when HRMS_URL and SSO_SECRET are set.
+  const hrms = hrmsLink();
+  const ssoProblem = hrmsLinkProblem();
+  if (ssoProblem) console.warn(`Sign-in with the BrainADZ HRMS is off: ${ssoProblem}.`);
+  // Passes already used, so a copied one can't sign anyone in again.
+  if (hrms) db.run('CREATE TABLE IF NOT EXISTS sso_passes (jti TEXT PRIMARY KEY, expires_at TEXT)');
+
+  // Starts a session for a person and sets its cookie.
+  const startSession = (res, userId) => {
+    const token = newToken();
+    const now = new Date();
+    const expires = new Date(now.getTime() + SESSION_DAYS * 86400000);
+    db.run('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?,?,?,?)', token, userId, now.toISOString(), expires.toISOString());
+    db.run('UPDATE users SET last_login_at = ? WHERE id = ?', now.toISOString(), userId);
+    db.run('DELETE FROM sessions WHERE expires_at < ?', now.toISOString());
+    res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: secureCookies, expires, path: '/' });
+  };
+
   app.get('/api/auth/config', (req, res) => {
     const name = db.get("SELECT value FROM settings WHERE key = 'company_name'")?.value || 'BrainADZ';
-    res.json({ company_name: name });
+    res.json({ company_name: name, hrms_url: hrms?.url || null });
+  });
+
+  // Signs in with a one-time pass from the HRMS, as the Projects account with the same email.
+  app.post('/api/auth/sso', (req, res) => {
+    try {
+      if (!hrms) throw new HttpError(404, 'Sign-in with the BrainADZ HRMS is not set up');
+      const claims = readPass(hrms.secret, req.body?.pass);
+      const now = new Date().toISOString();
+      db.run('DELETE FROM sso_passes WHERE expires_at < ?', now);
+      const fresh = claims && !db.get('SELECT 1 FROM sso_passes WHERE jti = ?', claims.jti);
+      if (!fresh) {
+        // A forged pass and two different secrets look the same from here; say so for whoever set it up.
+        if (!claims) console.warn('Refused a sign-in pass from the HRMS: expired, or signed with a different SSO_SECRET.');
+        throw new HttpError(401, 'That sign-in link has expired. Sign in again.', 'bad_pass');
+      }
+      db.run('INSERT INTO sso_passes (jti, expires_at) VALUES (?,?)', claims.jti, new Date((claims.exp + 60) * 1000).toISOString());
+      const email = String(claims.email).trim().toLowerCase();
+      const row = db.get('SELECT id, active FROM users WHERE email = ?', email);
+      if (!row || !row.active) throw new HttpError(403, `${email} doesn't have access to BrainADZ Projects yet. Ask a Projects admin to add you under Team & Access.`, 'no_account');
+      // An unchanged temporary password is no longer needed: cancel it rather than ask for a new one.
+      db.run('UPDATE users SET password_hash = NULL, must_change_password = 0 WHERE id = ? AND must_change_password = 1', row.id);
+      startSession(res, row.id);
+      res.json({ ok: true });
+    } catch (e) {
+      send(res, e);
+    }
   });
 
   app.post('/api/auth/login', async (req, res) => {
@@ -102,13 +147,7 @@ export function createApp({ db, dataDir, distDir, timeZone = 'Asia/Kolkata', sec
         throw new HttpError(401, 'Incorrect email or password', 'bad_login');
       }
       loginGuard.succeeded(key);
-      const token = newToken();
-      const now = new Date();
-      const expires = new Date(now.getTime() + SESSION_DAYS * 86400000);
-      db.run('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?,?,?,?)', token, row.id, now.toISOString(), expires.toISOString());
-      db.run('UPDATE users SET last_login_at = ? WHERE id = ?', now.toISOString(), row.id);
-      db.run('DELETE FROM sessions WHERE expires_at < ?', now.toISOString());
-      res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: secureCookies, expires, path: '/' });
+      startSession(res, row.id);
       res.json({ ok: true });
     } catch (e) {
       send(res, e);
