@@ -142,7 +142,9 @@ export default function Login() {
               <MapPin size={15} />
               Sign-in works only from a {cfg.companyName || 'BrainADZ'} office.{' '}
               {window.hrmsDemo
-                ? 'In this demo, choose where you are in the bottom-left corner.'
+                ? window.hrmsDemo.choosePlace
+                  ? 'In this demo, choose where you are in the bottom-left corner.'
+                  : 'This demo puts you in the Bengaluru office.'
                 : 'Your browser will ask to share your location.'}
             </p>
           )}

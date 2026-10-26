@@ -23,6 +23,7 @@ import reportRoutes from '../server/routes/reports.js';
 import settingsRoutes from '../server/routes/settings.js';
 import passkeyRoutes from '../server/routes/passkeys.js';
 import trainingRoutes from '../server/routes/training.js';
+import appRoutes from '../server/routes/apps.js';
 import { deviceMiddleware } from '../server/services/devices.js';
 
 // Content types for files served from the in-memory upload store.
@@ -233,6 +234,7 @@ export function createDemoServer() {
     settingsRoutes,
     passkeyRoutes,
     trainingRoutes,
+    appRoutes,
   ]) {
     register(api, ctx);
   }

@@ -104,6 +104,17 @@ const PLACES = {
 };
 let place = 'office';
 
+// Inside the combined HRMS + Projects demo page (opened as "hrms.html#suite"): Projects counts as
+// connected, and choosing it hands the one-time pass to that page instead of leaving this one.
+const suite = /(^|[#&])suite\b/.test(window.location.hash) && window.parent !== window;
+if (suite) {
+  process.env.PROJECTS_URL = 'https://projects.brainadz.demo';
+  // Demo-only secret; the suite page checks passes with the same one.
+  process.env.SSO_SECRET = 'brainadz-suite-demo-secret-not-for-real-use';
+  // The suite page has its own demo bar with the app switcher (you stay in the office).
+  document.getElementById('demo-badge')?.remove();
+}
+
 // Starts sql.js and the in-page server, installs the demo hooks, then renders the app.
 async function boot() {
   setSqlJs(await initSqlJs());
@@ -159,6 +170,12 @@ async function boot() {
     // Browsers in claude.ai cannot share a real location, so the corner
     // switcher stands in for the device's GPS.
     getPosition: () => ({ ...PLACES[place] }),
+    // Whether the corner bar's "You are" picker is on screen.
+    choosePlace: !suite,
+    // In the combined demo, "open Projects" goes to the page around this one.
+    ...(suite && {
+      openApp: (url) => window.parent.postMessage({ type: 'brainadz:open', url }, '*'),
+    }),
   };
   // The corner switcher tells the app its location changed.
   const placeSelect = document.getElementById('demo-place');

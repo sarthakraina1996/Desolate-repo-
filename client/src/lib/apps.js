@@ -42,9 +42,15 @@ export const clearAppFlags = () => {
   write(NEXT, null);
 };
 
-// Gets a one-time pass for the signed-in person and opens Projects with it.
+// Gets a one-time pass for the signed-in person and opens Projects with it. True when this
+// page is leaving; false when the combined demo opened Projects next to it instead.
 export async function openProjects() {
   const { url } = await api.post('/apps/projects/pass');
   clearAppFlags();
+  if (window.hrmsDemo?.openApp) {
+    window.hrmsDemo.openApp(url);
+    return false;
+  }
   window.location.assign(url);
+  return true;
 }

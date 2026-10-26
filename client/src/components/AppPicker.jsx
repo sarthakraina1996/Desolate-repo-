@@ -15,7 +15,8 @@ export default function AppPicker({ direct, onHrms }) {
     setBusy(true);
     setErr(null);
     try {
-      await openProjects();
+      // Opened next to this page (the combined demo): carry on into HRMS here.
+      if (!(await openProjects())) onHrms();
     } catch (e) {
       setErr(e.message);
       setBusy(false);

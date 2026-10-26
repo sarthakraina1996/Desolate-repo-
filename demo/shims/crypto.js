@@ -96,6 +96,26 @@ export function createHash() {
   };
 }
 
+// Stands in for crypto.createHmac; always HMAC-SHA256 (used to sign Projects sign-in passes).
+export function createHmac(_alg, key) {
+  let k = toBytes(key);
+  if (k.length > 64) k = sha256(k);
+  const pad = (byte) =>
+    Buffer.from(Buffer.concat([k, Buffer.alloc(64 - k.length)]).map((b) => b ^ byte));
+  const parts = [];
+  return {
+    update(v) {
+      parts.push(toBytes(v));
+      return this;
+    },
+    digest(enc) {
+      const inner = sha256(Buffer.concat([pad(0x36), ...parts]));
+      const d = sha256(Buffer.concat([pad(0x5c), inner]));
+      return enc ? d.toString(enc) : d;
+    },
+  };
+}
+
 // Stands in for crypto.scryptSync with 1,000 rounds of salted SHA-256, not real scrypt.
 export function scryptSync(password, salt, keylen) {
   let block = sha256(Buffer.concat([toBytes(salt), toBytes(password)]));
@@ -114,4 +134,4 @@ export function timingSafeEqual(a, b) {
   return diff === 0;
 }
 
-export default { randomBytes, createHash, scryptSync, timingSafeEqual };
+export default { randomBytes, createHash, createHmac, scryptSync, timingSafeEqual };

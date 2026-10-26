@@ -32,7 +32,9 @@ export function projectsLinkProblem(env = process.env) {
   return 'PROJECTS_URL must be a full http:// or https:// address';
 }
 
-const b64 = (buf) => Buffer.from(buf).toString('base64url');
+// base64url by hand, so the browser demo (whose Buffer lacks that encoding) signs passes too.
+const b64 = (buf) =>
+  Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const mac = (secret, body) => b64(crypto.createHmac('sha256', secret).update(body).digest());
 
 // A signed pass for one person: "<claims>.<signature>", both base64url.
