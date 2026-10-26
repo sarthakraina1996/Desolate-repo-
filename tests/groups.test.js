@@ -29,10 +29,10 @@ before(() => {
   seedDemo(db, { today: TODAY, passwordHash: 'plain$demo1234' });
 });
 
-// A fresh Exhibits project owned by Neha, with nobody else on it yet.
+// A fresh, running Exhibits project owned by Neha, with nobody else on it yet.
 async function newProject(name = 'Chat test stall') {
   tick();
-  return call('suresh', 'POST', '/projects', { body: { vertical_id: vid('Exhibits'), name, owner_id: idOf('neha') } });
+  return call('suresh', 'POST', '/projects', { body: { vertical_id: vid('Exhibits'), name, owner_id: idOf('neha'), status: 'active' } });
 }
 
 test('a project gets a group for the people working on it, and only they and heads can see it', async () => {
@@ -140,6 +140,45 @@ test('mentions notify people in the group, with a link to it', async () => {
   assert.equal((await call('rohan', 'GET', `/projects/${p.id}`)).group, null);
   // Kavita works in Marketing and cannot see this group.
   assert.ok(!(await call('kavita', 'GET', '/notifications')).items.some((n) => n.link === `/teams/${p.id}`));
+});
+
+test('a project gets its group when it starts, not when it is planned', async () => {
+  tick();
+  const p = await call('suresh', 'POST', '/projects', { body: { vertical_id: vid('Exhibits'), name: 'Future stall', owner_id: idOf('neha'), key_date: '2027-02-10' } });
+  assert.equal(p.status, 'planning');
+  assert.equal((await call('neha', 'GET', `/projects/${p.id}`)).group, null);
+  assert.ok(!(await call('neha', 'GET', '/groups')).items.some((x) => x.id === p.id));
+  await assert.rejects(call('neha', 'GET', `/groups/${p.id}`), (e) => e.status === 404 && e.code === 'group_not_started');
+  await rejects(call('neha', 'POST', `/groups/${p.id}/messages`, { body: { body: 'hello?' } }), 404);
+  // Team changes and tasks before the start leave no trace.
+  await call('suresh', 'PUT', `/projects/${p.id}/members`, { body: { user_ids: [idOf('neha'), idOf('kunal')] } });
+  await call('neha', 'POST', `/projects/${p.id}/tasks`, { body: { title: 'Site recce', assignee_id: idOf('tanvi') } });
+  // On hold straight from planning: still not started.
+  tick();
+  await call('neha', 'PATCH', `/projects/${p.id}`, { body: { status: 'on_hold' } });
+  assert.equal(db.get('SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ?', p.id).n, 0);
+
+  // Starting the project opens the group, with everyone already on it.
+  tick();
+  await call('neha', 'PATCH', `/projects/${p.id}`, { body: { status: 'active' } });
+  const g = await call('neha', 'GET', `/groups/${p.id}`);
+  assert.deepEqual(g.members.map((m) => m.id).sort(), [idOf('neha'), idOf('kunal'), idOf('tanvi')].sort());
+  const msgs = (await call('neha', 'GET', `/groups/${p.id}/messages`)).items;
+  assert.deepEqual(msgs.map((m) => m.body), ['Neha Iyer started the project, so this group is now open for everyone working on it.']);
+  assert.ok((await call('kunal', 'GET', '/groups')).items.some((x) => x.id === p.id));
+  assert.ok((await call('neha', 'GET', `/projects/${p.id}`)).group);
+
+  // Once started, the group stays through a pause or a step back to Planning.
+  tick();
+  await call('neha', 'POST', `/groups/${p.id}/messages`, { body: { body: 'Kick-off at 11' } });
+  tick();
+  await call('neha', 'PATCH', `/projects/${p.id}`, { body: { status: 'planning' } });
+  assert.ok((await call('neha', 'GET', `/groups/${p.id}/messages`)).items.some((m) => m.body === 'Kick-off at 11'));
+
+  // Created already running (for example a card added to the Active column): group at once.
+  tick();
+  const live = await call('suresh', 'POST', '/projects', { body: { vertical_id: vid('Exhibits'), name: 'Running stall', owner_id: idOf('neha'), status: 'active' } });
+  assert.ok((await call('neha', 'GET', `/projects/${live.id}`)).group);
 });
 
 test('the group is deleted when the project is delivered or cancelled; reopening starts a new one', async () => {
@@ -322,7 +361,28 @@ test('upgrading deletes the groups of projects that were already over', () => {
   assert.equal(old.get('SELECT message_id FROM files WHERE id = ?', fid).message_id, null);
   assert.equal(old.get('SELECT COUNT(*) AS n FROM seen WHERE scope = ?', `group:${done}`).n, 0);
   assert.equal(old.get('SELECT COUNT(*) AS n FROM group_messages').n, open, 'groups of running projects are untouched');
-  assert.equal(old.get("SELECT value FROM settings WHERE key = 'schema_version'").value, '7');
+  assert.equal(old.get("SELECT value FROM settings WHERE key = 'schema_version'").value, '8');
+});
+
+test('upgrading keeps groups of running projects and removes them from projects still in planning', () => {
+  const old = openDb(':memory:');
+  migrate(old);
+  seedBasics(old);
+  seedDemo(old, { today: TODAY, passwordHash: 'x' });
+  // As saved by version 7: every open project had a group from the day it was created.
+  const planned = old.get("SELECT id FROM projects WHERE status = 'planning' LIMIT 1").id;
+  const running = old.get("SELECT id FROM projects WHERE status = 'active' LIMIT 1").id;
+  const mid = old.run("INSERT INTO group_messages (project_id, user_id, kind, body, created_at) VALUES (?, 1, 'message', 'Kick-off notes', ?)", planned, `${TODAY}T08:00:00.000Z`).id;
+  const fid = old.run("INSERT INTO files (project_id, kind, name, mime, size, category, uploaded_by, created_at, message_id) VALUES (?, 'link', 'Brief', 'text/uri-list', 0, 'Brief', 1, ?, ?)", planned, `${TODAY}T08:00:00.000Z`, mid).id;
+  const firstMsg = old.get('SELECT MIN(created_at) AS t FROM group_messages WHERE project_id = ?', running).t;
+  old.run('UPDATE projects SET group_started_at = NULL');
+  old.run("UPDATE settings SET value = '7' WHERE key = 'schema_version'");
+  migrate(old);
+  assert.equal(old.get('SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ?', planned).n, 0);
+  assert.equal(old.get('SELECT message_id FROM files WHERE id = ?', fid).message_id, null);
+  assert.equal(old.get('SELECT group_started_at FROM projects WHERE id = ?', planned).group_started_at, null);
+  assert.equal(old.get('SELECT group_started_at FROM projects WHERE id = ?', running).group_started_at, firstMsg);
+  assert.ok(old.get('SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ?', running).n > 0);
 });
 
 test('older sample data gets sample chats once; nothing is invented otherwise', () => {

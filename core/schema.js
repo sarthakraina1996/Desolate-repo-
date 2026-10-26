@@ -1,7 +1,7 @@
 // Database schema shared by the Node server (node:sqlite) and the in-browser demo (sql.js).
 // Both run SQLite, so the same SQL works everywhere.
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 // Kept as a function so a migration can rebuild the table with the same definition.
 export function projectsTable(name) {
@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS ${name} (
   template_id INTEGER,
   board_sort REAL,
   completed_at TEXT,
+  group_started_at TEXT, -- when the project's team group started (it starts with the project); NULL while there is none
   created_by INTEGER,
   created_at TEXT,
   updated_at TEXT

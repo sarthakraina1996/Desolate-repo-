@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Pencil, Copy, Trash2, CheckCircle2, PauseCircle, RotateCcw, Ban, LayoutTemplate, Download, Plus, Diamond, MapPin,
   IndianRupee, CalendarRange, Users, Flag, X, LayoutList, Columns3, MessageSquare, Paperclip, Lock, Grid2x2, List, Send, Check,
-  MessagesSquare, Wallet,
+  MessagesSquare, Wallet, Play,
 } from 'lucide-react';
 import { useApp, useLoad, usePref } from '../store.jsx';
 import { api } from '../api.js';
@@ -311,6 +311,7 @@ function Team({ p, reload }) {
           </div>
         ))}
       </div>
+      {p.status === 'planning' && !p.group_started_at && <div className="xs muted mt-12">The team gets a group chat when the project starts.</div>}
       {open && (
         <Modal title="Project team" sub={`People with access to ${p.vertical_name}`} onClose={() => setOpen(false)}
           footer={<><button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button><button type="button" className="btn primary" onClick={save}>Save team</button></>}>
@@ -867,10 +868,15 @@ export default function Project({ id, tab = 'overview', taskId }) {
                 {p.group.unread > 0 && <span className="pill-num alert">{p.group.unread}</span>}
               </Link>
             )}
-            {p.permissions.edit && !closed && p.ready_label && p.status !== 'ready' && (
+            {p.permissions.edit && p.status === 'planning' && (
+              <button type="button" className="btn primary" onClick={() => setStatus('active', 'Project started. Its team group is open.')} title="Moves the project to Active and opens its team group">
+                <Play size={16} />Start project
+              </button>
+            )}
+            {p.permissions.edit && !closed && p.status !== 'planning' && p.ready_label && p.status !== 'ready' && (
               <button type="button" className="btn success" onClick={() => setStatus('ready', `Moved to ${p.ready_label}`)} title={`Move to ${p.ready_label}`}><CheckCircle2 size={17} />Mark ready</button>
             )}
-            {p.permissions.edit && !closed && (!p.ready_label || p.status === 'ready') && <button type="button" className="btn success" onClick={close}><CheckCircle2 size={17} />Mark delivered</button>}
+            {p.permissions.edit && !closed && p.status !== 'planning' && (!p.ready_label || p.status === 'ready') && <button type="button" className="btn success" onClick={close}><CheckCircle2 size={17} />Mark delivered</button>}
             {p.permissions.edit && closed && <button type="button" className="btn" onClick={() => setStatus('active', 'Project reopened')}><RotateCcw size={16} />Reopen</button>}
             {p.permissions.edit && <button type="button" className="btn" onClick={() => setEditing(true)}><Pencil size={16} />Edit</button>}
             <Menu buttonClass="btn" items={[

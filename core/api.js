@@ -667,7 +667,9 @@ route('POST', '/projects', (ctx) => {
     } else {
       log(ctx, id, 'created', '');
     }
-    groupEvent(ctx, id, `${ctx.user.name} started this group for everyone working on ${code} · ${f.name}.`);
+    // The team group starts with the project: now if it is created already running, else
+    // when it moves to Active.
+    if (STARTED.includes(status)) startGroup(ctx, id, `${ctx.user.name} started this group for everyone working on ${code} · ${f.name}.`);
     notify(ctx, ownerId, id, `${ctx.user.name} made you the owner of ${code} · ${f.name}`);
     return { ...getProjectFull(ctx, id), tasks_created: created };
   });
@@ -748,11 +750,16 @@ route('PATCH', '/projects/:id', (ctx) => {
     const changed = sets.filter(([k, v]) => k !== 'completed_at' && String(p[k] ?? '') !== String(v ?? '')).map(([k]) => k);
     if (changed.includes('status')) {
       log(ctx, p.id, 'status', f.status);
-      if (OPEN_STATUSES.includes(f.status)) {
+      if (!OPEN_STATUSES.includes(f.status)) {
+        deleteGroup(ctx, p.id); // delivered or cancelled: the project is over
+      } else if (!p.group_started_at && STARTED.includes(f.status)) {
+        // The project starts (or restarts after being reopened): its group starts now.
+        startGroup(ctx, p.id, OPEN_STATUSES.includes(p.status)
+          ? `${ctx.user.name} started the project, so this group is now open for everyone working on it.`
+          : `${ctx.user.name} reopened the project and started a new group for it.`);
+      } else {
         const readyLabel = db.get('SELECT ready_label FROM verticals WHERE id = ?', vId)?.ready_label;
         groupEvent(ctx, p.id, statusNotice(ctx.user.name, p.status, f.status, readyLabel));
-      } else {
-        deleteGroup(ctx, p.id); // delivered or cancelled: the project is over
       }
     }
     if (changed.includes('stage')) log(ctx, p.id, 'stage', f.stage);
@@ -1354,7 +1361,9 @@ function groupMembers(db, p) {
   );
 }
 
-const groupOpen = (p) => OPEN_STATUSES.includes(p.status);
+// A project has a group from when it starts (moves to Active, or Ready) until it is over.
+const STARTED = ['active', 'ready'];
+const groupOpen = (p) => OPEN_STATUSES.includes(p.status) && !!p.group_started_at;
 
 // Messages from others since I last opened the group (notices do not count).
 function groupUnread(ctx, projectId) {
@@ -1369,9 +1378,10 @@ function groupUnread(ctx, projectId) {
 function getGroup(ctx, id) {
   const p = ctx.db.get('SELECT * FROM projects WHERE id = ?', toId(id, 'Group'));
   if (!p || !canView(ctx.user, p)) throw notFound('Group');
-  if (!groupOpen(p)) {
+  if (!OPEN_STATUSES.includes(p.status)) {
     throw new HttpError(404, `This group was deleted when the project was ${p.status === 'cancelled' ? 'cancelled' : 'delivered'}. Files shared in it are in the project's Files.`, 'group_deleted');
   }
+  if (!groupOpen(p)) throw new HttpError(404, 'This project has not started yet. Its group opens when the project moves to Active.', 'group_not_started');
   const member = groupMemberIds(ctx.db, p).has(uid(ctx));
   const head = canManageVertical(ctx.user, p.vertical_id);
   if (!member && !head) throw notFound('Group');
@@ -1380,9 +1390,15 @@ function getGroup(ctx, id) {
 
 // A grey notice in the group: joins, team and status changes. Finished projects have no group.
 function groupEvent(ctx, projectId, body) {
-  const p = ctx.db.get('SELECT status FROM projects WHERE id = ?', projectId);
+  const p = ctx.db.get('SELECT status, group_started_at FROM projects WHERE id = ?', projectId);
   if (!p || !groupOpen(p)) return;
   ctx.db.run("INSERT INTO group_messages (project_id, user_id, kind, body, created_at) VALUES (?,?,'system',?,?)", projectId, uid(ctx), body, ctx.now);
+}
+
+// The project has started: its group opens with a first notice.
+function startGroup(ctx, projectId, body) {
+  ctx.db.run('UPDATE projects SET group_started_at = ? WHERE id = ?', ctx.now, projectId);
+  groupEvent(ctx, projectId, body);
 }
 
 // When a project is delivered or cancelled its group is deleted: messages, who-read-what
@@ -1395,11 +1411,11 @@ function deleteGroup(ctx, projectId) {
   db.run('DELETE FROM group_messages WHERE project_id = ?', projectId);
   db.run('DELETE FROM seen WHERE scope = ?', `group:${projectId}`);
   db.run('DELETE FROM notifications WHERE link = ?', `/teams/${projectId}`);
+  db.run('UPDATE projects SET group_started_at = NULL WHERE id = ?', projectId);
   log(ctx, projectId, 'group_deleted', count ? `${count} message${count > 1 ? 's' : ''}` : '');
 }
 
 function statusNotice(who, from, to, readyLabel) {
-  if (!OPEN_STATUSES.includes(from)) return `${who} reopened the project and started a new group for it.`;
   if (to === 'ready') return `${who} moved the project to ${readyLabel || 'Ready'}.`;
   if (to === 'on_hold') return `${who} put the project on hold.`;
   if (to === 'planning') return `${who} moved the project back to Planning.`;
@@ -1461,7 +1477,7 @@ route('GET', '/groups', (ctx) => {
     `SELECT p.id, p.code, p.name, p.client, p.status, p.owner_id, p.vertical_id, p.key_date, p.created_at,
        v.short AS vertical, v.color AS vertical_color, v.ready_label, v.key_date_label, ${isMember} AS member
      FROM projects p JOIN verticals v ON v.id = p.vertical_id
-     WHERE p.vertical_id IN (${placeholders(vids)}) AND p.status IN ${OPEN_IN}
+     WHERE p.vertical_id IN (${placeholders(vids)}) AND p.status IN ${OPEN_IN} AND p.group_started_at IS NOT NULL
        AND (${isMember}${managed.length ? ` OR p.vertical_id IN (${placeholders(managed)})` : ''})`,
     me, me, me, ...vids, me, me, me, ...managed,
   );

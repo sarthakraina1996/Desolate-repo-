@@ -587,12 +587,22 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
 
   // Also while it is open: the project may be delivered or cancelled meanwhile.
   const deleted = error?.code === 'group_deleted';
-  if (error && (!g || deleted)) {
+  const notStarted = error?.code === 'group_not_started';
+  if (error && (!g || deleted || notStarted)) {
+    let title = error.status === 404 ? 'Group not found' : 'Could not open this group';
+    if (deleted) title = 'This group was deleted';
+    if (notStarted) title = 'This group has not started yet';
     return (
       <section className="t-chat card">
-        <Empty icon={Lock} title={deleted ? 'This group was deleted' : error.status === 404 ? 'Group not found' : 'Could not open this group'}
-          action={<span className="row" style={{ gap: 8 }}><Link to="/teams" className="btn">Back to groups</Link>{deleted && <Link to={`/projects/${id}/files`} className="btn">Project files</Link>}</span>}>
-          {deleted ? error.message : error.status === 404 ? 'You see a project’s group when you are on its team, have a task in it, or are a head of its vertical.' : error.message}
+        <Empty icon={Lock} title={title}
+          action={(
+            <span className="row" style={{ gap: 8 }}>
+              <Link to="/teams" className="btn">Back to groups</Link>
+              {deleted && <Link to={`/projects/${id}/files`} className="btn">Project files</Link>}
+              {notStarted && <Link to={`/projects/${id}`} className="btn">Open the project</Link>}
+            </span>
+          )}>
+          {deleted || notStarted ? error.message : error.status === 404 ? 'You see a project’s group when you are on its team, have a task in it, or are a head of its vertical.' : error.message}
         </Empty>
       </section>
     );

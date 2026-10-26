@@ -76,6 +76,22 @@ function upgradeTo7(db) {
   db.run(`DELETE FROM notifications WHERE link IN (SELECT '/teams/' || id FROM projects WHERE status IN ('completed','cancelled'))`);
 }
 
+// Version 8: a project's group starts when the project starts (moves to Active), not when it
+// is created. Running projects keep their group from its first message; projects still in
+// Planning lose theirs (files shared in it stay in the project's Files).
+function upgradeTo8(db) {
+  addColumn(db, 'projects', 'group_started_at', 'TEXT');
+  db.run(`UPDATE projects SET group_started_at = COALESCE(
+      (SELECT MIN(created_at) FROM group_messages g WHERE g.project_id = projects.id),
+      CASE WHEN status IN ('active','ready') THEN updated_at END)
+    WHERE status IN ('active','ready','on_hold') AND group_started_at IS NULL`);
+  const planned = "SELECT id FROM projects WHERE status = 'planning'";
+  db.run(`UPDATE files SET message_id = NULL WHERE message_id IN (SELECT id FROM group_messages WHERE project_id IN (${planned}))`);
+  db.run(`DELETE FROM group_messages WHERE project_id IN (${planned})`);
+  db.run(`DELETE FROM seen WHERE scope IN (SELECT 'group:' || id FROM projects WHERE status = 'planning')`);
+  db.run(`DELETE FROM notifications WHERE link IN (SELECT '/teams/' || id FROM projects WHERE status = 'planning')`);
+}
+
 export const SEEN_TABS = ['tasks', 'files', 'discussion'];
 
 export function migrate(db) {
@@ -90,6 +106,7 @@ export function migrate(db) {
   if (version < 5) upgradeTo5(db);
   // Version 6: client payments. The payments table comes from SCHEMA, so there is nothing to change.
   if (version < 7) upgradeTo7(db);
+  if (version < 8) upgradeTo8(db);
   db.exec('CREATE INDEX IF NOT EXISTS idx_files_message ON files(message_id);');
   db.run(
     "INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

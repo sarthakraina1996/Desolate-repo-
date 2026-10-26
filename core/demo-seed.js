@@ -490,7 +490,8 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
   for (const g of projects) {
     const lines = GROUP_LINES[g.short];
     if (!lines || !g.owner_id || !nameById.has(g.owner_id)) continue;
-    if (g.status === 'completed' || g.status === 'cancelled') continue; // groups go when a project is over
+    // Groups start when a project starts and go when it is over.
+    if (g.status === 'planning' || g.status === 'completed' || g.status === 'cancelled') continue;
     const team = new Set([
       ...db.all('SELECT user_id AS id FROM project_members WHERE project_id = ?', g.id),
       ...db.all('SELECT DISTINCT assignee_id AS id FROM tasks WHERE project_id = ? AND assignee_id IS NOT NULL', g.id),
@@ -502,13 +503,10 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
     const fill = (t) => t.replace('{owner}', first(owner)).replace('{a}', first(a));
     const creator = head[g.short] || admin || owner;
     const due = g.due_date || today;
-    post(g.id, creator, 'system', `${nameById.get(creator)} started this group for everyone working on ${g.code} · ${g.name}.`, g.created_at || at(-30, 10, 0));
+    const startedAt = g.created_at || at(-30, 10, 0);
+    db.run('UPDATE projects SET group_started_at = ? WHERE id = ?', startedAt, g.id);
+    post(g.id, creator, 'system', `${nameById.get(creator)} started this group for everyone working on ${g.code} · ${g.name}.`, startedAt);
 
-    if (g.status === 'planning') {
-      post(g.id, owner, 'message', `Kick-off notes for ${g.client || 'the client'} are in the brief. Put questions here so everyone sees the answers.`, at(-3, 10, 30));
-      post(g.id, a, 'message', 'Thanks. Do we have last year’s files for reference?', at(-1, 12, 15));
-      continue;
-    }
     if (g.status === 'on_hold') {
       post(g.id, owner, 'update', 'The client is finalising next quarter’s budget. We pause until they confirm.', at(-9, 11, 0));
       post(g.id, owner, 'system', `${nameById.get(owner)} put the project on hold.`, at(-9, 11, 2));
@@ -534,7 +532,7 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
   const lastLook = ts(addDays(today, -2), 18, 0);
   for (const u of db.all('SELECT id FROM users')) {
     for (const g of projects) {
-      if (g.status !== 'completed' && g.status !== 'cancelled') db.run('INSERT OR IGNORE INTO seen (user_id, scope, seen_at) VALUES (?,?,?)', u.id, `group:${g.id}`, lastLook);
+      if (['active', 'ready', 'on_hold'].includes(g.status)) db.run('INSERT OR IGNORE INTO seen (user_id, scope, seen_at) VALUES (?,?,?)', u.id, `group:${g.id}`, lastLook);
     }
   }
   return true;
