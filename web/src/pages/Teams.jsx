@@ -9,7 +9,7 @@ import { Link, useRouter } from '../router.jsx';
 import { Avatar, AvatarStack, Empty, ErrorNote, Loading, Seg, StatusBadge, PROJECT_STATUS, FileIcon, FileThumb, alpha } from '../ui.jsx';
 import { CommentBody, DeleteControls, stampReceived } from '../activity.jsx';
 import { FilePreview, guessCategory } from '../files.jsx';
-import { bytes, fmtDate, fmtTime, timeAgo } from '../format.js';
+import { bytes, fmtTime, timeAgo } from '../format.js';
 import { NoAccess } from './Dashboard.jsx';
 
 export const GROUP_STATUS = {
@@ -585,11 +585,14 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
     onListChanged?.();
   };
 
-  if (error && !g) {
+  // Also while it is open: the project may be delivered or cancelled meanwhile.
+  const deleted = error?.code === 'group_deleted';
+  if (error && (!g || deleted)) {
     return (
       <section className="t-chat card">
-        <Empty icon={Lock} title={error.status === 404 ? 'Group not found' : 'Could not open this group'} action={<Link to="/teams" className="btn">Back to groups</Link>}>
-          {error.status === 404 ? 'You see a project’s group when you are on its team, have a task in it, or are a head of its vertical.' : error.message}
+        <Empty icon={Lock} title={deleted ? 'This group was deleted' : error.status === 404 ? 'Group not found' : 'Could not open this group'}
+          action={<span className="row" style={{ gap: 8 }}><Link to="/teams" className="btn">Back to groups</Link>{deleted && <Link to={`/projects/${id}/files`} className="btn">Project files</Link>}</span>}>
+          {deleted ? error.message : error.status === 404 ? 'You see a project’s group when you are on its team, have a task in it, or are a head of its vertical.' : error.message}
         </Empty>
       </section>
     );
@@ -677,13 +680,7 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
             <Paperclip size={14} />Files{g.file_count ? <span className="pill-num">{g.file_count}</span> : null}
           </button>
         </div>
-        {!g.open && (
-          <div className="t-closed">
-            <Lock size={15} />
-            <span>This group closed{g.closed_at ? ` on ${fmtDate(g.closed_at.slice(0, 10), { year: true })}` : ''} when the project was {p.status === 'cancelled' ? 'cancelled' : 'delivered'}. It no longer shows in anyone’s list; its messages are kept here, read-only.</span>
-          </div>
-        )}
-        {g.open && flagged.length > 0 && (
+        {flagged.length > 0 && (
           <div className="t-flags">
             {flagged.map((m) => (
               <span key={m.id} className="t-flag-item">
@@ -717,7 +714,7 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
         {g.can_post ? <Composer ref={composerRef} g={g} onSent={sent} /> : (
           <div className="t-readonly xs muted">
             <Lock size={13} />
-            {g.open ? 'You have view-only access to this vertical, so you can read this group but not post.' : 'This group is closed.'}
+            You have view-only access to this vertical, so you can read this group but not post.
           </div>
         )}
       </section>

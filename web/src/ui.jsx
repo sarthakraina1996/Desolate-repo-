@@ -198,6 +198,9 @@ export function ErrorNote({ error, retry }) {
   );
 }
 
+// Said wherever a project can be delivered or cancelled.
+export const GROUP_GOES = 'Its team group and messages are deleted; files shared in the group stay in the project’s Files.';
+
 export function Field({ label, hint, children, className = '', htmlFor }) {
   return (
     <div className={`field ${className}`}>

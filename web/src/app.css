@@ -379,8 +379,6 @@ button.stat:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px
 .t-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .t-title { font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .t-head-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
-.t-closed { display: flex; gap: 8px; align-items: flex-start; padding: 10px 16px; background: #f1f4f9; color: var(--text-2); font-size: 13px; line-height: 1.45; border-bottom: 1px solid var(--border); }
-.t-closed svg { flex-shrink: 0; margin-top: 1px; }
 .t-flags { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px; background: #fffaf0; border-bottom: 1px solid #f6e3b4; font-size: 13px; }
 .t-flag-item { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t-flag-item .t-st-chip { margin-right: 8px; }
@@ -706,3 +704,7 @@ body:has(.fnav-panel, .fq-sheet) .demo-badge { opacity: 0; pointer-events: none;
 @media (max-width: 760px) {
   .only-sm { display: block; }
 }
+
+/* Calendar: adding a future project, and planned projects drawn as outlines */
+.cal-add { width: 100%; justify-content: center; margin-bottom: 12px; }
+.cal-planned-sw { display: inline-block; width: 12px; height: 9px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--text-2); vertical-align: -1px; }

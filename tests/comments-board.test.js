@@ -146,7 +146,7 @@ test('a version 1 database upgrades without losing data', () => {
 
   migrate(old);
 
-  assert.equal(old.get("SELECT value FROM settings WHERE key = 'schema_version'").value, '6');
+  assert.equal(old.get("SELECT value FROM settings WHERE key = 'schema_version'").value, '7');
   // Version 5: files shared in group chats.
   assert.equal(old.get('SELECT message_id FROM files LIMIT 1') ?? null, null);
   assert.ok(old.all('PRAGMA table_info(files)').some((c) => c.name === 'message_id'));

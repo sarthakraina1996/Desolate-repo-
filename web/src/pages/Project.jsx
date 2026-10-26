@@ -9,7 +9,7 @@ import { api } from '../api.js';
 import { Link, useRouter } from '../router.jsx';
 import {
   Loading, ErrorNote, Empty, VChip, StatusBadge, HealthBadge, Avatar, Ring, Menu, Seg, PriorityFlag, TaskStatusBadge, Modal, Field,
-  UserSelect, Progress, TASK_STATUS, HEALTH, PRIORITY, alpha, CountPill, NewTag,
+  UserSelect, Progress, TASK_STATUS, HEALTH, PRIORITY, alpha, CountPill, NewTag, GROUP_GOES,
 } from '../ui.jsx';
 import { ActivityList, Composer, CommentItem, stampReceived } from '../activity.jsx';
 import { Board, Cover, Labels, Badges, DueBadge, labelColor } from '../board.jsx';
@@ -778,10 +778,18 @@ export default function Project({ id, tab = 'overview', taskId }) {
     const open = p.task_total - p.task_done;
     const ok = await confirm({
       title: `Mark ${p.code} as delivered?`,
-      message: `${open ? `${open} task${open > 1 ? 's are' : ' is'} still open. ` : ''}The project moves to Past Projects with all its files and history, and you can reopen it at any time.`,
+      message: `${open ? `${open} task${open > 1 ? 's are' : ' is'} still open. ` : ''}The project moves to Past Projects with all its files and history, and you can reopen it at any time. ${GROUP_GOES}`,
       confirmLabel: 'Mark delivered',
     });
     if (ok) setStatus('completed', 'Project delivered and moved to Past Projects');
+  };
+  const cancel = async () => {
+    const ok = await confirm({
+      title: `Cancel ${p.code}?`,
+      message: `The project moves to Past Projects with its files and history, and you can reopen it at any time. ${GROUP_GOES}`,
+      confirmLabel: 'Cancel project', danger: true,
+    });
+    if (ok) setStatus('cancelled', 'Project cancelled and moved to Past Projects');
   };
   const del = async () => {
     const ok = await confirm({ title: `Delete ${p.code}?`, message: 'This permanently deletes the project with all its tasks, files and history. Close the project instead if you want to keep a record.', confirmLabel: 'Delete permanently', danger: true });
@@ -854,9 +862,9 @@ export default function Project({ id, tab = 'overview', taskId }) {
           </div>
           <div className="head-actions">
             {p.group && (
-              <Link to={`/teams/${p.id}`} className="btn" title={closed ? 'The group closed with the project. Its messages are kept read-only.' : 'Chat with everyone working on this project'}>
-                <MessagesSquare size={17} />{closed ? 'Group history' : 'Team group'}
-                {!closed && p.group.unread > 0 && <span className="pill-num alert">{p.group.unread}</span>}
+              <Link to={`/teams/${p.id}`} className="btn" title="Chat with everyone working on this project">
+                <MessagesSquare size={17} />Team group
+                {p.group.unread > 0 && <span className="pill-num alert">{p.group.unread}</span>}
               </Link>
             )}
             {p.permissions.edit && !closed && p.ready_label && p.status !== 'ready' && (
@@ -872,7 +880,7 @@ export default function Project({ id, tab = 'overview', taskId }) {
               p.permissions.edit && p.status === 'ready' && { label: 'Back to Active', icon: RotateCcw, onClick: () => setStatus('active', 'Project moved back to Active') },
               p.permissions.edit && !closed && p.status !== 'on_hold' && { label: 'Put on hold', icon: PauseCircle, onClick: () => setStatus('on_hold', 'Project put on hold') },
               p.permissions.edit && p.status === 'on_hold' && { label: 'Resume', icon: RotateCcw, onClick: () => setStatus('active', 'Project resumed') },
-              p.permissions.edit && !closed && { label: 'Cancel project', icon: Ban, onClick: () => setStatus('cancelled', 'Project cancelled and moved to Past Projects') },
+              p.permissions.edit && !closed && { label: 'Cancel project', icon: Ban, onClick: cancel },
               isAdmin && { label: 'Delete permanently', icon: Trash2, danger: true, onClick: del },
             ]} />
           </div>

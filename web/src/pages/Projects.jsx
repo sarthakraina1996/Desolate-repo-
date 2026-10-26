@@ -4,7 +4,7 @@ import { useApp, useLoad, usePref } from '../store.jsx';
 import { api } from '../api.js';
 import { useRouter } from '../router.jsx';
 import {
-  Loading, ErrorNote, Empty, VChip, StatusBadge, HealthBadge, Progress, Avatar, Seg, PriorityFlag, PROJECT_STATUS, HEALTH, alpha,
+  Loading, ErrorNote, Empty, VChip, StatusBadge, HealthBadge, Progress, Avatar, Seg, PriorityFlag, PROJECT_STATUS, HEALTH, alpha, GROUP_GOES,
 } from '../ui.jsx';
 import { fmtDate, relDay, daysFrom, addDays, MONTHS, inrShort } from '../format.js';
 import { Board, Cover, Labels, Badges, DueBadge, labelColor } from '../board.jsx';
@@ -247,7 +247,7 @@ function Timeline({ items, onOpen, today }) {
 }
 
 export default function Projects() {
-  const { vertical, verticals, users, today, me, manageableVerticals, canManage, toast, refresh } = useApp();
+  const { vertical, verticals, users, today, me, manageableVerticals, canManage, toast, refresh, confirm } = useApp();
   const { navigate } = useRouter();
   const [view, setView] = usePref('bpm.projects.view', 'list');
   const [status, setStatus] = useState('');
@@ -281,6 +281,10 @@ export default function Projects() {
     const p = data.items.find((x) => x.id === card.id);
     if (!p) return;
     if (!canEdit(p)) return toast('Only the project owner or a vertical manager can move this project', 'error');
+    if (st === 'completed' && p.status !== 'completed') {
+      const ok = await confirm({ title: `Mark ${p.code} as delivered?`, message: `It moves to Past Projects with its files and history, and you can reopen it at any time. ${GROUP_GOES}`, confirmLabel: 'Mark delivered' });
+      if (!ok) return;
+    }
     const body = st === p.status ? { board_sort: sort } : { status: st, board_sort: sort };
     setData((d) => ({ ...d, items: d.items.map((x) => (x.id === p.id ? { ...x, ...body, completed_at: st === 'completed' ? new Date().toISOString() : x.completed_at } : x)) }));
     try {

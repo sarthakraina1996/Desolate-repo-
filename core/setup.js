@@ -65,6 +65,17 @@ function upgradeTo5(db) {
   addColumn(db, 'files', 'message_id', 'INTEGER');
 }
 
+// Version 7: a project's group is deleted once the project is over (before, it closed and
+// stayed read-only). Groups of projects already delivered or cancelled go now; files shared
+// in them stay in the project's Files.
+function upgradeTo7(db) {
+  const over = "SELECT id FROM projects WHERE status IN ('completed','cancelled')";
+  db.run(`UPDATE files SET message_id = NULL WHERE message_id IN (SELECT id FROM group_messages WHERE project_id IN (${over}))`);
+  db.run(`DELETE FROM group_messages WHERE project_id IN (${over})`);
+  db.run(`DELETE FROM seen WHERE scope IN (SELECT 'group:' || id FROM projects WHERE status IN ('completed','cancelled'))`);
+  db.run(`DELETE FROM notifications WHERE link IN (SELECT '/teams/' || id FROM projects WHERE status IN ('completed','cancelled'))`);
+}
+
 export const SEEN_TABS = ['tasks', 'files', 'discussion'];
 
 export function migrate(db) {
@@ -78,6 +89,7 @@ export function migrate(db) {
   if (version < 4) upgradeTo4(db);
   if (version < 5) upgradeTo5(db);
   // Version 6: client payments. The payments table comes from SCHEMA, so there is nothing to change.
+  if (version < 7) upgradeTo7(db);
   db.exec('CREATE INDEX IF NOT EXISTS idx_files_message ON files(message_id);');
   db.run(
     "INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

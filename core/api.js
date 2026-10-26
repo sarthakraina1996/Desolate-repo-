@@ -701,7 +701,7 @@ route('GET', '/projects/:id', (ctx) => {
   );
   const unseen = unseenByProject(ctx, [p.id]).get(p.id);
   const comment_total = db.get('SELECT COUNT(*) AS n FROM comments WHERE project_id = ?', p.id).n;
-  const inGroup = groupMemberIds(db, p).has(uid(ctx)) || canManageVertical(ctx.user, p.vertical_id);
+  const inGroup = groupOpen(p) && (groupMemberIds(db, p).has(uid(ctx)) || canManageVertical(ctx.user, p.vertical_id));
   const group = inGroup ? { unread: groupUnread(ctx, p.id), messages: db.get("SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ? AND kind != 'system'", p.id).n } : null;
   return { ...p, unseen, comment_total, group, members, milestones, payments, task_stats: taskStats, stage_stats: stageStats, upcoming_tasks: upcoming, created_by_user: created_by, permissions: permissionsFor(ctx.user, p) };
 });
@@ -748,8 +748,12 @@ route('PATCH', '/projects/:id', (ctx) => {
     const changed = sets.filter(([k, v]) => k !== 'completed_at' && String(p[k] ?? '') !== String(v ?? '')).map(([k]) => k);
     if (changed.includes('status')) {
       log(ctx, p.id, 'status', f.status);
-      const readyLabel = db.get('SELECT ready_label FROM verticals WHERE id = ?', vId)?.ready_label;
-      groupEvent(ctx, p.id, statusNotice(ctx.user.name, p.status, f.status, readyLabel));
+      if (OPEN_STATUSES.includes(f.status)) {
+        const readyLabel = db.get('SELECT ready_label FROM verticals WHERE id = ?', vId)?.ready_label;
+        groupEvent(ctx, p.id, statusNotice(ctx.user.name, p.status, f.status, readyLabel));
+      } else {
+        deleteGroup(ctx, p.id); // delivered or cancelled: the project is over
+      }
     }
     if (changed.includes('stage')) log(ctx, p.id, 'stage', f.stage);
     if (changed.includes('health')) log(ctx, p.id, 'health', f.health);
@@ -1360,25 +1364,42 @@ function groupUnread(ctx, projectId) {
   ).n;
 }
 
-// A group exists for me only if I am in it or I am a head of its vertical.
+// A group exists for me only if I am in it or I am a head of its vertical, and only while
+// the project is running.
 function getGroup(ctx, id) {
   const p = ctx.db.get('SELECT * FROM projects WHERE id = ?', toId(id, 'Group'));
   if (!p || !canView(ctx.user, p)) throw notFound('Group');
+  if (!groupOpen(p)) {
+    throw new HttpError(404, `This group was deleted when the project was ${p.status === 'cancelled' ? 'cancelled' : 'delivered'}. Files shared in it are in the project's Files.`, 'group_deleted');
+  }
   const member = groupMemberIds(ctx.db, p).has(uid(ctx));
   const head = canManageVertical(ctx.user, p.vertical_id);
   if (!member && !head) throw notFound('Group');
   return { p, member, head };
 }
 
-// A grey notice in the group: joins, status changes, the group closing.
+// A grey notice in the group: joins, team and status changes. Finished projects have no group.
 function groupEvent(ctx, projectId, body) {
+  const p = ctx.db.get('SELECT status FROM projects WHERE id = ?', projectId);
+  if (!p || !groupOpen(p)) return;
   ctx.db.run("INSERT INTO group_messages (project_id, user_id, kind, body, created_at) VALUES (?,?,'system',?,?)", projectId, uid(ctx), body, ctx.now);
 }
 
+// When a project is delivered or cancelled its group is deleted: messages, who-read-what
+// and notifications pointing at it. Files shared in the chat stay in the project's Files.
+// Reopening the project starts a new, empty group.
+function deleteGroup(ctx, projectId) {
+  const { db } = ctx;
+  const count = db.get("SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ? AND kind != 'system'", projectId).n;
+  db.run('UPDATE files SET message_id = NULL WHERE message_id IN (SELECT id FROM group_messages WHERE project_id = ?)', projectId);
+  db.run('DELETE FROM group_messages WHERE project_id = ?', projectId);
+  db.run('DELETE FROM seen WHERE scope = ?', `group:${projectId}`);
+  db.run('DELETE FROM notifications WHERE link = ?', `/teams/${projectId}`);
+  log(ctx, projectId, 'group_deleted', count ? `${count} message${count > 1 ? 's' : ''}` : '');
+}
+
 function statusNotice(who, from, to, readyLabel) {
-  if (to === 'completed') return `${who} marked the project delivered. This group is now closed and its messages stay with the project.`;
-  if (to === 'cancelled') return `${who} cancelled the project. This group is now closed and its messages stay with the project.`;
-  if (!OPEN_STATUSES.includes(from)) return `${who} reopened the project, so this group is open again.`;
+  if (!OPEN_STATUSES.includes(from)) return `${who} reopened the project and started a new group for it.`;
   if (to === 'ready') return `${who} moved the project to ${readyLabel || 'Ready'}.`;
   if (to === 'on_hold') return `${who} put the project on hold.`;
   if (to === 'planning') return `${who} moved the project back to Planning.`;
@@ -1501,24 +1522,16 @@ route('GET', '/groups/:id', (ctx) => {
   const inGroup = new Set(members.map((m) => m.id));
   const heads = headsOf(db, p.vertical_id).filter((id) => !inGroup.has(id)).map((id) => userBrief(db, id)).filter(Boolean)
     .sort((a, b) => a.name.localeCompare(b.name));
-  const open = groupOpen(p);
-  // When it closed: delivery time, else the last status change, else the closing notice.
-  const closedAt = open ? null : p.completed_at
-    || db.get("SELECT created_at FROM activity WHERE project_id = ? AND action = 'status' ORDER BY id DESC LIMIT 1", p.id)?.created_at
-    || db.get("SELECT created_at FROM group_messages WHERE project_id = ? AND kind = 'system' AND body LIKE '%group is now closed%' ORDER BY id DESC LIMIT 1", p.id)?.created_at
-    || p.updated_at;
   return {
     project: {
       id: p.id, code: p.code, name: p.name, client: p.client, status: p.status, stage: p.stage, health: p.health,
       key_date: p.key_date, due_date: p.due_date, owner_id: p.owner_id, vertical_id: p.vertical_id,
       vertical: v.short, vertical_name: v.name, vertical_color: v.color, ready_label: v.ready_label, key_date_label: v.key_date_label,
     },
-    open,
-    closed_at: closedAt,
     members,
     heads,
     role: member ? 'member' : 'head',
-    can_post: open && canContribute(ctx.user, p),
+    can_post: canContribute(ctx.user, p),
     seen_at: seenAt(db, uid(ctx), `group:${p.id}`),
     message_count: db.get("SELECT COUNT(*) AS n FROM group_messages WHERE project_id = ? AND kind != 'system'", p.id).n,
     file_count: db.get('SELECT COUNT(*) AS n FROM files f JOIN group_messages g ON g.id = f.message_id WHERE g.project_id = ?', p.id).n,
@@ -1572,9 +1585,6 @@ async function removeMessageFiles(ctx, m, p) {
 route('POST', '/groups/:id/messages', (ctx) => {
   const { db } = ctx;
   const { p, head } = getGroup(ctx, ctx.params.id);
-  if (!groupOpen(p)) {
-    throw new HttpError(409, `This group closed when the project was ${p.status === 'cancelled' ? 'cancelled' : 'delivered'}. Its messages are kept read-only.`, 'group_closed');
-  }
   if (!canContribute(ctx.user, p)) throw forbidden('You have view-only access to this vertical');
   const kind = oneOf(ctx.body.kind ?? 'message', GROUP_KINDS, 'Message type');
   const status = kind === 'status' ? oneOf(ctx.body.status, GROUP_STATUSES, 'Status') : null;
@@ -1696,8 +1706,9 @@ route('GET', '/calendar', (ctx) => {
      WHERE ${inV} AND p.status != 'cancelled' AND ((p.key_date BETWEEN ? AND ?) OR (p.due_date BETWEEN ? AND ?))`,
     ...vids, q.from, q.to, q.from, q.to,
   )) {
-    if (p.key_date && p.key_date >= q.from && p.key_date <= q.to) items.push({ type: 'key', date: p.key_date, title: p.name, label: p.key_date_label, project_id: p.id, code: p.code, color: p.vertical_color, vertical: p.vertical });
-    if (p.due_date && p.due_date >= q.from && p.due_date <= q.to && p.due_date !== p.key_date) items.push({ type: 'due', date: p.due_date, title: p.name, label: 'Project due', project_id: p.id, code: p.code, color: p.vertical_color, vertical: p.vertical });
+    const base = { title: p.name, project_id: p.id, code: p.code, color: p.vertical_color, vertical: p.vertical, status: p.status };
+    if (p.key_date && p.key_date >= q.from && p.key_date <= q.to) items.push({ ...base, type: 'key', date: p.key_date, label: p.key_date_label });
+    if (p.due_date && p.due_date >= q.from && p.due_date <= q.to && p.due_date !== p.key_date) items.push({ ...base, type: 'due', date: p.due_date, label: 'Project due' });
   }
   for (const m of db.all(
     `SELECT m.*, p.code, p.name AS project_name, v.color AS vertical_color, v.short AS vertical FROM milestones m

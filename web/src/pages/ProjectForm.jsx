@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../store.jsx';
 import { api } from '../api.js';
-import { Modal, Field, UserSelect, Avatar, PROJECT_STATUS, HEALTH, PRIORITY } from '../ui.jsx';
+import { Modal, Field, UserSelect, Avatar, PROJECT_STATUS, HEALTH, PRIORITY, GROUP_GOES } from '../ui.jsx';
 import { fmtDate } from '../format.js';
 
 const blank = {
@@ -9,9 +9,10 @@ const blank = {
   owner_id: null, start_date: '', due_date: '', key_date: '', venue: '', city: '', budget: '', tags: '', member_ids: [],
 };
 
-// Create a project (from a template, a past project, or blank) or edit one.
-export function ProjectForm({ project, copyFrom, onClose, onSaved }) {
-  const { me, manageableVerticals, verticals, templates, assignable, today, toast, verticalById, vertical: vFilter, users } = useApp();
+// Create a project (from a template, a past project, or blank) or edit one. preset fills in
+// fields of a new project, e.g. { key_date } when it is added from the calendar.
+export function ProjectForm({ project, copyFrom, preset, onClose, onSaved }) {
+  const { me, manageableVerticals, verticals, templates, assignable, today, toast, verticalById, vertical: vFilter, users, confirm } = useApp();
   const editing = !!project;
   const initialV = project?.vertical_id || copyFrom?.vertical_id || (manageableVerticals.some((v) => v.id === vFilter) ? vFilter : manageableVerticals[0]?.id) || '';
   const [f, setF] = useState(() => {
@@ -29,7 +30,7 @@ export function ProjectForm({ project, copyFrom, onClose, onSaved }) {
         owner_id: copyFrom.owner_id, start_date: today, priority: copyFrom.priority,
       };
     }
-    return { ...blank, vertical_id: initialV, owner_id: me.id, start_date: today };
+    return { ...blank, vertical_id: initialV, owner_id: me.id, start_date: today, ...preset };
   });
   const [source, setSource] = useState(copyFrom ? `copy:${copyFrom.id}` : '');
   const [pastProjects, setPastProjects] = useState([]);
@@ -73,6 +74,12 @@ export function ProjectForm({ project, copyFrom, onClose, onSaved }) {
     setErr(null);
     if (!f.name.trim()) return setErr('Give the project a name');
     if (!vId) return setErr('Choose a vertical');
+    const ending = editing && ['completed', 'cancelled'].includes(f.status) && !['completed', 'cancelled'].includes(project.status);
+    if (ending && !(await confirm({
+      title: f.status === 'completed' ? `Mark ${project.code} as delivered?` : `Cancel ${project.code}?`,
+      message: `The project moves to Past Projects with its files and history. ${GROUP_GOES}`,
+      confirmLabel: f.status === 'completed' ? 'Mark delivered' : 'Cancel project',
+    }))) return;
     setSaving(true);
     const body = {
       name: f.name, client: f.client, description: f.description, priority: f.priority, owner_id: f.owner_id,

@@ -422,7 +422,6 @@ const GROUP_LINES = {
     stuck: ['blocked', 'Client has not approved the revised BOQ yet, so the workshop slot is at risk.'],
     help: 'I will call their purchase head now and get a date.',
     latest: '@{a} can you share the latest render here once the logo is fixed?',
-    closing: ['Show went really well, the client is happy with the footfall.', 'Dismantle done and all material is back at the workshop.'],
     share: ['Revised renders with the bigger logo, and the backwall artwork for print.', [
       ['Stall 3D render – front view v4.jpg', 'image/jpeg', 'Design', 3200],
       ['Stall 3D render – aerial v4.jpg', 'image/jpeg', 'Design', 2900],
@@ -437,7 +436,6 @@ const GROUP_LINES = {
     stuck: ['need_help', 'The band’s dates clash with another show. Looking at two alternative acts, need a decision by Friday.'],
     help: 'Send me both options with fees, I will take it to the client today.',
     latest: '@{a} please check the green room booking for the show night.',
-    closing: ['Great show everyone. Client sent a thank-you note this morning.', 'Vendor settlements done, final report is in Files.'],
     share: ['Stage render with the new LED wall, and the floor plan with the seating.', [
       ['Stage design render v3.jpg', 'image/jpeg', 'Design', 2800],
       ['Ballroom floor plan and seating.pdf', 'application/pdf', 'Production', 1300],
@@ -451,7 +449,6 @@ const GROUP_LINES = {
     stuck: ['need_help', 'The TVC edit is two days behind. Can we borrow an editor from the Live team this week?'],
     help: 'Checking with Siddharth, will confirm in an hour.',
     latest: '@{a} the client wants the performance numbers in Monday’s call, can you pull them?',
-    closing: ['Campaign wrapped, results beat the target. Thanks all.', 'Final report shared with the client.'],
     share: ['Key visual with the client’s comments done, plus the adaptations sheet.', [
       ['Key visual – route B v2.jpg', 'image/jpeg', 'Design', 2400],
       ['Adaptations sheet.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Production', 90],
@@ -493,6 +490,7 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
   for (const g of projects) {
     const lines = GROUP_LINES[g.short];
     if (!lines || !g.owner_id || !nameById.has(g.owner_id)) continue;
+    if (g.status === 'completed' || g.status === 'cancelled') continue; // groups go when a project is over
     const team = new Set([
       ...db.all('SELECT user_id AS id FROM project_members WHERE project_id = ?', g.id),
       ...db.all('SELECT DISTINCT assignee_id AS id FROM tasks WHERE project_id = ? AND assignee_id IS NOT NULL', g.id),
@@ -506,19 +504,6 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
     const due = g.due_date || today;
     post(g.id, creator, 'system', `${nameById.get(creator)} started this group for everyone working on ${g.code} · ${g.name}.`, g.created_at || at(-30, 10, 0));
 
-    if (g.status === 'completed' || g.status === 'cancelled') {
-      if (g.status === 'completed') {
-        const end = g.completed_at || ts(due, 18, 0);
-        post(g.id, owner, 'update', lines.closing[0], ts(addDays(end.slice(0, 10), -3), 11, 10));
-        post(g.id, a, 'message', lines.closing[1], ts(addDays(end.slice(0, 10), -1), 16, 40));
-        post(g.id, owner, 'system', `${nameById.get(owner)} marked the project delivered. This group is now closed and its messages stay with the project.`, end);
-      } else {
-        const end = addDays(due, -20) < today ? addDays(due, -20) : addDays(today, -20);
-        post(g.id, owner, 'message', 'Client has called this off for now. Holding all vendor payments.', ts(end, 12, 0));
-        post(g.id, owner, 'system', `${nameById.get(owner)} cancelled the project. This group is now closed and its messages stay with the project.`, ts(end, 12, 5));
-      }
-      continue;
-    }
     if (g.status === 'planning') {
       post(g.id, owner, 'message', `Kick-off notes for ${g.client || 'the client'} are in the brief. Put questions here so everyone sees the answers.`, at(-3, 10, 30));
       post(g.id, a, 'message', 'Thanks. Do we have last year’s files for reference?', at(-1, 12, 15));
@@ -548,7 +533,9 @@ export function seedGroupChats(db, { today, now = new Date().toISOString() }) {
   // Like the rest of the sample data, people last looked two days ago.
   const lastLook = ts(addDays(today, -2), 18, 0);
   for (const u of db.all('SELECT id FROM users')) {
-    for (const g of projects) db.run('INSERT OR IGNORE INTO seen (user_id, scope, seen_at) VALUES (?,?,?)', u.id, `group:${g.id}`, lastLook);
+    for (const g of projects) {
+      if (g.status !== 'completed' && g.status !== 'cancelled') db.run('INSERT OR IGNORE INTO seen (user_id, scope, seen_at) VALUES (?,?,?)', u.id, `group:${g.id}`, lastLook);
+    }
   }
   return true;
 }

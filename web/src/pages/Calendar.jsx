@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Diamond, Flag, CircleCheck, Circle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Diamond, Flag, CircleCheck, Circle, Plus } from 'lucide-react';
 import { useApp, useLoad, usePref } from '../store.jsx';
 import { api } from '../api.js';
 import { useRouter } from '../router.jsx';
 import { Loading, ErrorNote, Seg, alpha } from '../ui.jsx';
 import { addDays, MONTHS, DOW, fmtDate, fmtDow } from '../format.js';
 import { NoAccess } from './Dashboard.jsx';
+import { ProjectForm } from './ProjectForm.jsx';
 
 function monthGrid(ym) {
   const first = `${ym}-01`;
@@ -17,7 +18,7 @@ function monthGrid(ym) {
 const ICON = { key: Diamond, due: Flag, milestone: Flag, task: Circle };
 
 export default function CalendarPage() {
-  const { vertical, verticals, today } = useApp();
+  const { vertical, verticals, today, manageableVerticals, refresh } = useApp();
   const { navigate } = useRouter();
   const [ym, setYm] = useState(today.slice(0, 7));
   const [tasks, setTasks] = usePref('bpm.cal.tasks', 'mine');
@@ -29,6 +30,18 @@ export default function CalendarPage() {
     return m;
   }, [data]);
   const [sel, setSel] = useState(null);
+  // Managers can add a project straight onto the calendar: the chosen day becomes its event,
+  // show or launch date, and it starts in Planning.
+  const [adding, setAdding] = useState(null); // { key_date } while the form is open
+  const canAdd = manageableVerticals.length > 0;
+  const added = (p) => {
+    setAdding(null);
+    refresh();
+    if (p.key_date) {
+      setYm(p.key_date.slice(0, 7));
+      setSel(p.key_date);
+    }
+  };
 
   if (!verticals.length) return <NoAccess />;
   const shift = (n) => {
@@ -46,10 +59,15 @@ export default function CalendarPage() {
       <div className="page-head">
         <div>
           <h1>Calendar</h1>
-          <div className="sub">Event days, show openings, launches, milestones and task deadlines.</div>
+          <div className="sub">Event days, show openings, launches, milestones and task deadlines.{canAdd ? ' Pick a day to add a future project on it.' : ''}</div>
         </div>
         <div className="head-actions">
           <Seg value={tasks} onChange={setTasks} label="Tasks to show" options={[{ value: 'mine', label: 'My tasks' }, { value: 'all', label: 'All tasks' }, { value: 'none', label: 'No tasks' }]} />
+          {canAdd && (
+            <button type="button" className="btn primary" onClick={() => setAdding({ key_date: sel && sel >= today ? sel : '' })}>
+              <Plus size={18} /><span className="hide-sm">Add future project</span><span className="only-sm">Add</span>
+            </button>
+          )}
         </div>
       </div>
       <ErrorNote error={error} retry={reload} />
@@ -74,9 +92,13 @@ export default function CalendarPage() {
                   <span className="mcal-items">
                     {items.slice(0, 3).map((it, i) => {
                       const Ic = ICON[it.type];
+                      // Planned projects (not started yet) are outlined instead of filled.
+                      const planned = it.type === 'key' && it.status === 'planning';
+                      const style = planned ? { background: '#fff', color: it.color, boxShadow: `inset 0 0 0 1px ${it.color}` }
+                        : { background: it.type === 'key' ? it.color : alpha(it.color, 0.14), color: it.type === 'key' ? '#fff' : 'var(--text)' };
                       return (
-                        <span key={i} className={`mcal-it ${it.type} ${it.done ? 'done' : ''}`} style={{ background: it.type === 'key' ? it.color : alpha(it.color, 0.14), color: it.type === 'key' ? '#fff' : 'var(--text)' }}>
-                          <Ic size={10} fill={it.type === 'key' ? '#fff' : 'none'} />{it.type === 'task' ? it.title : it.type === 'milestone' ? it.title : it.title}
+                        <span key={i} className={`mcal-it ${it.type} ${it.done ? 'done' : ''} ${planned ? 'planned' : ''}`} style={style}>
+                          <Ic size={10} fill={it.type === 'key' && !planned ? '#fff' : 'none'} />{it.title}
                         </span>
                       );
                     })}
@@ -93,6 +115,11 @@ export default function CalendarPage() {
             <h3>{sel ? `${fmtDow(sel)}, ${fmtDate(sel, { year: true })}` : `${MONTHS[m - 1]} at a glance`}</h3>
             {sel && <button type="button" className="link" onClick={() => setSel(null)}>Whole month</button>}
           </div>
+          {canAdd && sel && sel >= today && (
+            <button type="button" className="btn soft cal-add" onClick={() => setAdding({ key_date: sel })}>
+              <Plus size={16} />Add a project on {fmtDate(sel, { today })}
+            </button>
+          )}
           {agenda.length === 0 ? <div className="small muted">Nothing scheduled.</div> : (
             <div className="agenda">
               {agenda.map((it, i) => {
@@ -103,7 +130,7 @@ export default function CalendarPage() {
                     <span className="file-ic sm" style={{ background: alpha(it.color, 0.14), color: it.color }}><Ic size={14} fill={it.type === 'key' ? it.color : 'none'} /></span>
                     <span className="grow" style={{ minWidth: 0 }}>
                       <span className={`small b6 ellipsis ${it.done ? 'muted' : ''}`} style={{ display: 'block', textDecoration: it.done ? 'line-through' : 'none' }}>{it.type === 'key' || it.type === 'due' ? `${it.label}: ${it.title}` : it.title}</span>
-                      <span className={`xs ellipsis ${it.overdue ? 'red' : 'muted'}`} style={{ display: 'block' }}>{it.code}{it.project_name ? ` · ${it.project_name}` : ''}{it.assignee_name ? ` · ${it.assignee_name}` : ''}{it.overdue ? ' · overdue' : ''}</span>
+                      <span className={`xs ellipsis ${it.overdue ? 'red' : 'muted'}`} style={{ display: 'block' }}>{it.code}{it.project_name ? ` · ${it.project_name}` : ''}{it.assignee_name ? ` · ${it.assignee_name}` : ''}{it.status === 'planning' && it.type !== 'task' ? ' · Planning' : ''}{it.overdue ? ' · overdue' : ''}</span>
                     </span>
                   </button>
                 );
@@ -113,6 +140,7 @@ export default function CalendarPage() {
           <div className="divider" />
           <div className="cal-legend" style={{ padding: 0 }}>
             <span><Diamond size={12} fill="var(--text-2)" />Event, show or launch</span>
+            <span><span className="cal-planned-sw" />Planned, not started yet</span>
             <span><Flag size={12} />Milestone or project due</span>
             <span><Circle size={12} />Task</span>
           </div>
@@ -121,6 +149,7 @@ export default function CalendarPage() {
           </div>
         </section>
       </div>
+      {adding && <ProjectForm preset={adding} onClose={() => setAdding(null)} onSaved={added} />}
     </>
   );
 }
