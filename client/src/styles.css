@@ -3232,10 +3232,6 @@ table.table {
     0 1px 2px rgba(16, 24, 40, 0.05),
     0 20px 48px rgba(31, 43, 123, 0.14);
 }
-.picker-app:hover:not(:disabled) .picker-go {
-  background: var(--blue);
-  color: #fff;
-}
 .picker-app:focus-visible {
   outline: 3px solid var(--blue);
   outline-offset: 3px;
@@ -3291,16 +3287,9 @@ table.table {
 }
 .picker-go {
   flex-shrink: 0;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #eef2fb;
-  color: #1d3a9e;
-  transition:
-    background 0.2s,
-    color 0.2s;
+  color: var(--muted);
 }
 .picker-hint {
   font-size: 14px;
@@ -3375,18 +3364,13 @@ table.table {
   .picker-text span {
     font-size: 13.5px;
   }
-  .picker-go {
-    width: 40px;
-    height: 40px;
-  }
   .picker-out::before,
   .picker-out::after {
     width: 40px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .picker-app,
-  .picker-go {
+  .picker-app {
     transition: none;
   }
 }

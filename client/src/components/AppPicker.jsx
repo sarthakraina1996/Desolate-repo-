@@ -1,7 +1,7 @@
 // After signing in: choose BrainADZ HRMS or BrainADZ Projects. People who came from the
 // "Sign in with BrainADZ" button in Projects go straight back there instead.
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, LoaderCircle } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { openProjects } from '../lib/apps.js';
 import { Monogram } from './icons.jsx';
@@ -51,9 +51,6 @@ export default function AppPicker({ direct, onHrms }) {
                   <b>HRMS</b>
                   <span>Attendance, leave, payslips, documents and your team</span>
                 </span>
-                <span className="picker-go">
-                  <ArrowRight size={20} />
-                </span>
               </button>
               <button type="button" className="picker-app" onClick={projects} disabled={busy}>
                 <AppTile app="projects" name="Projects" />
@@ -61,9 +58,12 @@ export default function AppPicker({ direct, onHrms }) {
                   <b>Projects</b>
                   <span>Projects, tasks, calendar and team groups</span>
                 </span>
-                <span className="picker-go">
-                  {busy ? <LoaderCircle size={20} className="spin" /> : <ArrowRight size={20} />}
-                </span>
+                {/* The whole card opens the app; a spinner shows while Projects opens */}
+                {busy && (
+                  <span className="picker-go">
+                    <LoaderCircle size={20} className="spin" />
+                  </span>
+                )}
               </button>
             </div>
             {err && <div className="alert error">{err}</div>}
