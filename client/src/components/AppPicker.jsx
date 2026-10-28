@@ -45,25 +45,30 @@ export default function AppPicker({ direct, onHrms }) {
             <h1>Welcome, {user.firstName}</h1>
             <p className="picker-q">Which app do you want to open?</p>
             <div className="picker-apps">
-              <button type="button" className="picker-app" onClick={onHrms} disabled={busy}>
-                <AppTile app="hrms" name="HRMS" />
-                <span className="picker-text">
-                  <b>HRMS</b>
-                  <span>Attendance, leave, payslips, documents and your team</span>
-                </span>
+              <button
+                type="button"
+                className="picker-app hrms"
+                onClick={onHrms}
+                disabled={busy}
+                aria-label="Open HRMS"
+              >
+                <Monogram height={64} color="#fff" label={null} />
+                <span className="picker-app-name">HRMS</span>
               </button>
-              <button type="button" className="picker-app" onClick={projects} disabled={busy}>
-                <AppTile app="projects" name="Projects" />
-                <span className="picker-text">
-                  <b>Projects</b>
-                  <span>Projects, tasks, calendar and team groups</span>
-                </span>
-                {/* The whole card opens the app; a spinner shows while Projects opens */}
-                {busy && (
-                  <span className="picker-go">
-                    <LoaderCircle size={20} className="spin" />
-                  </span>
+              <button
+                type="button"
+                className="picker-app projects"
+                onClick={projects}
+                disabled={busy}
+                aria-label="Open Projects"
+              >
+                {/* A spinner in place of the logo while Projects opens */}
+                {busy ? (
+                  <LoaderCircle size={64} strokeWidth={1.6} className="spin" />
+                ) : (
+                  <Monogram height={64} color="#fff" label={null} />
                 )}
+                <span className="picker-app-name">Projects</span>
               </button>
             </div>
             {err && <div className="alert error">{err}</div>}
@@ -88,15 +93,5 @@ function Wordmark() {
       <span aria-hidden="true">ainADZ</span>
       <sup aria-hidden="true">®</sup>
     </div>
-  );
-}
-
-// An app's tile: the Br logo with the app's name under it.
-function AppTile({ app, name }) {
-  return (
-    <span className={`picker-ic ${app}`}>
-      <Monogram height={40} color="#fff" label={null} />
-      <span className="picker-ic-name">{name}</span>
-    </span>
   );
 }
