@@ -3273,16 +3273,6 @@ table.table {
 .picker-out .link {
   font-size: 15px;
 }
-/* "Opening BrainADZ Projects…" while handing over */
-.picker-wait {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 40px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-2);
-}
 @media (max-width: 760px) {
   .picker-brand {
     font-size: 40px;
@@ -3320,6 +3310,90 @@ table.table {
 @media (prefers-reduced-motion: reduce) {
   .picker-app {
     transition: none;
+  }
+}
+/* Opening an app (lib/launch.js): the tile splits down a seam of light, rushes forward and
+   dissolves into a glow in the app's colour, which pulses until the app is on screen */
+.launch {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+}
+.launch-back {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-grad), var(--bg);
+  background-attachment: fixed;
+}
+.launch-tile {
+  position: fixed;
+  margin: 0;
+  pointer-events: none;
+  transition: none;
+  will-change: transform, filter, opacity;
+}
+.launch-seam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    rgba(255, 255, 255, 0.4),
+    #fff 12%,
+    #fff 88%,
+    rgba(255, 255, 255, 0.4)
+  );
+  box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.7);
+  transform: translateX(-50%);
+}
+.launch-glow {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+}
+.launch.projects .launch-glow {
+  background: radial-gradient(circle at 50% 50%, #f6cad9 0, #eda5bb 22%, #e8829f 62%, #e37b98 100%);
+}
+.launch.hrms .launch-glow {
+  background: radial-gradient(circle at 50% 50%, #d3dffb 0, #aac1f6 22%, #7f9ef0 62%, #7591e6 100%);
+}
+.launch-orb {
+  width: 36vmin;
+  height: 36vmin;
+}
+.launch-orb::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #fff 0 9%,
+    rgba(255, 255, 255, 0.85) 16%,
+    rgba(255, 255, 255, 0.35) 34%,
+    rgba(255, 255, 255, 0) 68%
+  );
+  animation: launch-pulse 1.3s ease-in-out infinite alternate;
+}
+@keyframes launch-pulse {
+  from {
+    transform: scale(0.82);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .launch-orb::before {
+    animation: none;
   }
 }
 /* Demo account buttons that sign in with one click */

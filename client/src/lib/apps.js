@@ -56,10 +56,11 @@ export const clearAppFlags = () => {
   write(CHOSEN, '1');
 };
 
-// Gets a one-time pass for the signed-in person and opens Projects with it. True when this
-// page is leaving; false when the combined demo opened Projects next to it instead.
-export async function openProjects() {
-  const { url } = await api.post('/apps/projects/pass');
+// Gets a one-time pass for the signed-in person and opens Projects with it, once `ready` (the
+// opening animation) has finished. True when this page is leaving; false when the combined
+// demo opened Projects next to it instead.
+export async function openProjects(ready) {
+  const [{ url }] = await Promise.all([api.post('/apps/projects/pass'), ready]);
   clearAppFlags();
   if (window.hrmsDemo?.openApp) {
     window.hrmsDemo.openApp(url);

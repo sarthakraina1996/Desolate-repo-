@@ -1,45 +1,75 @@
 // After signing in: choose BrainADZ HRMS or BrainADZ Projects. People who came from the
 // "Sign in with BrainADZ" button in Projects go straight back there instead.
 import { useEffect, useRef, useState } from 'react';
-import { LoaderCircle } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { openProjects } from '../lib/apps.js';
+import { launch } from '../lib/launch.js';
 import { Monogram } from './icons.jsx';
 
 export default function AppPicker({ direct, onHrms }) {
   const { user, logout } = useApp();
   const [busy, setBusy] = useState(direct);
   const [err, setErr] = useState(null);
-  // Hands over to Projects; on failure the picker stays so HRMS is still one click away.
-  const projects = async () => {
+  // The opening animation under way, if any.
+  const fx = useRef(null);
+  const hrms = async (e) => {
+    setBusy(true);
+    fx.current = launch(e.currentTarget, 'hrms');
+    await fx.current.covered;
+    onHrms();
+    fx.current.done();
+  };
+  // Hands over to Projects once the animation fills the screen; on failure the picker comes
+  // back so HRMS is still one click away.
+  const projects = async (tile) => {
     setBusy(true);
     setErr(null);
+    const opening = launch(tile, 'projects');
+    fx.current = opening;
     try {
       // Opened next to this page (the combined demo): carry on into HRMS here.
-      if (!(await openProjects())) onHrms();
+      if (!(await openProjects(opening.covered))) {
+        onHrms();
+        opening.done();
+      }
     } catch (e) {
+      opening.cancel();
       setErr(e.message);
       setBusy(false);
     }
   };
   // Straight to Projects, once (StrictMode runs effects twice in development).
   const started = useRef(false);
+  const directTile = useRef(null);
   useEffect(() => {
     if (direct && !started.current) {
       started.current = true;
-      projects();
+      projects(directTile.current);
     }
   });
+  // Back to this page from Projects (the browser kept it): the picker again, not the glow.
+  useEffect(() => {
+    const back = (e) => {
+      if (!e.persisted) return;
+      fx.current?.cancel();
+      setBusy(false);
+    };
+    window.addEventListener('pageshow', back);
+    return () => window.removeEventListener('pageshow', back);
+  }, []);
 
   return (
     <div className="picker">
       <div className="picker-box">
         <Wordmark />
         {direct && busy ? (
-          <p className="picker-wait">
-            <LoaderCircle size={20} className="spin" />
-            Opening Projects…
-          </p>
+          // The Projects tile, which opens by itself
+          <div className="picker-apps" role="status" aria-label="Opening Projects">
+            <div className="picker-app projects" ref={directTile}>
+              <Monogram height={64} color="#fff" label={null} />
+              <span className="picker-app-name">Projects</span>
+            </div>
+          </div>
         ) : (
           <>
             <h1>Welcome, {user.firstName}</h1>
@@ -48,7 +78,7 @@ export default function AppPicker({ direct, onHrms }) {
               <button
                 type="button"
                 className="picker-app hrms"
-                onClick={onHrms}
+                onClick={hrms}
                 disabled={busy}
                 aria-label="Open HRMS"
               >
@@ -58,16 +88,11 @@ export default function AppPicker({ direct, onHrms }) {
               <button
                 type="button"
                 className="picker-app projects"
-                onClick={projects}
+                onClick={(e) => projects(e.currentTarget)}
                 disabled={busy}
                 aria-label="Open Projects"
               >
-                {/* A spinner in place of the logo while Projects opens */}
-                {busy ? (
-                  <LoaderCircle size={64} strokeWidth={1.6} className="spin" />
-                ) : (
-                  <Monogram height={64} color="#fff" label={null} />
-                )}
+                <Monogram height={64} color="#fff" label={null} />
                 <span className="picker-app-name">Projects</span>
               </button>
             </div>

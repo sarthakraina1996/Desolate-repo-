@@ -147,48 +147,60 @@
     padding: 0 2px;
   }
 
-  /* While Projects opens */
+  /* While Projects opens: the glow the HRMS picker's opening animation ends in (see
+     client/src/lib/launch.js), so the handover looks like one animation */
   .opening {
     position: fixed;
     inset: 0;
     z-index: 15;
     display: grid;
-    place-content: center;
-    gap: 14px;
-    justify-items: center;
-    background: var(--paper);
-    color: var(--muted);
-    font-size: 15px;
-    font-weight: 600;
+    place-items: center;
+    background: radial-gradient(
+      circle at 50% 50%,
+      #f6cad9 0,
+      #eda5bb 22%,
+      #e8829f 62%,
+      #e37b98 100%
+    );
+    transition: opacity 0.42s ease;
   }
-  .opening .bar {
-    width: 200px;
-    height: 4px;
-    border-radius: 4px;
-    background: var(--line);
-    overflow: hidden;
+  .opening.fading {
+    opacity: 0;
   }
-  .opening .bar::after {
-    content: '';
-    display: block;
-    width: 40%;
-    height: 100%;
-    border-radius: 4px;
-    background: var(--accent);
-    animation: slide 1.1s ease-in-out infinite;
+  .opening .orb {
+    width: 36vmin;
+    height: 36vmin;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      #fff 0 9%,
+      rgba(255, 255, 255, 0.85) 16%,
+      rgba(255, 255, 255, 0.35) 34%,
+      rgba(255, 255, 255, 0) 68%
+    );
+    animation: pulse 1.3s ease-in-out infinite alternate;
   }
-  @keyframes slide {
+  @keyframes pulse {
     from {
-      transform: translateX(-100%);
+      transform: scale(0.82);
+      opacity: 0.8;
     }
     to {
-      transform: translateX(250%);
+      transform: scale(1.08);
+      opacity: 1;
     }
   }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   @media (prefers-reduced-motion: reduce) {
-    .opening .bar::after {
+    .opening .orb {
       animation: none;
-      width: 100%;
     }
   }
   /* Phones: clear the apps' bottom tab bars */
@@ -206,9 +218,9 @@
   src="hrms.html#suite"
   title="BrainADZ HRMS"
 ></iframe>
-<div class="opening" id="opening" hidden>
-  <span>Opening BrainADZ Projects…</span>
-  <div class="bar"></div>
+<div class="opening" id="opening" role="status" hidden>
+  <span class="sr">Opening BrainADZ Projects…</span>
+  <div class="orb"></div>
 </div>
 <div class="switch" id="switch" role="group" aria-label="Switch app" hidden>
   <span class="tag" title="Fictional data, kept in this browser">Demo</span>
@@ -308,10 +320,21 @@
     }
 
     var waiting = null;
+    var fading = null;
+    // Shows or fades out the opening glow.
+    function glow(on) {
+      clearTimeout(fading);
+      opening.classList.toggle('fading', !on);
+      if (on) opening.hidden = false;
+      else
+        fading = setTimeout(function () {
+          opening.hidden = true;
+        }, 420);
+    }
     function done() {
       clearTimeout(waiting);
       waiting = null;
-      opening.hidden = true;
+      glow(false);
     }
 
     window.addEventListener('message', async function (e) {
@@ -336,7 +359,7 @@
       if (e.source !== hrms.contentWindow || d.type !== 'brainadz:open') return;
       var claims = await readPass(String(d.url || '').split('#sso=')[1]);
       if (!claims) return say('That sign-in link has expired. Sign in again.');
-      opening.hidden = false;
+      glow(true);
       clearTimeout(waiting);
       waiting = setTimeout(function () {
         done();
