@@ -114,7 +114,7 @@ export default function Login() {
               <span
                 key={t}
                 className="row"
-                style={{ gap: 8, color: 'rgba(255,255,255,.9)', fontSize: 14 }}
+                style={{ gap: 8, color: 'var(--text-2)', fontSize: 14 }}
               >
                 <I size={18} />
                 {t}
@@ -122,7 +122,7 @@ export default function Login() {
             ))}
           </div>
         </div>
-        <div style={{ fontFamily: 'Caveat, cursive', fontSize: 30, opacity: 0.9 }}>
+        <div style={{ fontFamily: 'Caveat, cursive', fontSize: 30, color: 'var(--navy)' }}>
           People · Power · Progress
         </div>
       </div>
