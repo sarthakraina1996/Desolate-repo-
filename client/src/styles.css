@@ -3245,13 +3245,15 @@ table.table {
   opacity: 0.75;
 }
 .picker-ic {
-  position: relative;
   flex-shrink: 0;
   width: 96px;
   height: 92px;
   border-radius: 22px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   color: #fff;
 }
 .picker-ic.hrms {
@@ -3262,30 +3264,12 @@ table.table {
   background: linear-gradient(150deg, #f6506a 0%, #c8102e 100%);
   box-shadow: 0 10px 22px rgba(200, 16, 46, 0.26);
 }
-.picker-glyph {
-  width: 52px;
-  height: auto;
-  margin: -4px 6px 0 0;
-}
-/* The small document / tick in the tile's corner, cut out of the glyph by a ring */
-.picker-badge {
-  position: absolute;
-  right: 13px;
-  bottom: 12px;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: #fff;
-}
-.picker-ic.hrms .picker-badge {
-  color: #1a45bf;
-  box-shadow: 0 0 0 3px #173a9f;
-}
-.picker-ic.projects .picker-badge {
-  color: #d4193a;
-  box-shadow: 0 0 0 3px #d11d3b;
+/* "HRMS" / "Projects" under the logo */
+.picker-ic-name {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 .picker-text {
   flex: 1;
@@ -3375,24 +3359,15 @@ table.table {
     height: 62px;
     border-radius: 16px;
   }
-  .picker-glyph {
-    width: 34px;
-    margin: -3px 4px 0 0;
+  .picker-ic {
+    gap: 4px;
   }
-  .picker-badge {
-    right: 8px;
-    bottom: 8px;
-    width: 19px;
-    height: 19px;
-    border-radius: 5px;
+  .picker-ic svg {
+    height: 26px;
+    width: auto;
   }
-  .picker-ic.hrms .picker-badge,
-  .picker-ic.projects .picker-badge {
-    box-shadow: 0 0 0 2px currentColor;
-  }
-  .picker-badge svg {
-    width: 12px;
-    height: 12px;
+  .picker-ic-name {
+    font-size: 9px;
   }
   .picker-text b {
     font-size: 17px;

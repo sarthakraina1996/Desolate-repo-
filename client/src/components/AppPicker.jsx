@@ -1,7 +1,7 @@
 // After signing in: choose BrainADZ HRMS or BrainADZ Projects. People who came from the
 // "Sign in with BrainADZ" button in Projects go straight back there instead.
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, FileText, LoaderCircle } from 'lucide-react';
+import { ArrowRight, LoaderCircle } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { openProjects } from '../lib/apps.js';
 import { Monogram } from './icons.jsx';
@@ -46,12 +46,7 @@ export default function AppPicker({ direct, onHrms }) {
             <p className="picker-q">Which app do you want to open?</p>
             <div className="picker-apps">
               <button type="button" className="picker-app" onClick={onHrms} disabled={busy}>
-                <span className="picker-ic hrms">
-                  <PeopleGlyph />
-                  <span className="picker-badge">
-                    <FileText size={16} strokeWidth={2.4} />
-                  </span>
-                </span>
+                <AppTile app="hrms" name="HRMS" />
                 <span className="picker-text">
                   <b>BrainADZ HRMS</b>
                   <span>Attendance, leave, payslips, documents and your team</span>
@@ -61,12 +56,7 @@ export default function AppPicker({ direct, onHrms }) {
                 </span>
               </button>
               <button type="button" className="picker-app" onClick={projects} disabled={busy}>
-                <span className="picker-ic projects">
-                  <ListGlyph />
-                  <span className="picker-badge">
-                    <Check size={16} strokeWidth={3} />
-                  </span>
-                </span>
+                <AppTile app="projects" name="Projects" />
                 <span className="picker-text">
                   <b>BrainADZ Projects</b>
                   <span>Projects, tasks, calendar and team groups</span>
@@ -101,29 +91,12 @@ function Wordmark() {
   );
 }
 
-// Solid white glyphs for the app tiles: a team of three, and a task list.
-function PeopleGlyph() {
+// An app's tile: the Br logo with the app's name under it.
+function AppTile({ app, name }) {
   return (
-    <svg className="picker-glyph" viewBox="0 0 48 40" fill="#fff" aria-hidden="true">
-      <circle cx="10" cy="12" r="5" />
-      <path d="M1 33v-3a8.5 8.5 0 0 1 14-6.5V33z" />
-      <circle cx="38" cy="12" r="5" />
-      <path d="M47 33v-3a8.5 8.5 0 0 0-14-6.5V33z" />
-      <circle cx="24" cy="9" r="7" />
-      <path d="M12 36v-5a12 12 0 0 1 24 0v5z" />
-    </svg>
-  );
-}
-
-function ListGlyph() {
-  return (
-    <svg className="picker-glyph" viewBox="0 0 48 40" fill="#fff" aria-hidden="true">
-      <circle cx="7" cy="7" r="4" />
-      <rect x="15" y="4" width="28" height="6" rx="3" />
-      <circle cx="7" cy="20" r="4" />
-      <rect x="15" y="17" width="22" height="6" rx="3" />
-      <circle cx="7" cy="33" r="4" />
-      <rect x="15" y="30" width="14" height="6" rx="3" />
-    </svg>
+    <span className={`picker-ic ${app}`}>
+      <Monogram height={40} color="#fff" label={null} />
+      <span className="picker-ic-name">{name}</span>
+    </span>
   );
 }
