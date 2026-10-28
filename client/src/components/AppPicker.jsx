@@ -38,7 +38,7 @@ export default function AppPicker({ direct, onHrms }) {
         {direct && busy ? (
           <p className="picker-wait">
             <LoaderCircle size={20} className="spin" />
-            Opening BrainADZ Projects…
+            Opening Projects…
           </p>
         ) : (
           <>
@@ -48,7 +48,7 @@ export default function AppPicker({ direct, onHrms }) {
               <button type="button" className="picker-app" onClick={onHrms} disabled={busy}>
                 <AppTile app="hrms" name="HRMS" />
                 <span className="picker-text">
-                  <b>BrainADZ HRMS</b>
+                  <b>HRMS</b>
                   <span>Attendance, leave, payslips, documents and your team</span>
                 </span>
                 <span className="picker-go">
@@ -58,7 +58,7 @@ export default function AppPicker({ direct, onHrms }) {
               <button type="button" className="picker-app" onClick={projects} disabled={busy}>
                 <AppTile app="projects" name="Projects" />
                 <span className="picker-text">
-                  <b>BrainADZ Projects</b>
+                  <b>Projects</b>
                   <span>Projects, tasks, calendar and team groups</span>
                 </span>
                 <span className="picker-go">
