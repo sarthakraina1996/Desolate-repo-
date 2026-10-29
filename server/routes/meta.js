@@ -18,7 +18,7 @@ import {
 import { aiEnabled } from '../services/ai.js';
 import { lanAddresses, isLoopback } from '../lib/network.js';
 import { geofencePolicy, exemption } from '../services/geofence.js';
-import { projectsLink } from '../services/sso.js';
+import { crmLink, projectsLink } from '../services/sso.js';
 
 // App-wide data: lookups, photos, global search, notifications, notices and helpdesk.
 export default function metaRoutes(r, { db, uploads }) {
@@ -39,6 +39,8 @@ export default function metaRoutes(r, { db, uploads }) {
       },
       // BrainADZ Projects, when it shares sign-in with this HRMS.
       projectsUrl: projectsLink()?.url ?? null,
+      // The BrainADZ CRM, when its address is set.
+      crmUrl: crmLink(),
       documentCategories: DOC_CATEGORIES,
       verticals: db.all('SELECT * FROM verticals ORDER BY id'),
       departments: db.all('SELECT * FROM departments ORDER BY name'),

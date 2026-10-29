@@ -1,7 +1,13 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { boot, client, as } from './helpers.js';
-import { projectsLink, projectsLinkProblem, signPass, readPass } from '../server/services/sso.js';
+import {
+  crmLink,
+  projectsLink,
+  projectsLinkProblem,
+  signPass,
+  readPass,
+} from '../server/services/sso.js';
 
 const SECRET = 'a-shared-secret-that-is-long-enough-123';
 const ENV = { PROJECTS_URL: 'https://projects.brainadz.com/', SSO_SECRET: SECRET };
@@ -88,4 +94,25 @@ test('the HRMS hands a signed-in person a pass to Projects, only when connected'
     );
     assert.equal(log.n, 1);
   });
+});
+
+test('the CRM tile: a full http(s) address turns it on, in the sign-in page and the app', async () => {
+  assert.equal(crmLink({}), null);
+  assert.equal(crmLink({ CRM_URL: 'crm.brainadz.com' }), null);
+  assert.equal(crmLink({ CRM_URL: 'javascript:alert(1)' }), null);
+  assert.equal(crmLink({ CRM_URL: 'https://crm.brainadz.com/' }), 'https://crm.brainadz.com');
+  const hr = await as(ctx.base, 'priya.sharma@brainadz.com');
+  assert.equal((await hr.get('/meta')).body.crmUrl, null);
+  const saved = process.env.CRM_URL;
+  process.env.CRM_URL = 'https://crm.brainadz.com/dashboard';
+  try {
+    assert.equal(
+      (await client(ctx.base).get('/auth/config')).body.crmUrl,
+      'https://crm.brainadz.com/dashboard',
+    );
+    assert.equal((await hr.get('/meta')).body.crmUrl, 'https://crm.brainadz.com/dashboard');
+  } finally {
+    if (saved === undefined) delete process.env.CRM_URL;
+    else process.env.CRM_URL = saved;
+  }
 });

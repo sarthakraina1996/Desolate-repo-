@@ -56,6 +56,13 @@ export const clearAppFlags = () => {
   write(CHOSEN, '1');
 };
 
+// Opens the BrainADZ CRM, which has its own sign-in, once `ready` (the opening animation) is done.
+export async function openCrm(url, ready) {
+  await ready;
+  clearAppFlags();
+  window.location.assign(url);
+}
+
 // Gets a one-time pass for the signed-in person and opens Projects with it, once `ready` (the
 // opening animation) has finished. True when this page is leaving; false when the combined
 // demo opened Projects next to it instead.

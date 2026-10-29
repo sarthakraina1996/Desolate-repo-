@@ -13,6 +13,7 @@ import {
   Fingerprint,
   Smartphone,
   FolderKanban,
+  Handshake,
 } from 'lucide-react';
 import { useApp } from '../context.jsx';
 import { api } from '../lib/api.js';
@@ -619,6 +620,18 @@ function UserMenu({ onGetApp }) {
             >
               <FolderKanban size={16} />
               Open BrainADZ Projects
+            </div>
+          )}
+          {meta.crmUrl && (
+            <div
+              className="item"
+              onClick={() => {
+                setOpen(false);
+                window.location.assign(meta.crmUrl);
+              }}
+            >
+              <Handshake size={16} />
+              Open BrainADZ CRM
             </div>
           )}
           <div className="item" style={{ color: 'var(--red)' }} onClick={signOut}>

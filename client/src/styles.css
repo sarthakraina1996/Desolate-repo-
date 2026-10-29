@@ -3237,6 +3237,13 @@ table.table {
 .picker-app.projects:hover:not(:disabled) {
   box-shadow: 0 20px 40px rgba(200, 16, 46, 0.36);
 }
+.picker-app.crm {
+  background: linear-gradient(150deg, #1fbf9c 0%, #0a7a63 100%);
+  box-shadow: 0 14px 30px rgba(10, 122, 99, 0.28);
+}
+.picker-app.crm:hover:not(:disabled) {
+  box-shadow: 0 20px 40px rgba(10, 122, 99, 0.36);
+}
 .picker-app:focus-visible {
   outline: 3px solid var(--blue);
   outline-offset: 4px;
@@ -3306,6 +3313,22 @@ table.table {
   .picker-out::after {
     width: 40px;
   }
+  /* Three apps side by side on a phone */
+  .picker-apps.three {
+    gap: 12px;
+  }
+  .picker-apps.three .picker-app {
+    width: 104px;
+    height: 100px;
+    border-radius: 24px;
+    gap: 8px;
+  }
+  .picker-apps.three .picker-app svg {
+    height: 40px;
+  }
+  .picker-apps.three .picker-app-name {
+    font-size: 13px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .picker-app {
@@ -3361,6 +3384,9 @@ table.table {
 }
 .launch.hrms .launch-glow {
   background: radial-gradient(circle at 50% 50%, #d3dffb 0, #aac1f6 22%, #7f9ef0 62%, #7591e6 100%);
+}
+.launch.crm .launch-glow {
+  background: radial-gradient(circle at 50% 50%, #cdf3e8 0, #9be0cc 22%, #5fc7a9 62%, #4dba9b 100%);
 }
 .launch-orb {
   width: 36vmin;

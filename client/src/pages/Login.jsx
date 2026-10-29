@@ -80,7 +80,9 @@ export default function Login() {
           // One sign-in for both apps: the company name, with the apps where the tagline goes.
           <div className="logo">
             <div className="b">BrainADZ</div>
-            <div className="tg">HRMS &nbsp;|&nbsp; Projects</div>
+            <div className="tg">
+              HRMS &nbsp;|&nbsp; Projects{cfg?.crmUrl && <>&nbsp;|&nbsp; CRM</>}
+            </div>
           </div>
         ) : (
           <Logo />

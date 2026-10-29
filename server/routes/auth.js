@@ -14,17 +14,18 @@ import * as D from '../lib/dates.js';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../seed.js';
 import { aiEnabled } from '../services/ai.js';
 import { alertNewDevice, rememberDevice } from '../services/devices.js';
-import { projectsLink } from '../services/sso.js';
+import { crmLink, projectsLink } from '../services/sso.js';
 
 // Sign-in, sign-out, current user and password change. Mounted without the sign-in guard.
 export default function authRoutes(r, { db }) {
   // Public login-page config: company name, office-only flag, the Projects address when the
-  // two apps share sign-in, and demo accounts in demo mode.
+  // two apps share sign-in, the CRM address, and demo accounts in demo mode.
   r.get('/auth/config', (_req, res) => {
     const s = getSettings(db);
     res.json({
       companyName: s.companyName,
       projectsUrl: projectsLink()?.url ?? null,
+      crmUrl: crmLink(),
       officeOnly: geofencePolicy(s).mode !== 'off',
       demo: Boolean(s.demo),
       demoAccounts: s.demo ? DEMO_ACCOUNTS.map((a) => ({ ...a, password: DEMO_PASSWORD })) : [],

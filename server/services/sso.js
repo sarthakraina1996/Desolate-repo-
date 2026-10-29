@@ -24,6 +24,18 @@ export function projectsLink(env = process.env) {
   return { url: `${url.origin}${url.pathname.replace(/\/+$/, '')}`, secret };
 }
 
+// The BrainADZ CRM's address, offered beside HRMS and Projects in the app picker, or null. The
+// CRM keeps its own sign-in, so this is only a link.
+export function crmLink(env = process.env) {
+  try {
+    const url = new URL(env.CRM_URL || '');
+    if (!/^https?:$/.test(url.protocol)) return null;
+    return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return null;
+  }
+}
+
 // Why the Projects option is off despite PROJECTS_URL being set, for a start-up warning.
 export function projectsLinkProblem(env = process.env) {
   if (!env.PROJECTS_URL || projectsLink(env)) return null;
