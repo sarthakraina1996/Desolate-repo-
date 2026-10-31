@@ -138,7 +138,9 @@ The HRMS hands over a pass that works once, for one minute, for one person, sign
 ```
 core/      the API, access rules, schema, templates and demo data (shared by server and demo)
 server/    Express server: sign-in, sessions, uploads and downloads, static files
-web/src/   React app (pages/, shared UI, theme.css copied from the HRMS)
+web/src/   React app: pages/ has one file per page, named after its menu item (MyWork, Projects,
+           TeamGroups, Calendar, AssetLibrary, PastProjects, TeamAccess, Settings); shared UI,
+           theme.css copied from the HRMS
 web/public/ app icons, manifest and service worker that make it installable on phones
 scripts/   turns the demo build into one HTML file
 ```

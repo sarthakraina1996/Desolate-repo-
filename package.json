@@ -12,7 +12,7 @@
     "dev:api": "node --no-warnings=ExperimentalWarning --watch server/index.js",
     "dev:web": "vite",
     "build": "vite build",
-    "build:demo": "vite build --mode demo && node scripts/build-artifact.js",
+    "build:demo": "vite build --mode demo && node scripts/build-demo.js",
     "start": "node --no-warnings=ExperimentalWarning server/index.js",
     "seed:demo": "node --no-warnings=ExperimentalWarning server/seed-demo.js"
   },

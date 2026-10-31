@@ -9,7 +9,7 @@ import { ProjectForm } from './ProjectForm.jsx';
 import { projectsCsv } from './Projects.jsx';
 import { NoAccess } from './Dashboard.jsx';
 
-export default function Archive() {
+export default function PastProjects() {
   const { vertical, verticals, today, canManage, refresh, toast } = useApp();
   const { navigate } = useRouter();
   const [q, setQ] = useState('');

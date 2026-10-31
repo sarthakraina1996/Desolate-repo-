@@ -9,12 +9,12 @@ import Projects from './pages/Projects.jsx';
 import Project from './pages/Project.jsx';
 import MyWork from './pages/MyWork.jsx';
 import CalendarPage from './pages/Calendar.jsx';
-import Assets from './pages/Assets.jsx';
-import Archive from './pages/Archive.jsx';
-import Team from './pages/Team.jsx';
+import AssetLibrary from './pages/AssetLibrary.jsx';
+import PastProjects from './pages/PastProjects.jsx';
+import TeamAccess from './pages/TeamAccess.jsx';
 import Settings from './pages/Settings.jsx';
 import Profile from './pages/Profile.jsx';
-import Teams from './pages/Teams.jsx';
+import TeamGroups from './pages/TeamGroups.jsx';
 import { DemoBadge } from './demo/DemoBadge.jsx';
 
 function Routes() {
@@ -26,12 +26,12 @@ function Routes() {
   if ((m = match('/projects/:id/tasks/:taskId', path))) return <Project id={m.id} tab="tasks" taskId={m.taskId} />;
   if ((m = match('/projects/:id/:tab', path))) return <Project id={m.id} tab={m.tab} />;
   if ((m = match('/projects/:id', path))) return <Project id={m.id} />;
-  if (path === '/teams') return <Teams />;
-  if ((m = match('/teams/:id', path))) return <Teams id={m.id} />;
+  if (path === '/teams') return <TeamGroups />;
+  if ((m = match('/teams/:id', path))) return <TeamGroups id={m.id} />;
   if (path === '/calendar') return <CalendarPage />;
-  if (path === '/assets') return <Assets />;
-  if (path === '/archive') return <Archive />;
-  if (path === '/team') return <Team />;
+  if (path === '/assets') return <AssetLibrary />;
+  if (path === '/archive') return <PastProjects />;
+  if (path === '/team') return <TeamAccess />;
   if ((m = match('/settings/:tab', path))) return <Settings tab={m.tab} />;
   if (path === '/settings') return <Settings />;
   if (path === '/profile') return <Profile />;

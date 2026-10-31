@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { ChevronsRight, LayoutGrid, PanelLeft, X, Search, GripHorizontal, Menu as MenuIcon } from 'lucide-react';
 import { Link, useRouter } from './router.jsx';
 import { usePref } from './store.jsx';
-import { Monogram } from './monogram.jsx';
+import { Monogram } from './Monogram.jsx';
 import { useNavItems, isActivePath, navCount, CountBadge, freshTotal } from './nav.jsx';
 
 const MARGIN = 12; // never closer than this to the edge of the screen

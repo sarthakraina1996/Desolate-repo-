@@ -7,7 +7,7 @@ import { FileCard, FileRow, FilePreview } from '../files.jsx';
 import { bytes } from '../format.js';
 import { NoAccess } from './Dashboard.jsx';
 
-export default function Assets() {
+export default function AssetLibrary() {
   const { vertical, verticals, categories, me, canManage, levelIn, toast } = useApp();
   const [q, setQ] = useState('');
   const [term, setTerm] = useState('');

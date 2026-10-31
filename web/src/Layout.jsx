@@ -7,7 +7,7 @@ import {
 import { useNavItems, isActivePath, navCount, CountBadge } from './nav.jsx';
 import { FloatingNav } from './FloatingNav.jsx';
 import { useApp, useLoad, usePref } from './store.jsx';
-import { Monogram } from './monogram.jsx';
+import { Monogram } from './Monogram.jsx';
 import { useRouter, Link } from './router.jsx';
 import { api } from './api.js';
 import { Avatar, useClickOutside, alpha, Modal } from './ui.jsx';

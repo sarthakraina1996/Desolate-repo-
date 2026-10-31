@@ -279,7 +279,7 @@ function Payments({ p, reload }) {
   );
 }
 
-function Team({ p, reload }) {
+function ProjectTeam({ p, reload }) {
   const { users, toast } = useApp();
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(() => p.members.map((m) => m.id));
@@ -374,7 +374,7 @@ function Overview({ p, reload }) {
       <div className="span-4 col" style={{ gap: 16 }}>
         <Payments p={p} reload={reload} />
         <Milestones p={p} reload={reload} />
-        <Team p={p} reload={reload} />
+        <ProjectTeam p={p} reload={reload} />
         <section className="card">
           <div className="card-head"><h3>Details</h3></div>
           <dl className="kv" style={{ gridTemplateColumns: '110px 1fr' }}>

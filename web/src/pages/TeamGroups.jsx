@@ -739,7 +739,7 @@ function Chat({ id, narrow, wide, onRead, onListChanged }) {
 
 // ---------------------------------------------------------------- page
 
-export default function Teams({ id }) {
+export default function TeamGroups({ id }) {
   const { verticals, vertical, me } = useApp();
   const { navigate } = useRouter();
   const narrow = useMedia('(max-width: 760px)');

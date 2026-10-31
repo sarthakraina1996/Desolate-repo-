@@ -91,7 +91,7 @@ function PersonForm({ person, verticals, onClose, onSaved }) {
   );
 }
 
-export default function Team() {
+export default function TeamAccess() {
   const { isAdmin, toast, loadBoot, me } = useApp();
   const { data, loading, error, reload, setData } = useLoad(() => Promise.all([api.get('/admin/users'), api.get('/admin/verticals')]).then(([u, v]) => ({ users: u.items, verticals: v.items.filter((x) => x.active) })), []);
   const [q, setQ] = useState('');
