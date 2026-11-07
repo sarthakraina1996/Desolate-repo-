@@ -79,7 +79,7 @@ export default function PastProjects() {
           <div className="filters mb-16">
             <div className="input-icon">
               <Search size={16} />
-              <input id="archive-search" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, client, venue or tag" aria-label="Search past projects" />
+              <input id="archive-search" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, client, city or tag" aria-label="Search past projects" />
             </div>
             <select id="archive-year" className="select" value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
               <option value="">Any year</option>{facets?.years.map((y) => <option key={y}>{y}</option>)}

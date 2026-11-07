@@ -9,9 +9,9 @@ import {
 export const NAV = [
   { to: '/', label: 'Dashboard', icon: DashboardIcon, exact: true, keys: 'home overview summary kpi', tint: '#e8effe' },
   { to: '/my', label: 'My Work', icon: MyWorkIcon, count: 'my', keys: 'tasks todo assigned mine due', tint: '#e8effe' },
-  { to: '/projects', label: 'Projects', icon: ProjectsIcon, count: 'projects', keys: 'board kanban jobs clients events', tint: '#f0ebff' },
+  { to: '/projects', label: 'Projects', icon: ProjectsIcon, count: 'projects', keys: 'board kanban jobs clients apps websites software campaigns stalls', tint: '#f0ebff' },
   { to: '/teams', label: 'Team Groups', icon: TeamGroupsIcon, count: 'teams', keys: 'chat messages groups team updates status', tint: '#feecef' },
-  { to: '/calendar', label: 'Calendar', icon: CalendarIcon, keys: 'dates schedule deadlines events shows launches', tint: '#e5f8f0' },
+  { to: '/calendar', label: 'Calendar', icon: CalendarIcon, keys: 'dates schedule deadlines go-live releases launches shows', tint: '#e5f8f0' },
   { to: '/assets', label: 'Asset Library', icon: AssetsIcon, keys: 'files assets designs photos documents renders', tint: '#fff3e2' },
   { to: '/archive', label: 'Past Projects', icon: PastProjectsIcon, keys: 'archive old history delivered completed', tint: '#f0ebff' },
   { to: '/team', label: 'Team & Access', icon: TeamAccessIcon, admin: true, keys: 'people users access permissions staff', tint: '#e2f7fa' },

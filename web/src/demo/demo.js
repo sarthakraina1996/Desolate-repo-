@@ -163,6 +163,12 @@ export async function startDemo() {
     raw = saved ? new SQL.Database(saved) : new SQL.Database();
     db = adapter(raw);
     const before = saved ? Number(db.get("SELECT value FROM settings WHERE key = 'schema_version'")?.value || 1) : 0;
+    // Sample data from before BrainADZ Live became a software business has event projects
+    // in Live, so the demo starts over with the current sample company.
+    if (saved && before < 9) {
+      await idbClear();
+      return open(true);
+    }
     migrate(db);
     // Sample data saved before team groups existed gets sample chats too.
     if (saved && before < 4 && seedGroupChats(db, { today: today() })) await persist();

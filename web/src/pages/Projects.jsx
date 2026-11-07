@@ -21,7 +21,7 @@ export function toCsv(rows) {
 
 export function projectsCsv(items) {
   return toCsv([
-    ['Code', 'Vertical', 'Project', 'Client', 'Status', 'Health', 'Stage', 'Owner', 'Start', 'Key date', 'Due', 'Venue', 'City', 'Budget (INR)', 'Received (INR)', 'To collect (INR)', 'Tasks done', 'Tasks total', 'Files', 'Tags'],
+    ['Code', 'Vertical', 'Project', 'Client', 'Status', 'Health', 'Stage', 'Owner', 'Start', 'Key date', 'Due', 'Venue / platform / channels', 'City', 'Budget (INR)', 'Received (INR)', 'To collect (INR)', 'Tasks done', 'Tasks total', 'Files', 'Tags'],
     ...items.map((p) => [p.code, p.vertical, p.name, p.client, PROJECT_STATUS[p.status]?.label, HEALTH[p.health]?.label, p.stage, p.owner_name, p.start_date, p.key_date, p.due_date, p.venue, p.city, p.budget, p.received, p.to_collect, p.task_done, p.task_total, p.file_count, p.tags.join('; ')]),
   ]);
 }
@@ -85,11 +85,14 @@ function ProjectTable({ items, showVertical, onOpen, today }) {
   );
 }
 
-// Board columns. "ready" only exists for verticals with a final board column
-// (Exhibits: Ready for Event / Exhibition); the others end at Delivered.
+// Board columns. "ready" only exists for verticals with a final board column (Live: Ready
+// for Go-Live, Exhibits: Ready for Event / Exhibition); the others end at Delivered. With
+// several such verticals in view, the column is "Ready" and says what each calls it.
 function boardColumns(verticalsInView) {
   const readyV = verticalsInView.filter((v) => v.ready_label);
   const others = verticalsInView.filter((v) => !v.ready_label);
+  const labels = [...new Set(readyV.map((v) => v.ready_label))];
+  const one = labels.length === 1 ? labels[0] : null;
   const cols = [
     { key: 'planning', title: 'Planning', color: '#7c5cfc', canAdd: true },
     { key: 'active', title: 'Active', color: '#1a6df0', canAdd: true },
@@ -97,18 +100,20 @@ function boardColumns(verticalsInView) {
   ];
   if (readyV.length) {
     cols.push({
-      key: 'ready', title: readyV[0].ready_label, color: readyV[0].color,
+      key: 'ready', title: one || 'Ready', color: one ? readyV[0].color : '#1fa855',
       accepts: (p) => !!p.ready_label,
       blockedText: `Only ${readyV.map((v) => v.short).join(', ')} projects end here`,
-      note: others.length ? `${readyV.map((v) => v.short).join(', ')} projects only` : null,
-      empty: 'Drag a project here when the stall is built and handed over',
+      note: one
+        ? (others.length ? `${readyV.map((v) => v.short).join(', ')} projects only` : null)
+        : readyV.map((v) => `${v.short}: ${v.ready_label}`).join(' · '),
+      empty: one ? `Drag a project here when it is ${one.toLowerCase()}` : 'Drag a project here when it is ready, before it is delivered',
     });
   }
   if (others.length) {
     cols.push({
       key: 'completed', title: 'Delivered', color: '#1fa855',
       accepts: (p) => !p.ready_label,
-      blockedText: `${readyV.map((v) => v.short).join(', ')} projects end at ${readyV[0]?.ready_label}`,
+      blockedText: readyV.map((v) => `${v.short} projects end at ${v.ready_label}`).join('; '),
       note: readyV.length ? `${others.map((v) => v.short).join(', ')} projects` : null,
       empty: 'Drop a project here when it is delivered. It moves to Past Projects.',
     });
@@ -238,7 +243,7 @@ function Timeline({ items, onOpen, today }) {
         </div>
       </div>
       <div className="row gap-16 xs muted" style={{ padding: '10px 16px' }}>
-        <span className="row gap-6"><Diamond size={12} fill="var(--text-2)" color="#fff" />Event, show or launch date</span>
+        <span className="row gap-6"><Diamond size={12} fill="var(--text-2)" color="#fff" />Go-live, launch or show date</span>
         <span className="row gap-6"><span className="tl-legend-today" />Today</span>
         <span>Darker fill shows tasks completed.</span>
       </div>

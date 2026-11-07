@@ -45,7 +45,7 @@ export default function Login() {
         <Logo />
         <div>
           <h2>Every project across {company} verticals, in one place.</h2>
-          <p>Plan events, exhibitions and campaigns, keep each team on deadline, and find any past project with its files in seconds.</p>
+          <p>Plan software projects, campaigns and exhibitions, keep each team on deadline, and find any past project with its files in seconds.</p>
           <div className="row wrap" style={{ gap: 18, marginTop: 28 }}>
             {[[FolderKanban, 'Projects & stages'], [ListChecks, 'Tasks & deadlines'], [Images, 'Files & assets'], [Lock, 'Access by vertical']].map(([Ic, l]) => (
               <span key={l} className="row" style={{ gap: 8, color: 'rgba(255,255,255,.9)', fontSize: 14 }}><Ic size={18} />{l}</span>

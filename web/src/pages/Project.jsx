@@ -380,7 +380,7 @@ function Overview({ p, reload }) {
           <dl className="kv" style={{ gridTemplateColumns: '110px 1fr' }}>
             <dt>Code</dt><dd>{p.code}</dd>
             <dt>Client</dt><dd>{p.client || '—'}</dd>
-            <dt>{p.vertical === 'Marketing' ? 'Channels' : 'Venue'}</dt><dd>{p.venue || '—'}</dd>
+            <dt>{p.venue_label || 'Venue'}</dt><dd>{p.venue || '—'}</dd>
             <dt>City</dt><dd>{p.city || '—'}</dd>
             <dt>Priority</dt><dd><PriorityFlag priority={p.priority} label /></dd>
             <dt>Created</dt><dd>{fmtDate(p.created_at?.slice(0, 10), { year: true })}{p.created_by_user ? ` by ${p.created_by_user.name}` : ''}</dd>

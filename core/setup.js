@@ -92,6 +92,28 @@ function upgradeTo8(db) {
   db.run(`DELETE FROM notifications WHERE link IN (SELECT '/teams/' || id FROM projects WHERE status = 'planning')`);
 }
 
+// Version 9: BrainADZ Live builds software. Live gets the software labels and starter
+// templates (labels only where they still have the old event defaults; the old event
+// starter templates make way), and each vertical names its venue field.
+function upgradeTo9(db) {
+  addColumn(db, 'verticals', 'venue_label', "TEXT DEFAULT 'Venue'");
+  db.run("UPDATE verticals SET venue_label = 'Platform' WHERE code = 'LIV' AND COALESCE(venue_label, 'Venue') = 'Venue'");
+  db.run("UPDATE verticals SET venue_label = 'Channels' WHERE code = 'MKT' AND COALESCE(venue_label, 'Venue') = 'Venue'");
+  const live = db.get("SELECT * FROM verticals WHERE code = 'LIV'");
+  if (!live) return;
+  if (live.key_date_label === 'Event date') db.run("UPDATE verticals SET key_date_label = 'Go-live date' WHERE id = ?", live.id);
+  if (!live.ready_label) db.run("UPDATE verticals SET ready_label = 'Ready for Go-Live' WHERE id = ?", live.id);
+  db.run("DELETE FROM templates WHERE vertical_id = ? AND name IN ('Corporate event', 'Concert / public show')", live.id);
+  const now = new Date().toISOString();
+  for (const t of DEFAULT_TEMPLATES.Live) {
+    if (db.get('SELECT 1 AS x FROM templates WHERE vertical_id = ? AND name = ?', live.id, t.name)) continue;
+    db.run(
+      'INSERT INTO templates (vertical_id, name, description, stages, tasks, milestones, created_at) VALUES (?,?,?,?,?,?,?)',
+      live.id, t.name, t.description, JSON.stringify(t.stages), JSON.stringify(t.tasks), JSON.stringify(t.milestones), now,
+    );
+  }
+}
+
 export const SEEN_TABS = ['tasks', 'files', 'discussion'];
 
 export function migrate(db) {
@@ -107,6 +129,7 @@ export function migrate(db) {
   // Version 6: client payments. The payments table comes from SCHEMA, so there is nothing to change.
   if (version < 7) upgradeTo7(db);
   if (version < 8) upgradeTo8(db);
+  if (version < 9) upgradeTo9(db);
   db.exec('CREATE INDEX IF NOT EXISTS idx_files_message ON files(message_id);');
   db.run(
     "INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -120,8 +143,8 @@ export function seedBasics(db, now = new Date().toISOString()) {
     db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('company_name', 'BrainADZ')");
     for (const v of DEFAULT_VERTICALS) {
       const { id } = db.run(
-        'INSERT INTO verticals (name, short, code, tagline, color, key_date_label, ready_label, sort, active) VALUES (?,?,?,?,?,?,?,?,1)',
-        v.name, v.short, v.code, v.tagline, v.color, v.key_date_label, v.ready_label || '', v.sort,
+        'INSERT INTO verticals (name, short, code, tagline, color, key_date_label, ready_label, venue_label, sort, active) VALUES (?,?,?,?,?,?,?,?,?,1)',
+        v.name, v.short, v.code, v.tagline, v.color, v.key_date_label, v.ready_label || '', v.venue_label || 'Venue', v.sort,
       );
       for (const t of DEFAULT_TEMPLATES[v.short] || []) {
         db.run(

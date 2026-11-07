@@ -156,7 +156,7 @@ function Templates() {
   return (
     <>
       <div className="row between mb-12">
-        <p className="muted small" style={{ maxWidth: 680, lineHeight: 1.5 }}>Templates turn a new project into a full plan in one step. Task dates are counted back from the event, show or launch date, so the plan lines up with the day that matters. Tip: on any finished project, use <b>Save as template</b> to capture what worked.</p>
+        <p className="muted small" style={{ maxWidth: 680, lineHeight: 1.5 }}>Templates turn a new project into a full plan in one step. Task dates are counted back from the go-live, launch or show date, so the plan lines up with the day that matters. Tip: on any finished project, use <b>Save as template</b> to capture what worked.</p>
         {manageableVerticals.length > 0 && <button type="button" className="btn primary" onClick={() => setEditing({})}><Plus size={17} />New template</button>}
       </div>
       <ErrorNote error={error} retry={reload} />
@@ -180,14 +180,14 @@ function Templates() {
 
 function VerticalForm({ vertical, onClose, onSaved }) {
   const { toast } = useApp();
-  const [f, setF] = useState(() => ({ name: '', short: '', code: '', tagline: '', color: '#7c5cfc', key_date_label: 'Key date', ready_label: '', ...vertical, active: vertical ? !!vertical.active : true }));
+  const [f, setF] = useState(() => ({ name: '', short: '', code: '', tagline: '', color: '#7c5cfc', key_date_label: 'Key date', ready_label: '', venue_label: 'Venue', ...vertical, active: vertical ? !!vertical.active : true }));
   const [err, setErr] = useState(null);
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
   const submit = async (e) => {
     e.preventDefault();
     setErr(null);
     try {
-      const body = { name: f.name, short: f.short, code: f.code, tagline: f.tagline, color: f.color, key_date_label: f.key_date_label, ready_label: f.ready_label || '', active: f.active };
+      const body = { name: f.name, short: f.short, code: f.code, tagline: f.tagline, color: f.color, key_date_label: f.key_date_label, ready_label: f.ready_label || '', venue_label: f.venue_label || 'Venue', active: f.active };
       const saved = vertical ? await api.patch(`/admin/verticals/${vertical.id}`, body) : await api.post('/admin/verticals', body);
       toast('Vertical saved', 'success');
       onSaved(saved);
@@ -203,7 +203,8 @@ function VerticalForm({ vertical, onClose, onSaved }) {
         <Field label="Full name" htmlFor="vf-name"><input id="vf-name" className="input" value={f.name} onChange={set('name')} required placeholder="BrainADZ Retail" /></Field>
         <Field label="Short name" htmlFor="vf-short"><input id="vf-short" className="input" value={f.short} onChange={set('short')} required placeholder="Retail" maxLength={30} /></Field>
         <Field label="Project code prefix" htmlFor="vf-code" hint="2 to 6 letters, used in codes like RTL-26-001"><input id="vf-code" className="input" value={f.code} onChange={set('code')} required maxLength={6} placeholder="RTL" /></Field>
-        <Field label="Name of the key date" htmlFor="vf-key" hint="e.g. Event date, Show opens, Launch date, Go-live"><input id="vf-key" className="input" value={f.key_date_label} onChange={set('key_date_label')} maxLength={40} /></Field>
+        <Field label="Name of the key date" htmlFor="vf-key" hint="e.g. Go-live date, Show opens, Launch date"><input id="vf-key" className="input" value={f.key_date_label} onChange={set('key_date_label')} maxLength={40} /></Field>
+        <Field label="Name of the place or medium field" htmlFor="vf-venue" hint="e.g. Platform, Venue, Channels"><input id="vf-venue" className="input" value={f.venue_label || ''} onChange={set('venue_label')} maxLength={40} placeholder="Venue" /></Field>
         <Field label="Last board column before Delivered" htmlFor="vf-ready" className="full" hint="Optional. For example Ready for Event / Exhibition. Only people with access to this vertical see this column. Leave empty and projects go from Active to Delivered.">
           <input id="vf-ready" className="input" value={f.ready_label || ''} onChange={set('ready_label')} maxLength={60} placeholder="Ready for Event / Exhibition" />
         </Field>

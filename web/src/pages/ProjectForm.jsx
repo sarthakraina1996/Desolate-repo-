@@ -4,6 +4,10 @@ import { api } from '../api.js';
 import { Modal, Field, UserSelect, Avatar, PROJECT_STATUS, HEALTH, PRIORITY, GROUP_GOES } from '../ui.jsx';
 import { fmtDate } from '../format.js';
 
+// Examples that fit each business, by vertical code; other verticals get neutral ones.
+const NAME_EXAMPLE = { LIV: 'e.g. Dealer ordering app', MKT: 'e.g. Festive campaign', EXH: 'e.g. Pharma Expo stall, 72 sqm' };
+const VENUE_EXAMPLE = { LIV: 'Web, Android, iOS', MKT: 'TV, digital, OOH', EXH: 'Exhibition centre, hall' };
+
 const blank = {
   vertical_id: '', name: '', client: '', description: '', status: 'planning', health: 'on_track', priority: 'medium',
   owner_id: null, start_date: '', due_date: '', key_date: '', venue: '', city: '', budget: '', tags: '', member_ids: [],
@@ -153,7 +157,7 @@ export function ProjectForm({ project, copyFrom, preset, onClose, onSaved }) {
           )}
 
           <Field label="Project name" className="full" htmlFor="pf-name">
-            <input id="pf-name" className="input" value={f.name} onChange={set('name')} placeholder={v?.short === 'Exhibits' ? 'e.g. Pharma Expo stall, 72 sqm' : v?.short === 'Live' ? 'e.g. Annual dealer meet' : 'e.g. Festive campaign'} maxLength={160} required />
+            <input id="pf-name" className="input" value={f.name} onChange={set('name')} placeholder={NAME_EXAMPLE[v?.code] || 'Project name'} maxLength={160} required />
           </Field>
           <Field label="Client" htmlFor="pf-client">
             <input id="pf-client" className="input" list="pf-clients" value={f.client} onChange={set('client')} placeholder="Client or brand" maxLength={160} />
@@ -165,7 +169,7 @@ export function ProjectForm({ project, copyFrom, preset, onClose, onSaved }) {
 
           <div className="form-section">Dates</div>
           <Field label="Start" htmlFor="pf-start"><input id="pf-start" type="date" className="input" value={f.start_date} onChange={set('start_date')} /></Field>
-          <Field label={v?.key_date_label || 'Key date'} htmlFor="pf-key" hint={source.startsWith('tpl:') || source.startsWith('copy:') ? 'Task dates are planned back from this date.' : 'The day that matters most: event, show or launch.'}>
+          <Field label={v?.key_date_label || 'Key date'} htmlFor="pf-key" hint={source.startsWith('tpl:') || source.startsWith('copy:') ? 'Task dates are planned back from this date.' : 'The day that matters most, such as the go-live, launch or show day.'}>
             <input id="pf-key" type="date" className="input" value={f.key_date} onChange={set('key_date')} />
           </Field>
           <Field label="Wrap-up / due" htmlFor="pf-due" hint="When the project closes, including reports and invoicing.">
@@ -178,7 +182,7 @@ export function ProjectForm({ project, copyFrom, preset, onClose, onSaved }) {
           </Field>
 
           <div className="form-section">Where and how much</div>
-          <Field label={v?.short === 'Marketing' ? 'Channels / market' : 'Venue'} htmlFor="pf-venue"><input id="pf-venue" className="input" value={f.venue} onChange={set('venue')} maxLength={200} placeholder={v?.short === 'Exhibits' ? 'Exhibition centre, hall' : v?.short === 'Marketing' ? 'TV, digital, OOH' : 'Venue'} /></Field>
+          <Field label={v?.venue_label || 'Venue'} htmlFor="pf-venue"><input id="pf-venue" className="input" value={f.venue} onChange={set('venue')} maxLength={200} placeholder={VENUE_EXAMPLE[v?.code] || ''} /></Field>
           <Field label="City" htmlFor="pf-city"><input id="pf-city" className="input" value={f.city} onChange={set('city')} maxLength={80} /></Field>
           <Field label="Budget (₹)" htmlFor="pf-budget" hint={f.budget ? `₹${Number(String(f.budget).replace(/[,₹\s]/g, '') || 0).toLocaleString('en-IN')}` : 'Client budget or approved cost'}>
             <input id="pf-budget" className="input" inputMode="numeric" value={f.budget} onChange={set('budget')} placeholder="e.g. 1850000" />

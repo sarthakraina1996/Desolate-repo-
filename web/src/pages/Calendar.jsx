@@ -30,8 +30,8 @@ export default function CalendarPage() {
     return m;
   }, [data]);
   const [sel, setSel] = useState(null);
-  // Managers can add a project straight onto the calendar: the chosen day becomes its event,
-  // show or launch date, and it starts in Planning.
+  // Managers can add a project straight onto the calendar: the chosen day becomes its go-live,
+  // launch or show date, and it starts in Planning.
   const [adding, setAdding] = useState(null); // { key_date } while the form is open
   const canAdd = manageableVerticals.length > 0;
   const added = (p) => {
@@ -59,7 +59,7 @@ export default function CalendarPage() {
       <div className="page-head">
         <div>
           <h1>Calendar</h1>
-          <div className="sub">Event days, show openings, launches, milestones and task deadlines.{canAdd ? ' Pick a day to add a future project on it.' : ''}</div>
+          <div className="sub">Go-live dates, launches, show openings, milestones and task deadlines.{canAdd ? ' Pick a day to add a future project on it.' : ''}</div>
         </div>
         <div className="head-actions">
           <Seg value={tasks} onChange={setTasks} label="Tasks to show" options={[{ value: 'mine', label: 'My tasks' }, { value: 'all', label: 'All tasks' }, { value: 'none', label: 'No tasks' }]} />
@@ -139,7 +139,7 @@ export default function CalendarPage() {
           )}
           <div className="divider" />
           <div className="cal-legend" style={{ padding: 0 }}>
-            <span><Diamond size={12} fill="var(--text-2)" />Event, show or launch</span>
+            <span><Diamond size={12} fill="var(--text-2)" />Go-live, launch or show</span>
             <span><span className="cal-planned-sw" />Planned, not started yet</span>
             <span><Flag size={12} />Milestone or project due</span>
             <span><Circle size={12} />Task</span>

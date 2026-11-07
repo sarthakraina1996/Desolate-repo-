@@ -326,9 +326,40 @@ export function FileIcon({ file, size = 20 }) {
   );
 }
 
+// Sample app and web designs (software projects): a phone or a browser window.
+function ScreenArt({ c, phone }) {
+  return (
+    <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" aria-hidden="true">
+      <rect width="160" height="100" fill="#eef3fb" />
+      {phone ? (
+        <g>
+          <rect x="58" y="8" width="44" height="88" rx="8" fill="#1b2848" />
+          <rect x="61" y="14" width="38" height="76" rx="4" fill="#fff" />
+          <rect x="61" y="14" width="38" height="14" rx="4" fill={c} />
+          <rect x="65" y="33" width="30" height="16" rx="3" fill={c} opacity="0.18" />
+          {[53, 61, 69].map((y) => <rect key={y} x="65" y={y} width={y === 61 ? 22 : 30} height="4" rx="2" fill="#c9d3e3" />)}
+          <rect x="65" y="78" width="30" height="7" rx="3.5" fill={c} />
+        </g>
+      ) : (
+        <g>
+          <rect x="18" y="10" width="124" height="80" rx="6" fill="#fff" stroke="#d5dce7" />
+          <rect x="18" y="10" width="124" height="10" rx="6" fill="#e6ebf2" />
+          {[25, 31, 37].map((x) => <circle key={x} cx={x} cy="15" r="1.8" fill="#9aa6b8" />)}
+          <rect x="18" y="20" width="26" height="70" fill={c} opacity="0.9" />
+          <rect x="52" y="28" width="38" height="20" rx="3" fill={c} opacity="0.16" />
+          <rect x="96" y="28" width="38" height="20" rx="3" fill={c} opacity="0.3" />
+          <rect x="52" y="54" width="82" height="28" rx="3" fill="#f3f6fb" />
+          <polyline points="56,76 70,66 84,70 98,60 112,64 128,58" fill="none" stroke={c} strokeWidth="2.2" />
+        </g>
+      )}
+    </svg>
+  );
+}
+
 // A drawn placeholder for sample images in the demo data, tinted with the vertical colour.
 function SampleArt({ file }) {
   const c = file.vertical_color || '#1a6df0';
+  if (/screen|ui design|dashboard|checkout/i.test(file.name)) return <ScreenArt c={c} phone={/app|checkout|key screens/i.test(file.name)} />;
   const seed = (file.id * 9301 + 49297) % 233280;
   const night = /night/i.test(file.name);
   const sky = night ? '#1b2848' : '#eef3fb';

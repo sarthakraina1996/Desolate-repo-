@@ -213,7 +213,7 @@ export function Labels({ items }) {
 
 export function Cover({ file, color }) {
   if (!file) return null;
-  return <div className="kb-cover"><FileThumb file={{ ...file, name: 'cover', vertical_color: color }} /></div>;
+  return <div className="kb-cover"><FileThumb file={{ ...file, name: file.name || 'cover', vertical_color: color }} /></div>;
 }
 
 export function DueBadge({ date, today, done, icon: Icon = Clock, label }) {

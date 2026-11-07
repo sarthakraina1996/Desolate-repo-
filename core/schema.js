@@ -1,7 +1,7 @@
 // Database schema shared by the Node server (node:sqlite) and the in-browser demo (sql.js).
 // Both run SQLite, so the same SQL works everywhere.
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 // Kept as a function so a migration can rebuild the table with the same definition.
 export function projectsTable(name) {
@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS verticals (
   key_date_label TEXT DEFAULT 'Key date',
   -- Optional last board column before a project is delivered, e.g. "Ready for Event / Exhibition".
   ready_label TEXT DEFAULT '',
+  -- What this business calls a project's place or medium: Venue, Platform, Channels.
+  venue_label TEXT DEFAULT 'Venue',
   sort INTEGER DEFAULT 0,
   active INTEGER DEFAULT 1
 );
@@ -261,61 +263,93 @@ export const FILE_CATEGORIES = [
 ];
 
 export const DEFAULT_VERTICALS = [
-  { name: 'BrainADZ Live', short: 'Live', code: 'LIV', tagline: 'From Vision to Visibility', color: '#E5243B', key_date_label: 'Event date', sort: 1 },
-  { name: 'BrainADZ Marketing', short: 'Marketing', code: 'MKT', tagline: 'Ideas That Spark Momentum', color: '#1FB2D6', key_date_label: 'Launch date', sort: 2 },
-  { name: 'BrainADZ Exhibits', short: 'Exhibits', code: 'EXH', tagline: 'Where Elegance Meets Execution', color: '#8CC63F', key_date_label: 'Show opens', ready_label: 'Ready for Event / Exhibition', sort: 3 },
+  { name: 'BrainADZ Live', short: 'Live', code: 'LIV', tagline: 'From Vision to Visibility', color: '#E5243B', key_date_label: 'Go-live date', ready_label: 'Ready for Go-Live', venue_label: 'Platform', sort: 1 },
+  { name: 'BrainADZ Marketing', short: 'Marketing', code: 'MKT', tagline: 'Ideas That Spark Momentum', color: '#1FB2D6', key_date_label: 'Launch date', venue_label: 'Channels', sort: 2 },
+  { name: 'BrainADZ Exhibits', short: 'Exhibits', code: 'EXH', tagline: 'Where Elegance Meets Execution', color: '#8CC63F', key_date_label: 'Show opens', ready_label: 'Ready for Event / Exhibition', venue_label: 'Venue', sort: 3 },
 ];
 
 // Starter templates. Task offsets are days relative to the project's key date
-// (event / launch / show), or to the due date when no key date is set.
+// (go-live / launch / show), or to the due date when no key date is set.
 export const DEFAULT_TEMPLATES = {
+  // BrainADZ Live builds software: web applications, mobile apps and websites.
   Live: [
     {
-      name: 'Corporate event',
-      description: 'Conferences, award nights, dealer meets and annual days.',
-      stages: ['Brief', 'Concept & Budget', 'Pre-production', 'Event day', 'Wrap-up'],
+      name: 'Web application',
+      description: 'Custom software, portals and dashboards: from requirements to go-live and support.',
+      stages: ['Discovery', 'Requirements', 'UI/UX Design', 'Development', 'Testing & QA', 'UAT', 'Go-live', 'Support'],
       milestones: [
-        { title: 'Concept and budget approved', offset: -35 },
-        { title: 'Venue and vendors locked', offset: -25 },
-        { title: 'Final run-of-show signed off', offset: -5 },
-        { title: 'Event day', offset: 0 },
-        { title: 'Client report shared', offset: 10 },
+        { title: 'Scope and requirements signed off', offset: -75 },
+        { title: 'UI designs approved', offset: -55 },
+        { title: 'Feature complete (code freeze)', offset: -20 },
+        { title: 'UAT signed off', offset: -5 },
+        { title: 'Go-live', offset: 0 },
+        { title: 'Warranty support ends', offset: 30 },
       ],
       tasks: [
-        { title: 'Client brief and objectives call', stage: 'Brief', offset: -45, priority: 'high' },
-        { title: 'Venue recce and shortlist', stage: 'Brief', offset: -40 },
-        { title: 'Creative concept deck', stage: 'Concept & Budget', offset: -38, priority: 'high' },
-        { title: 'Costing sheet and budget approval', stage: 'Concept & Budget', offset: -35, priority: 'high' },
-        { title: 'Vendor quotes: AV, stage, decor', stage: 'Pre-production', offset: -28 },
-        { title: 'Artist and emcee bookings', stage: 'Pre-production', offset: -25 },
-        { title: 'Stage and backdrop design files', stage: 'Pre-production', offset: -18 },
-        { title: 'Invites and RSVP tracking', stage: 'Pre-production', offset: -15 },
-        { title: 'Permissions and licences (PPL, police, fire)', stage: 'Pre-production', offset: -12, priority: 'high' },
-        { title: 'Run-of-show and cue sheet', stage: 'Pre-production', offset: -5 },
-        { title: 'Technical rehearsal', stage: 'Event day', offset: -1, priority: 'high' },
-        { title: 'Event day execution', stage: 'Event day', offset: 0, priority: 'urgent' },
-        { title: 'Photos and video handover', stage: 'Wrap-up', offset: 5 },
-        { title: 'Vendor settlement and invoicing', stage: 'Wrap-up', offset: 10 },
-        { title: 'Post-event report to client', stage: 'Wrap-up', offset: 10 },
+        { title: 'Kick-off and discovery workshop', stage: 'Discovery', offset: -95, priority: 'high' },
+        { title: 'Requirements document (SRS) and user stories', stage: 'Requirements', offset: -85, priority: 'high' },
+        { title: 'Effort estimate, sprint plan and client sign-off', stage: 'Requirements', offset: -75, priority: 'urgent' },
+        { title: 'Wireframes and user flows', stage: 'UI/UX Design', offset: -68 },
+        { title: 'UI designs and design sign-off', stage: 'UI/UX Design', offset: -55, priority: 'high' },
+        { title: 'Architecture, database design and environments', stage: 'Development', offset: -52 },
+        { title: 'Sprint 1: sign-in, roles and core modules', stage: 'Development', offset: -42 },
+        { title: 'Sprint 2: integrations and APIs', stage: 'Development', offset: -32 },
+        { title: 'Sprint 3: admin panel and reports', stage: 'Development', offset: -22 },
+        { title: 'Functional and regression testing', stage: 'Testing & QA', offset: -14, priority: 'high' },
+        { title: 'Security and performance checks', stage: 'Testing & QA', offset: -10 },
+        { title: 'UAT with the client team and sign-off', stage: 'UAT', offset: -5, priority: 'urgent' },
+        { title: 'Production deployment and data migration', stage: 'Go-live', offset: -1, priority: 'urgent' },
+        { title: 'Go-live and smoke test', stage: 'Go-live', offset: 0, priority: 'urgent' },
+        { title: 'User training and handover documents', stage: 'Support', offset: 5 },
+        { title: 'Hypercare: fixes in the first two weeks', stage: 'Support', offset: 14 },
       ],
     },
     {
-      name: 'Concert / public show',
-      description: 'Ticketed shows, brand activations and festivals.',
-      stages: ['Planning', 'Permissions', 'Production', 'Show day', 'Settlement'],
+      name: 'Mobile app',
+      description: 'Android and iOS apps with their backend, through to release on the app stores.',
+      stages: ['Discovery', 'Design', 'Development', 'Testing', 'Store release', 'Support'],
       milestones: [
-        { title: 'Artist contract signed', offset: -45 },
-        { title: 'All permissions in hand', offset: -10 },
-        { title: 'Show day', offset: 0 },
+        { title: 'App screens approved', offset: -50 },
+        { title: 'Beta build with the client', offset: -21 },
+        { title: 'Approved on Play Store and App Store', offset: -2 },
+        { title: 'Live on the stores', offset: 0 },
       ],
       tasks: [
-        { title: 'Artist availability and contract', stage: 'Planning', offset: -60, priority: 'high' },
-        { title: 'Ticketing partner set-up', stage: 'Planning', offset: -45 },
-        { title: 'Police, fire and excise permissions', stage: 'Permissions', offset: -20, priority: 'urgent' },
-        { title: 'Crowd management and security plan', stage: 'Permissions', offset: -15 },
-        { title: 'Stage, sound and lights production', stage: 'Production', offset: -7 },
-        { title: 'Show day execution', stage: 'Show day', offset: 0, priority: 'urgent' },
-        { title: 'Box office reconciliation', stage: 'Settlement', offset: 7 },
+        { title: 'Feature list and user journeys', stage: 'Discovery', offset: -75, priority: 'high' },
+        { title: 'App wireframes', stage: 'Design', offset: -62 },
+        { title: 'App screen designs and sign-off', stage: 'Design', offset: -50, priority: 'high' },
+        { title: 'Backend APIs and admin panel', stage: 'Development', offset: -40 },
+        { title: 'Android and iOS app development', stage: 'Development', offset: -28, priority: 'high' },
+        { title: 'Push notifications and analytics', stage: 'Development', offset: -24 },
+        { title: 'Beta build to the client (TestFlight, Play internal test)', stage: 'Testing', offset: -21, priority: 'high' },
+        { title: 'Testing on real devices and bug fixes', stage: 'Testing', offset: -12 },
+        { title: 'Store listings: screenshots, descriptions, privacy policy', stage: 'Store release', offset: -8 },
+        { title: 'Submit to Play Store and App Store', stage: 'Store release', offset: -6, priority: 'urgent' },
+        { title: 'Release on the stores', stage: 'Store release', offset: 0, priority: 'urgent' },
+        { title: 'Crash monitoring and first update', stage: 'Support', offset: 14 },
+      ],
+    },
+    {
+      name: 'Website',
+      description: 'Company and product websites on a CMS, with SEO set up at launch.',
+      stages: ['Brief', 'Sitemap & Content', 'Design', 'Build', 'Testing', 'Launch'],
+      milestones: [
+        { title: 'Sitemap and content received', offset: -35 },
+        { title: 'Home page design approved', offset: -28 },
+        { title: 'Website live', offset: 0 },
+      ],
+      tasks: [
+        { title: 'Website brief and references', stage: 'Brief', offset: -45, priority: 'high' },
+        { title: 'Sitemap and page list', stage: 'Sitemap & Content', offset: -40 },
+        { title: 'Content and photos from the client', stage: 'Sitemap & Content', offset: -35, priority: 'high' },
+        { title: 'Home page design', stage: 'Design', offset: -30, priority: 'high' },
+        { title: 'Inner page designs', stage: 'Design', offset: -24 },
+        { title: 'Build pages on the CMS', stage: 'Build', offset: -14 },
+        { title: 'Forms, integrations and SEO set-up', stage: 'Build', offset: -9 },
+        { title: 'Cross-browser and mobile testing', stage: 'Testing', offset: -5 },
+        { title: 'Domain, hosting and SSL', stage: 'Launch', offset: -2 },
+        { title: 'Website launch', stage: 'Launch', offset: 0, priority: 'urgent' },
+        { title: 'CMS training and handover', stage: 'Launch', offset: 5 },
       ],
     },
   ],

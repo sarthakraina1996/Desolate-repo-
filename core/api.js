@@ -96,7 +96,7 @@ function scopeVerticals(ctx) {
   return visible;
 }
 
-const PROJECT_COLS = `p.*, v.short AS vertical, v.name AS vertical_name, v.color AS vertical_color, v.key_date_label, v.ready_label,
+const PROJECT_COLS = `p.*, v.short AS vertical, v.name AS vertical_name, v.color AS vertical_color, v.key_date_label, v.ready_label, v.venue_label,
   o.name AS owner_name, o.color AS owner_color,
   (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS task_total,
   (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.status = 'done') AS task_done,
@@ -104,15 +104,15 @@ const PROJECT_COLS = `p.*, v.short AS vertical, v.name AS vertical_name, v.color
   (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id) AS file_count,
   (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id AND f.is_final = 1) AS final_count,
   (SELECT COALESCE(SUM(pay.amount), 0) FROM payments pay WHERE pay.project_id = p.id) AS received,
-  (SELECT f.id || '|' || COALESCE(f.storage_key, '') || '|' || f.mime FROM files f
+  (SELECT f.id || '|' || COALESCE(f.storage_key, '') || '|' || f.mime || '|' || f.name FROM files f
     WHERE f.project_id = p.id AND f.mime LIKE 'image/%' ORDER BY f.is_final DESC, f.id DESC LIMIT 1) AS cover`;
 const PROJECT_FROM = 'FROM projects p JOIN verticals v ON v.id = p.vertical_id LEFT JOIN users o ON o.id = p.owner_id';
 
-// "12|key|image/png" -> { id, storage_key, mime }, the image shown on board cards.
+// "12|key|image/png|Render.png" -> { id, storage_key, mime, name }, the image shown on board cards.
 function parseCover(c) {
   if (!c) return null;
-  const [id, storage_key, mime] = String(c).split('|');
-  return { id: Number(id), storage_key, mime, kind: 'file' };
+  const [id, storage_key, mime, ...name] = String(c).split('|');
+  return { id: Number(id), storage_key, mime, name: name.join('|'), kind: 'file' };
 }
 
 function shapeProject(row, today) {
@@ -200,7 +200,7 @@ function shapeTask(t, today) {
 const TASK_COLS = `t.*, u.name AS assignee_name, u.color AS assignee_color,
   (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id) AS comment_count,
   (SELECT COUNT(*) FROM files f WHERE f.task_id = t.id) AS file_count,
-  (SELECT f.id || '|' || COALESCE(f.storage_key, '') || '|' || f.mime FROM files f
+  (SELECT f.id || '|' || COALESCE(f.storage_key, '') || '|' || f.mime || '|' || f.name FROM files f
     WHERE f.task_id = t.id AND f.mime LIKE 'image/%' ORDER BY f.is_final DESC, f.id DESC LIMIT 1) AS cover`;
 
 function readProjectFields(body, { creating = false } = {}) {
@@ -1977,6 +1977,7 @@ function readVertical(body, creating) {
     tagline: text(body.tagline, { max: 120, label: 'Tagline' }),
     key_date_label: text(body.key_date_label, { max: 40, label: 'Key date label' }),
     ready_label: text(body.ready_label, { max: 60, label: 'Final board column' }),
+    venue_label: text(body.venue_label, { max: 40, label: 'Venue field name' }),
     color: body.color === undefined ? undefined : /^#[0-9a-fA-F]{6}$/.test(body.color) ? body.color : '#1a6df0',
     sort: body.sort === undefined ? undefined : Number(body.sort) || 0,
     active: body.active === undefined ? undefined : body.active ? 1 : 0,
@@ -1991,8 +1992,8 @@ route('POST', '/admin/verticals', (ctx) => {
   if (ctx.db.get('SELECT 1 AS x FROM verticals WHERE code = ?', f.code)) throw bad('Another vertical already uses that code');
   const sort = (ctx.db.get('SELECT MAX(sort) AS m FROM verticals').m || 0) + 1;
   const { id } = ctx.db.run(
-    'INSERT INTO verticals (name, short, code, tagline, color, key_date_label, ready_label, sort, active) VALUES (?,?,?,?,?,?,?,?,1)',
-    f.name, f.short, f.code, f.tagline || '', f.color || '#1a6df0', f.key_date_label || 'Key date', f.ready_label || '', f.sort ?? sort,
+    'INSERT INTO verticals (name, short, code, tagline, color, key_date_label, ready_label, venue_label, sort, active) VALUES (?,?,?,?,?,?,?,?,?,1)',
+    f.name, f.short, f.code, f.tagline || '', f.color || '#1a6df0', f.key_date_label || 'Key date', f.ready_label || '', f.venue_label || 'Venue', f.sort ?? sort,
   );
   return ctx.db.get('SELECT * FROM verticals WHERE id = ?', id);
 });

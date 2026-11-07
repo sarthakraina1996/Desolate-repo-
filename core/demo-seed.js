@@ -8,9 +8,9 @@ export const DEMO_PASSWORD = 'demo1234';
 export const DEMO_PEOPLE = [
   { key: 'rajiv', name: 'Rajiv Malhotra', title: 'Chief Executive Officer', role: 'admin', color: '#1f2b7b', access: {} },
   { key: 'arvind', name: 'Arvind Menon', title: 'Business Head – BrainADZ Live', color: '#e31b3b', access: { Live: 'manager' } },
-  { key: 'ishita', name: 'Ishita Roy', title: 'Event Manager', color: '#ef4778', access: { Live: 'manager' } },
-  { key: 'sneha_i', name: 'Sneha Iyer', title: 'Event Coordinator', color: '#f2a600', access: { Live: 'member' } },
-  { key: 'sameer', name: 'Sameer Khan', title: 'Client Servicing Manager', color: '#0f766e', access: { Live: 'member' } },
+  { key: 'ishita', name: 'Ishita Roy', title: 'Project Manager', color: '#ef4778', access: { Live: 'manager' } },
+  { key: 'sneha_i', name: 'Sneha Iyer', title: 'QA Engineer', color: '#f2a600', access: { Live: 'member' } },
+  { key: 'sameer', name: 'Sameer Khan', title: 'Tech Lead', color: '#0f766e', access: { Live: 'member' } },
   { key: 'vikram', name: 'Vikram Patel', title: 'Sales Manager', color: '#b45309', access: { Live: 'viewer', Exhibits: 'viewer' } },
   { key: 'kavita', name: 'Kavita Rao', title: 'Head of Marketing', color: '#1fb2d6', access: { Marketing: 'manager' } },
   { key: 'nandini', name: 'Nandini Joshi', title: 'Marketing Manager', color: '#7c5cfc', access: { Marketing: 'manager' } },
@@ -40,7 +40,13 @@ const emailOf = (name) => name.toLowerCase().replace(/[^a-z ]/g, '').trim().repl
 
 const STAGE_PEOPLE = {
   Exhibits: { Brief: ['neha', 'rohan'], Design: ['tanvi', 'sneha_k'], Approval: ['neha', 'rohan'], Fabrication: ['kunal', 'rohan'], Installation: ['kunal', 'rohan'], Show: ['neha'], Dismantle: ['kunal'] },
-  Live: { _: ['ishita', 'sneha_i', 'sameer', 'siddharth'] },
+  Live: {
+    Discovery: ['ishita', 'sameer'], Requirements: ['ishita', 'sameer'], Brief: ['ishita'], 'Sitemap & Content': ['ishita'],
+    'UI/UX Design': ['siddharth'], Design: ['siddharth'], Development: ['sameer'], Build: ['sameer'],
+    'Testing & QA': ['sneha_i'], Testing: ['sneha_i'], UAT: ['sneha_i', 'ishita'],
+    'Go-live': ['sameer'], 'Store release': ['sameer'], Launch: ['sameer'], Support: ['sameer', 'sneha_i'],
+    _: ['ishita', 'sameer', 'sneha_i'],
+  },
   Marketing: { Creative: ['siddharth', 'kavya'], Calendar: ['aarav'], Production: ['kavya', 'aarav'], _: ['nandini', 'aarav', 'kavya'] },
 };
 
@@ -61,17 +67,17 @@ const FILES = {
     ['Show report and footfall.pdf', 'Reports', 'application/pdf', 1200],
   ],
   Live: [
-    ['Event brief – {client}.pdf', 'Brief', 'application/pdf', 640],
-    ['Concept deck v2.pptx', 'Design', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 18500],
-    ['Stage design render.jpg', 'Design', 'image/jpeg', 2700],
-    ['Costing sheet.xlsx', 'Quotes & Invoices', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 120],
-    ['Venue agreement.pdf', 'Contract & PO', 'application/pdf', 540],
-    ['Run of show and cue sheet.xlsx', 'Production', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 85],
+    ['Requirements document (SRS) – {client}.pdf', 'Brief', 'application/pdf', 920],
+    ['UI designs – key screens v2.jpg', 'Design', 'image/jpeg', 2600],
+    ['UI designs – dashboard v2.jpg', 'Design', 'image/jpeg', 2400],
+    ['Effort estimate and sprint plan.xlsx', 'Quotes & Invoices', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 110],
+    ['Signed statement of work.pdf', 'Contract & PO', 'application/pdf', 480],
+    ['API documentation.pdf', 'Production', 'application/pdf', 1300],
   ],
   LiveFinal: [
-    ['Event highlights – stage.jpg', 'Photos & Videos', 'image/jpeg', 3600],
-    ['Aftermovie final.mp4', 'Final deliverables', 'video/mp4', 412000],
-    ['Post-event report.pdf', 'Reports', 'application/pdf', 2200],
+    ['UAT sign-off.pdf', 'Reports', 'application/pdf', 260],
+    ['Release notes v1.0.pdf', 'Final deliverables', 'application/pdf', 340],
+    ['Admin panel walkthrough.mp4', 'Final deliverables', 'video/mp4', 96000],
   ],
   Marketing: [
     ['Campaign brief – {client}.docx', 'Brief', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 210],
@@ -98,13 +104,14 @@ const PROJECTS = [
   ['Exhibits', 'Mobile congress booth', 'Bluepeak Telecom', 0, -205, 'completed', 'on_track', 'neha', 'Yashobhoomi (IICC)', 'New Delhi', 2400000, 'telecom, tech demo zones'],
   ['Exhibits', 'Food expo stall', 'Sahyadri Foods', 0, -118, 'completed', 'on_track', 'rohan', 'Bombay Exhibition Centre', 'Mumbai', 780000, 'fmcg, sampling counter'],
 
-  ['Live', 'Annual dealer meet', 'Bluepeak Telecom', 0, 24, 'active', 'on_track', 'ishita', 'Coral Bay Resort', 'South Goa', 4200000, 'dealer meet, awards, 400 pax'],
-  ['Live', '25th anniversary gala', 'Lotus Hotels', 0, 5, 'active', 'at_risk', 'ishita', 'Grand ballroom, Lotus Bandra', 'Mumbai', 3100000, 'gala, celebrity act'],
-  ['Live', 'College fest tour, 5 cities', 'Monsoon Beverages', 1, 38, 'planning', 'on_track', 'sameer', 'Campus venues', 'Pune', 5600000, 'youth, sampling, tour'],
-  ['Live', 'Leadership offsite', 'Indus Fintech', 0, 62, 'on_hold', 'on_track', 'sameer', 'Hill resort', 'Lonavala', 1500000, 'offsite, team building'],
-  ['Live', 'New Year’s Eve gala', 'Lotus Hotels', 0, -287, 'completed', 'on_track', 'ishita', 'Grand ballroom, Lotus Bandra', 'Mumbai', 2800000, 'gala, countdown'],
-  ['Live', 'SUV launch event', 'Northwind Motors', 0, -160, 'completed', 'on_track', 'arvind', 'NSCI Dome', 'Mumbai', 7800000, 'launch, media, projection mapping'],
-  ['Live', 'Summer music night', 'Monsoon Beverages', 1, -96, 'cancelled', 'on_track', 'sameer', 'Palace Grounds', 'Bengaluru', 0, 'concert'],
+  // Live templates: 0 web application, 1 mobile app, 2 website.
+  ['Live', 'Dealer ordering app', 'Bluepeak Telecom', 1, 24, 'active', 'on_track', 'ishita', 'Android, iOS', 'Pune', 4200000, 'mobile app, b2b, dealers'],
+  ['Live', 'Booking website revamp', 'Lotus Hotels', 2, 5, 'active', 'at_risk', 'ishita', 'Web, CMS', 'Mumbai', 1800000, 'website, bookings, cross-vertical client'],
+  ['Live', 'Loyalty rewards app', 'Monsoon Beverages', 1, 38, 'planning', 'on_track', 'sameer', 'Android, iOS', 'Pune', 5600000, 'mobile app, loyalty'],
+  ['Live', 'HR self-service portal', 'Indus Fintech', 0, 62, 'on_hold', 'on_track', 'sameer', 'Web app', 'Bengaluru', 1500000, 'web app, internal tool'],
+  ['Live', 'Online gift card store', 'Lotus Hotels', 2, -287, 'completed', 'on_track', 'ishita', 'Web, payment gateway', 'Mumbai', 2800000, 'e-commerce, payments'],
+  ['Live', 'Service booking app', 'Northwind Motors', 1, -160, 'completed', 'on_track', 'arvind', 'Android, iOS', 'Mumbai', 7800000, 'mobile app, service bookings'],
+  ['Live', 'Customer support chatbot', 'Monsoon Beverages', 0, -96, 'cancelled', 'on_track', 'sameer', 'WhatsApp, web', 'Bengaluru', 0, 'chatbot, pilot'],
 
   ['Marketing', 'Festive campaign (Diwali)', 'Sahyadri Foods', 0, 12, 'active', 'at_risk', 'nandini', 'TV, digital, OOH', 'Pan India', 2800000, 'festive, 360 campaign'],
   ['Marketing', 'App launch digital campaign', 'Indus Fintech', 0, 30, 'active', 'on_track', 'kavita', 'Meta, Google, YouTube', 'Pan India', 3500000, 'performance, app installs'],
@@ -122,10 +129,13 @@ const DESCRIPTIONS = {
   'Hospitality expo stall': '54 sqm stall with a live chef counter, a suite mock-up and a lounge for buyer meetings. Built, checked and handed over; waiting for the show to open.',
   'Mobile congress booth': '5G demo zones, an IoT wall and a partner theatre.',
   'Food expo stall': 'Live sampling counter and retail shelf mock-up.',
-  'Annual dealer meet': 'Two-day dealer meet for 400 guests: business sessions on day 1, awards night with a live band, and a beach party on day 2.',
-  '25th anniversary gala': 'Black-tie gala for 600 guests with a celebrity performance, heritage film and a 25-year retrospective installation in the foyer.',
-  'College fest tour, 5 cities': 'Sampling and stage activation at five college fests: Pune, Indore, Jaipur, Chandigarh and Kochi.',
-  'Leadership offsite': 'Three-day offsite for 60 leaders. Paused while the client finalises its budget for next quarter.',
+  'Dealer ordering app': 'Android and iOS app for 1,200 dealers to place orders, track deliveries and see their credit limit, with an admin panel for the sales team and SAP integration.',
+  'Booking website revamp': 'New website for the hotel group with live room availability, a booking engine and offers managed by their team on a CMS. Must be live before the festive season.',
+  'Loyalty rewards app': 'Scan-a-code rewards app for retail customers: points, offers and redemption at partner stores.',
+  'HR self-service portal': 'Web portal for leave, payslips and reimbursements for 900 employees. Paused while the client finalises its budget for next quarter.',
+  'Online gift card store': 'Gift cards for stays and dining, sold online with payment gateway and instant email delivery.',
+  'Service booking app': 'Car service booking app with slot selection, pick-up tracking and digital invoices.',
+  'Customer support chatbot': 'WhatsApp and website chatbot for order status and FAQs. Called off after the pilot.',
   'Festive campaign (Diwali)': '360 campaign for the festive sweets range: 30s TVC, digital video, social, and OOH in eight metros.',
   'App launch digital campaign': 'Performance campaign for the new investing app. Target: 2 lakh installs in the first 30 days at under ₹90 CPI.',
   'Social media retainer – next month': 'Monthly calendar of 16 posts and 4 reels for the township launch.',
@@ -317,8 +327,8 @@ export function seedDemo(db, { today, passwordHash, now = new Date().toISOString
         say(c.pid, 'tanvi', '@Rohan render v3 is uploaded. Client asked for a bigger logo on the backwall, updating today.', ts(addDays(today, day), 15, 10));
         say(c.pid, 'rohan', 'Thanks Tanvi. Workshop needs final drawings by Friday to hold the fabrication slot.', ts(addDays(today, day), 17, 45));
       } else if (c.short === 'Live') {
-        say(c.pid, 'ishita', 'Venue walkthrough done. Ballroom height allows the LED wall we planned, rigging points marked on the layout.', ts(addDays(today, -5), 12, 0));
-        say(c.pid, 'sameer', `${c.client} wants the guest list frozen a week before. Shared the RSVP tracker with their admin team.`, ts(addDays(today, -2), 16, 20));
+        say(c.pid, 'ishita', 'Sprint review done with the client. They approved the order flow; two small changes to the cart screen are in the backlog.', ts(addDays(today, -5), 12, 0));
+        say(c.pid, 'sameer', `${c.client} has shared the staging API keys. Integration testing starts tomorrow.`, ts(addDays(today, -2), 16, 20));
       } else if (/campaign/i.test(c.name)) {
         say(c.pid, 'kavita', 'Route B tested better in the quick poll. Let’s take it forward and keep route A as backup.', ts(addDays(today, -4), 11, 30));
         say(c.pid, 'aarav', 'Media plan v2 uploaded with the revised OOH split.', ts(addDays(today, -1), 14, 50));
@@ -429,16 +439,16 @@ const GROUP_LINES = {
     ]],
   },
   Live: {
-    update: 'Update: venue and AV vendor are locked. Next up are the artist contract and the run-of-show.',
-    ask: 'Tech rider from the band came in. They need two extra monitors, adding it to the AV quote.',
-    reply: 'Fine by me, keep it within the AV line.',
-    onTrack: 'RSVPs at 62%. The reminder mailer goes out tomorrow.',
-    stuck: ['need_help', 'The band’s dates clash with another show. Looking at two alternative acts, need a decision by Friday.'],
-    help: 'Send me both options with fees, I will take it to the client today.',
-    latest: '@{a} please check the green room booking for the show night.',
-    share: ['Stage render with the new LED wall, and the floor plan with the seating.', [
-      ['Stage design render v3.jpg', 'image/jpeg', 'Design', 2800],
-      ['Ballroom floor plan and seating.pdf', 'application/pdf', 'Production', 1300],
+    update: 'Sprint update: sign-in, catalogue and cart are done. This sprint is payments and order tracking.',
+    ask: 'Staging build 0.8 is up. Logged three bugs on the checkout screen, details in the tracker.',
+    reply: 'Thanks, fixing the payment one first. The other two go in tomorrow’s build.',
+    onTrack: 'All API endpoints are documented and shared with the client’s SAP team.',
+    stuck: ['need_help', 'The client’s SAP sandbox is still down, so the order sync can’t be tested. Need their IT team this week.'],
+    help: 'I will escalate to their IT head today and ask for a fixed test window.',
+    latest: '@{a} can you run the regression suite on build 0.9 before the client demo?',
+    share: ['Updated screens after the client review, and the test report for build 0.8.', [
+      ['App screens – checkout v3.jpg', 'image/jpeg', 'Design', 2500],
+      ['Test report – build 0.8.pdf', 'application/pdf', 'Reports', 640],
     ]],
   },
   Marketing: {
@@ -446,7 +456,7 @@ const GROUP_LINES = {
     ask: 'Uploaded the 1:1 and 9:16 cuts to Files. Need a quick look before we send them.',
     reply: 'Looks good. Small fix: keep the logo inside the safe area on the 9:16.',
     onTrack: 'Fixes done, sending to the client at 3 pm.',
-    stuck: ['need_help', 'The TVC edit is two days behind. Can we borrow an editor from the Live team this week?'],
+    stuck: ['need_help', 'The TVC edit is two days behind. Can we bring in a freelance editor this week?'],
     help: 'Checking with Siddharth, will confirm in an hour.',
     latest: '@{a} the client wants the performance numbers in Monday’s call, can you pull them?',
     share: ['Key visual with the client’s comments done, plus the adaptations sheet.', [
