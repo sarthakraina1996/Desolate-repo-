@@ -1,0 +1,38 @@
+<Window x:Class="BrainADZ.Events.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="BrainADZ Events" Width="1320" Height="860" MinWidth="420" MinHeight="560"
+        Background="{StaticResource Canvas}" FontFamily="Segoe UI" FontSize="14">
+    <DockPanel>
+        <!-- Native toolbar: navigation, the workspaces this PC is used for, and device settings. -->
+        <Border x:Name="Toolbar" DockPanel.Dock="Top" Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource Rule}" BorderThickness="0,0,0,1" Padding="8,6">
+            <DockPanel LastChildFill="False">
+                <Button x:Name="BackButton" Content="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" ToolTip="Back (Alt+Left)"
+                        AutomationProperties.Name="Back" Click="Back_Click" Margin="0,0,4,0" />
+                <Button Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" ToolTip="Reload (F5)"
+                        AutomationProperties.Name="Reload" Click="Reload_Click" Margin="0,0,12,0" />
+                <Button Content="Workspace" Click="Home_Click" Margin="0,0,4,0" ToolTip="Organiser console or exhibitor workspace" />
+                <Button Content="Gate scanner" Click="Gate_Click" Margin="0,0,4,0" ToolTip="Scan passes and print badges at this desk" />
+                <Button Content="Display mode" Click="Display_Click" ToolTip="Show a venue display full screen on this PC" />
+                <TextBlock x:Name="PrinterLabel" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,4,0" Foreground="{StaticResource Ink2}" />
+                <Button DockPanel.Dock="Right" Content="Settings" Click="Settings_Click" ToolTip="Server address and badge printer" />
+            </DockPanel>
+        </Border>
+        <Grid>
+            <wv2:WebView2 x:Name="Web" />
+            <!-- Shown when the server cannot be reached, with a way to retry. -->
+            <Border x:Name="OfflinePanel" Background="{StaticResource Canvas}" Visibility="Collapsed">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460">
+                    <TextBlock Text="Cannot reach the event server" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource Ink}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="OfflineText" Margin="0,8,0,16" Foreground="{StaticResource Ink2}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Try again" Style="{StaticResource Primary}" Click="Reload_Click" Margin="0,0,8,0" MinWidth="120" MinHeight="40" />
+                        <Button x:Name="OfflineSettings" Content="Change server address" Click="Settings_Click" MinHeight="40" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

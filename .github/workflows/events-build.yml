@@ -1,0 +1,85 @@
+# Builds and tests every BrainADZ Events target. The Android APK and the Windows app are
+# attached to each run as downloadable artifacts.
+name: BrainADZ Events
+
+on:
+  push:
+    paths: ['events/**', '.github/workflows/events-build.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: events-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-and-web:
+    name: API tests and web build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: events
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: events/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  android:
+    name: Android app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: events/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BrainADZ-Events-Android-debug-apk
+          path: events/android/app/build/outputs/apk/debug/app-debug.apk
+
+  windows:
+    name: Windows app
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: events/windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BrainADZ-Events-Windows-x64
+          path: events/windows/publish
+
+  ios:
+    name: iOS app
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: events/ios
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      # A simulator build needs no signing identity; it proves the app compiles.
+      - run: >
+          xcodebuild build -project BrainADZEvents.xcodeproj -scheme BrainADZEvents
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          -configuration Debug CODE_SIGNING_ALLOWED=NO | tail -n 400
