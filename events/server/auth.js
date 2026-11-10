@@ -29,8 +29,7 @@ export function verifyPassword(password, stored) {
 export function checkPasswordStrength(pw) {
   if (typeof pw !== 'string' || pw.length < 8) fail(400, 'Password must be at least 8 characters');
   if (pw.length > 200) fail(400, 'Password is too long');
-  if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw))
-    fail(400, 'Password must contain letters and numbers');
+  if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) fail(400, 'Password must contain letters and numbers');
 }
 
 // Parses a Cookie header into a name -> value map.
@@ -109,15 +108,9 @@ export function sessionMiddleware(db) {
   return (req, _res, next) => {
     const t = tokenOf(req);
     if (t) {
-      const s = db.get(
-        'SELECT user_id, expires_at FROM sessions WHERE token_hash = ?',
-        sha256(t.token),
-      );
+      const s = db.get('SELECT user_id, expires_at FROM sessions WHERE token_hash = ?', sha256(t.token));
       if (s && s.expires_at > nowIso()) {
-        const u = db.get(
-          'SELECT id, email, name, phone, active FROM users WHERE id = ?',
-          s.user_id,
-        );
+        const u = db.get('SELECT id, email, name, phone, active FROM users WHERE id = ?', s.user_id);
         if (u && u.active) {
           req.user = { id: u.id, email: u.email, name: u.name, phone: u.phone };
           req.sessionVia = t.via;
@@ -161,7 +154,7 @@ export function issueOtp(db, { email, purpose, ref = null }) {
   if (recent >= 6) fail(429, 'Too many codes requested. Try again in 15 minutes.');
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
   db.run(
-    'UPDATE otp_codes SET used_at = ? WHERE email = ? AND purpose = ? AND used_at IS NULL AND COALESCE(ref, \'\') = ?',
+    "UPDATE otp_codes SET used_at = ? WHERE email = ? AND purpose = ? AND used_at IS NULL AND COALESCE(ref, '') = ?",
     nowIso(),
     email,
     purpose,
@@ -187,10 +180,8 @@ export function consumeOtp(db, { email, purpose, ref = null, code }) {
     purpose,
     ref || '',
   );
-  if (!row || row.expires_at < nowIso())
-    fail(400, 'That code has expired. Request a new one.', 'code_expired');
-  if (row.attempts >= OTP_MAX_ATTEMPTS)
-    fail(429, 'Too many wrong attempts. Request a new code.', 'code_locked');
+  if (!row || row.expires_at < nowIso()) fail(400, 'That code has expired. Request a new one.', 'code_expired');
+  if (row.attempts >= OTP_MAX_ATTEMPTS) fail(429, 'Too many wrong attempts. Request a new code.', 'code_locked');
   if (row.code_hash !== sha256(`${email}:${String(code || '').trim()}`)) {
     db.run('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?', row.id);
     fail(400, 'That code is not right. Check the email and try again.', 'code_wrong');

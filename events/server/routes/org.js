@@ -54,14 +54,7 @@ import {
   releaseAssignment,
   reviewApplication,
 } from '../services/exhibitors.js';
-import {
-  invoiceData,
-  orderView,
-  recordManualPayment,
-  recordRefund,
-  reconcilePayment,
-  reconciliation,
-} from '../services/payments.js';
+import { invoiceData, orderView, recordManualPayment, recordRefund, reconcilePayment, reconciliation } from '../services/payments.js';
 import { printJobs } from '../services/scans.js';
 import { mail } from '../services/mail.js';
 
@@ -92,7 +85,12 @@ export default function orgRoutes(ctx) {
     requireUser(req);
     const seen = new Map();
     for (const m of memberships(db, req).filter((x) => ORG_ROLES.includes(x.role)))
-      for (const e of db.all('SELECT * FROM events WHERE organiser_id = ? AND (? IS NULL OR id = ?) ORDER BY starts_on DESC', m.organiser_id, m.event_id, m.event_id))
+      for (const e of db.all(
+        'SELECT * FROM events WHERE organiser_id = ? AND (? IS NULL OR id = ?) ORDER BY starts_on DESC',
+        m.organiser_id,
+        m.event_id,
+        m.event_id,
+      ))
         if (!seen.has(e.id)) seen.set(e.id, { ...eventSummary(e), role: m.role });
     res.json([...seen.values()]);
   });
@@ -124,7 +122,14 @@ export default function orgRoutes(ctx) {
     const slug = str(req.body.slug, { max: 60, required: true, name: 'Web address' }).toLowerCase();
     if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) fail(400, 'Web address may use letters, numbers and hyphens');
     if (db.value('SELECT 1 FROM events WHERE slug = ?', slug)) fail(409, 'That web address is taken');
-    const eid = db.insert('events', { organiser_id: admin.organiser_id, slug, ...row, qr_secret: randomToken(32), updated_at: nowIso(), created_at: nowIso() });
+    const eid = db.insert('events', {
+      organiser_id: admin.organiser_id,
+      slug,
+      ...row,
+      qr_secret: randomToken(32),
+      updated_at: nowIso(),
+      created_at: nowIso(),
+    });
     const event = db.get('SELECT * FROM events WHERE id = ?', eid);
     audit(db, req, 'event.create', { event, entity: 'event', entityId: eid });
     res.status(201).json(eventSummary(event));
@@ -135,7 +140,13 @@ export default function orgRoutes(ctx) {
     const event = ev(req, 'event.view');
     const list = (table, order = 'id') => db.all(`SELECT * FROM ${table} WHERE event_id = ? ORDER BY ${order}`, event.id);
     res.json({
-      event: { ...eventSummary(event), description: event.description, accessibility: event.accessibility, faqs: json(event.faqs, []), publishedAt: event.published_at },
+      event: {
+        ...eventSummary(event),
+        description: event.description,
+        accessibility: event.accessibility,
+        faqs: json(event.faqs, []),
+        publishedAt: event.published_at,
+      },
       role: req.orgRole,
       settings: eventSettings(event),
       invoiceProfile: json(db.value('SELECT invoice_profile FROM organisers WHERE id = ?', event.organiser_id), {}),
@@ -148,7 +159,12 @@ export default function orgRoutes(ctx) {
       tracks: list('tracks', 'sort, id').map((t) => camel(t)),
       rooms: list('rooms').map((x) => camel(x)),
       serviceItems: list('service_items', 'category, name').map((s) => camel(s)),
-      adapters: { email: adapters.email.label, payments: adapters.payments.label, printer: adapters.printer.label, push: adapters.push.label },
+      adapters: {
+        email: adapters.email.label,
+        payments: adapters.payments.label,
+        printer: adapters.printer.label,
+        push: adapters.push.label,
+      },
     });
   });
 
@@ -159,7 +175,12 @@ export default function orgRoutes(ctx) {
     const patch = { ...row, updated_at: nowIso() };
     if (Array.isArray(req.body.faqs))
       patch.faqs = JSON.stringify(
-        req.body.faqs.slice(0, 30).map((f) => ({ q: str(f?.q, { max: 200, required: true, name: 'Question' }), a: str(f?.a, { max: 1000, required: true, name: 'Answer' }) })),
+        req.body.faqs
+          .slice(0, 30)
+          .map((f) => ({
+            q: str(f?.q, { max: 200, required: true, name: 'Question' }),
+            a: str(f?.a, { max: 1000, required: true, name: 'Answer' }),
+          })),
       );
     if (req.body.settings && typeof req.body.settings === 'object') {
       const s = req.body.settings;
@@ -178,7 +199,9 @@ export default function orgRoutes(ctx) {
         defaultBadgeQuota: num(s.defaultBadgeQuota, { min: 1, max: 200, int: true }) ?? cur.defaultBadgeQuota,
         interestTags: s.interestTags ? strList(s.interestTags, { max: 20, itemMax: 40 }) : cur.interestTags,
         gateInstructions: str(s.gateInstructions, { max: 300 }) || cur.gateInstructions,
-        features: Object.fromEntries(Object.keys(DEFAULT_EVENT_SETTINGS.features).map((k) => [k, s.features?.[k] != null ? bool(s.features[k]) : cur.features[k]])),
+        features: Object.fromEntries(
+          Object.keys(DEFAULT_EVENT_SETTINGS.features).map((k) => [k, s.features?.[k] != null ? bool(s.features[k]) : cur.features[k]]),
+        ),
       });
     }
     db.update('events', event.id, patch);
@@ -213,7 +236,11 @@ export default function orgRoutes(ctx) {
     const publish = req.body.published !== false;
     if (publish && !db.value('SELECT 1 FROM pass_classes WHERE event_id = ? AND active = 1', event.id))
       fail(409, 'Add at least one pass type before publishing');
-    db.update('events', event.id, { status: publish ? 'published' : 'draft', published_at: publish ? nowIso() : event.published_at, updated_at: nowIso() });
+    db.update('events', event.id, {
+      status: publish ? 'published' : 'draft',
+      published_at: publish ? nowIso() : event.published_at,
+      updated_at: nowIso(),
+    });
     touchGuide(db, event.id);
     audit(db, req, publish ? 'event.publish' : 'event.unpublish', { event, entity: 'event', entityId: event.id });
     res.json({ ok: true });
@@ -269,7 +296,10 @@ export default function orgRoutes(ctx) {
     kind: oneOf(b.kind, ['hall', 'conference', 'restricted', 'service']) || 'hall',
     restricted: bool(b.restricted),
     capacity: num(b.capacity, { min: 0, int: true }),
-    plan: JSON.stringify({ cols: num(b.cols, { min: 0, max: 60, int: true }) || 0, rows: num(b.rows, { min: 0, max: 60, int: true }) || 0 }),
+    plan: JSON.stringify({
+      cols: num(b.cols, { min: 0, max: 60, int: true }) || 0,
+      rows: num(b.rows, { min: 0, max: 60, int: true }) || 0,
+    }),
     sort: num(b.sort, { int: true }) || 0,
   }));
   resource('gates', 'gates', 'floor.manage', (b, event) => ({
@@ -281,41 +311,53 @@ export default function orgRoutes(ctx) {
     y: num(b.y),
     active: b.active == null ? 1 : bool(b.active),
   }));
-  resource('pass-classes', 'pass_classes', 'event.manage', (b, event) => {
-    const zones = db.all('SELECT id FROM zones WHERE event_id = ?', event.id).map((z) => z.id);
-    const from = date(b.validFrom) || event.starts_on;
-    const to = date(b.validTo) || event.ends_on;
-    if (to < from) fail(400, 'Valid-to date is before valid-from');
-    const price = num(b.pricePaise, { min: 0, int: true, name: 'Price' }) || 0;
-    const mode = oneOf(b.mode, ['free', 'paid', 'invited', 'approval', 'internal']) || 'free';
-    if (mode === 'paid' && price <= 0) fail(400, 'A paid pass needs a price');
-    return {
-      code: code(b.code),
-      name: str(b.name, { max: 80, required: true, name: 'Name' }),
-      kind: oneOf(b.kind, ['visitor', 'delegate', 'vip', 'media', 'exhibitor', 'speaker', 'staff']) || 'visitor',
-      mode,
-      description: str(b.description, { max: 300 }),
-      price_paise: price,
-      gst_percent: num(b.gstPercent, { min: 0, max: 28, int: true }) ?? 18,
-      zone_ids: JSON.stringify((Array.isArray(b.zoneIds) ? b.zoneIds : []).map(Number).filter((z) => zones.includes(z))),
-      valid_from: from,
-      valid_to: to,
-      reentry: b.reentry == null ? 1 : bool(b.reentry),
-      lead_scannable: bool(b.leadScannable),
-      capacity: num(b.capacity, { min: 1, int: true }),
+  resource(
+    'pass-classes',
+    'pass_classes',
+    'event.manage',
+    (b, event) => {
+      const zones = db.all('SELECT id FROM zones WHERE event_id = ?', event.id).map((z) => z.id);
+      const from = date(b.validFrom) || event.starts_on;
+      const to = date(b.validTo) || event.ends_on;
+      if (to < from) fail(400, 'Valid-to date is before valid-from');
+      const price = num(b.pricePaise, { min: 0, int: true, name: 'Price' }) || 0;
+      const mode = oneOf(b.mode, ['free', 'paid', 'invited', 'approval', 'internal']) || 'free';
+      if (mode === 'paid' && price <= 0) fail(400, 'A paid pass needs a price');
+      return {
+        code: code(b.code),
+        name: str(b.name, { max: 80, required: true, name: 'Name' }),
+        kind: oneOf(b.kind, ['visitor', 'delegate', 'vip', 'media', 'exhibitor', 'speaker', 'staff']) || 'visitor',
+        mode,
+        description: str(b.description, { max: 300 }),
+        price_paise: price,
+        gst_percent: num(b.gstPercent, { min: 0, max: 28, int: true }) ?? 18,
+        zone_ids: JSON.stringify((Array.isArray(b.zoneIds) ? b.zoneIds : []).map(Number).filter((z) => zones.includes(z))),
+        valid_from: from,
+        valid_to: to,
+        reentry: b.reentry == null ? 1 : bool(b.reentry),
+        lead_scannable: bool(b.leadScannable),
+        capacity: num(b.capacity, { min: 1, int: true }),
+        active: b.active == null ? 1 : bool(b.active),
+        sort: num(b.sort, { int: true }) || 0,
+      };
+    },
+    { jsonCols: ['zone_ids'] },
+  );
+  resource(
+    'form-fields',
+    'form_fields',
+    'event.manage',
+    (b) => ({
+      key: str(b.key, { max: 40, required: true, name: 'Key' }).replace(/[^a-zA-Z0-9_]/g, ''),
+      label: str(b.label, { max: 120, required: true, name: 'Label' }),
+      type: oneOf(b.type, ['text', 'select', 'checkbox']) || 'text',
+      options: JSON.stringify(strList(b.options, { max: 20 })),
+      required: bool(b.required),
       active: b.active == null ? 1 : bool(b.active),
       sort: num(b.sort, { int: true }) || 0,
-    };
-  }, { jsonCols: ['zone_ids'] });
-  resource('form-fields', 'form_fields', 'event.manage', (b) => ({
-    key: str(b.key, { max: 40, required: true, name: 'Key' }).replace(/[^a-zA-Z0-9_]/g, ''),
-    label: str(b.label, { max: 120, required: true, name: 'Label' }),
-    type: oneOf(b.type, ['text', 'select', 'checkbox']) || 'text',
-    options: JSON.stringify(strList(b.options, { max: 20 })),
-    required: bool(b.required),
-    active: b.active == null ? 1 : bool(b.active),
-    sort: num(b.sort, { int: true }) || 0,
-  }), { jsonCols: ['options'] });
+    }),
+    { jsonCols: ['options'] },
+  );
   resource('booths', 'booths', 'floor.manage', (b, event) => ({
     code: code(b.code),
     zone_id: zoneOf(event, b.zoneId),
@@ -329,22 +371,34 @@ export default function orgRoutes(ctx) {
     blocked: bool(b.blocked),
     note: str(b.note, { max: 200 }),
   }));
-  resource('kiosks', 'kiosks', 'floor.manage', (b, event) => ({
-    code: code(b.code),
-    name: str(b.name, { max: 80, required: true, name: 'Name' }),
-    zone_id: zoneOf(event, b.zoneId),
-    mode: oneOf(b.mode, ['map', 'agenda', 'both']) || 'both',
-    x: num(b.x, { min: 0, max: 60, required: true, name: 'Column' }),
-    y: num(b.y, { min: 0, max: 60, required: true, name: 'Row' }),
-  }), { guide: false });
-  resource('printers', 'printers', 'floor.manage', (b, event) => ({
-    name: str(b.name, { max: 80, required: true, name: 'Name' }),
-    model: str(b.model, { max: 80 }),
-    gate_id: b.gateId ? owned('gates', event, b.gateId, 'Gate').id : null,
-    is_spare: bool(b.isSpare),
-    status: oneOf(b.status, ['ready', 'error', 'offline']) || 'ready',
-    last_error: str(b.lastError, { max: 200 }),
-  }), { guide: false });
+  resource(
+    'kiosks',
+    'kiosks',
+    'floor.manage',
+    (b, event) => ({
+      code: code(b.code),
+      name: str(b.name, { max: 80, required: true, name: 'Name' }),
+      zone_id: zoneOf(event, b.zoneId),
+      mode: oneOf(b.mode, ['map', 'agenda', 'both']) || 'both',
+      x: num(b.x, { min: 0, max: 60, required: true, name: 'Column' }),
+      y: num(b.y, { min: 0, max: 60, required: true, name: 'Row' }),
+    }),
+    { guide: false },
+  );
+  resource(
+    'printers',
+    'printers',
+    'floor.manage',
+    (b, event) => ({
+      name: str(b.name, { max: 80, required: true, name: 'Name' }),
+      model: str(b.model, { max: 80 }),
+      gate_id: b.gateId ? owned('gates', event, b.gateId, 'Gate').id : null,
+      is_spare: bool(b.isSpare),
+      status: oneOf(b.status, ['ready', 'error', 'offline']) || 'ready',
+      last_error: str(b.lastError, { max: 200 }),
+    }),
+    { guide: false },
+  );
   resource('tracks', 'tracks', 'agenda.manage', (b) => ({
     name: str(b.name, { max: 80, required: true, name: 'Name' }),
     description: str(b.description, { max: 300 }),
@@ -355,54 +409,81 @@ export default function orgRoutes(ctx) {
     zone_id: b.zoneId ? zoneOf(event, b.zoneId) : null,
     capacity: num(b.capacity, { min: 1, int: true }),
   }));
-  resource('sessions', 'agenda_sessions', 'agenda.manage', (b, event, existing) => {
-    const row = {
-      title: str(b.title, { max: 160, required: true, name: 'Title' }),
-      description: str(b.description, { max: 2000 }),
-      speakers: JSON.stringify(
-        (Array.isArray(b.speakers) ? b.speakers : []).slice(0, 8).map((s) => ({ name: str(s?.name, { max: 80, required: true, name: 'Speaker name' }), title: str(s?.title, { max: 120 }) })),
-      ),
-      day: date(b.day, { required: true, name: 'Day' }),
-      start_time: time(b.startTime, { required: true, name: 'Start time' }),
-      end_time: time(b.endTime, { required: true, name: 'End time' }),
-      track_id: b.trackId ? owned('tracks', event, b.trackId, 'Track').id : null,
-      room_id: b.roomId ? owned('rooms', event, b.roomId, 'Room').id : null,
-      capacity: num(b.capacity, { min: 1, int: true }),
-      seats_taken: num(b.seatsTaken, { min: 0, int: true }) ?? existing?.seats_taken ?? 0,
-      status: oneOf(b.status, ['scheduled', 'cancelled']) || 'scheduled',
-      updated_at: nowIso(),
-    };
-    if (row.day < event.starts_on || row.day > event.ends_on) fail(400, 'The session day is outside the event dates');
-    if (row.end_time <= row.start_time) fail(400, 'End time must be after the start time');
-    // Two sessions cannot share a room at the same time.
-    const clash = row.room_id && row.status === 'scheduled'
-      ? db.get(
-          "SELECT title FROM agenda_sessions WHERE event_id = ? AND room_id = ? AND day = ? AND status = 'scheduled' AND id != ? AND start_time < ? AND end_time > ?",
-          event.id, row.room_id, row.day, existing?.id ?? 0, row.end_time, row.start_time,
-        )
-      : null;
-    if (clash) fail(409, `That room is already booked for "${clash.title}" at this time`);
-    return row;
-  }, { jsonCols: ['speakers'] });
-  resource('service-items', 'service_items', 'event.manage', (b) => ({
-    code: code(b.code),
-    category: str(b.category, { max: 60, required: true, name: 'Category' }),
-    name: str(b.name, { max: 120, required: true, name: 'Name' }),
-    unit: str(b.unit, { max: 30 }) || 'each',
-    price_paise: num(b.pricePaise, { min: 0, int: true, required: true, name: 'Price' }),
-    active: b.active == null ? 1 : bool(b.active),
-  }), { guide: false });
+  resource(
+    'sessions',
+    'agenda_sessions',
+    'agenda.manage',
+    (b, event, existing) => {
+      const row = {
+        title: str(b.title, { max: 160, required: true, name: 'Title' }),
+        description: str(b.description, { max: 2000 }),
+        speakers: JSON.stringify(
+          (Array.isArray(b.speakers) ? b.speakers : [])
+            .slice(0, 8)
+            .map((s) => ({ name: str(s?.name, { max: 80, required: true, name: 'Speaker name' }), title: str(s?.title, { max: 120 }) })),
+        ),
+        day: date(b.day, { required: true, name: 'Day' }),
+        start_time: time(b.startTime, { required: true, name: 'Start time' }),
+        end_time: time(b.endTime, { required: true, name: 'End time' }),
+        track_id: b.trackId ? owned('tracks', event, b.trackId, 'Track').id : null,
+        room_id: b.roomId ? owned('rooms', event, b.roomId, 'Room').id : null,
+        capacity: num(b.capacity, { min: 1, int: true }),
+        seats_taken: num(b.seatsTaken, { min: 0, int: true }) ?? existing?.seats_taken ?? 0,
+        status: oneOf(b.status, ['scheduled', 'cancelled']) || 'scheduled',
+        updated_at: nowIso(),
+      };
+      if (row.day < event.starts_on || row.day > event.ends_on) fail(400, 'The session day is outside the event dates');
+      if (row.end_time <= row.start_time) fail(400, 'End time must be after the start time');
+      // Two sessions cannot share a room at the same time.
+      const clash =
+        row.room_id && row.status === 'scheduled'
+          ? db.get(
+              "SELECT title FROM agenda_sessions WHERE event_id = ? AND room_id = ? AND day = ? AND status = 'scheduled' AND id != ? AND start_time < ? AND end_time > ?",
+              event.id,
+              row.room_id,
+              row.day,
+              existing?.id ?? 0,
+              row.end_time,
+              row.start_time,
+            )
+          : null;
+      if (clash) fail(409, `That room is already booked for "${clash.title}" at this time`);
+      return row;
+    },
+    { jsonCols: ['speakers'] },
+  );
+  resource(
+    'service-items',
+    'service_items',
+    'event.manage',
+    (b) => ({
+      code: code(b.code),
+      category: str(b.category, { max: 60, required: true, name: 'Category' }),
+      name: str(b.name, { max: 120, required: true, name: 'Name' }),
+      unit: str(b.unit, { max: 30 }) || 'each',
+      price_paise: num(b.pricePaise, { min: 0, int: true, required: true, name: 'Price' }),
+      active: b.active == null ? 1 : bool(b.active),
+    }),
+    { guide: false },
+  );
 
   r.get('/org/events/:eid/sessions', (req, res) => {
     const event = ev(req, 'event.view');
-    res.json(db.all('SELECT * FROM agenda_sessions WHERE event_id = ? ORDER BY day, start_time', event.id).map((s) => camel(s, ['speakers'])));
+    res.json(
+      db.all('SELECT * FROM agenda_sessions WHERE event_id = ? ORDER BY day, start_time', event.id).map((s) => camel(s, ['speakers'])),
+    );
   });
 
   // Invitation codes for invited pass types.
   r.get('/org/events/:eid/invites', (req, res) => {
     const event = ev(req, 'reg.view');
     res.json(
-      db.all('SELECT i.*, c.name AS pass_class FROM invites i JOIN pass_classes c ON c.id = i.pass_class_id WHERE i.event_id = ? ORDER BY i.id DESC', event.id).map((i) => camel(i)),
+      db
+        .all(
+          'SELECT i.*, c.name AS pass_class FROM invites i JOIN pass_classes c ON c.id = i.pass_class_id WHERE i.event_id = ? ORDER BY i.id DESC',
+          event.id,
+        )
+        .map((i) => camel(i)),
     );
   });
   r.post('/org/events/:eid/invites', (req, res) => {
@@ -431,33 +512,91 @@ export default function orgRoutes(ctx) {
     const today = ymdIn(event.timezone);
     const dayStart = zonedToUtc(today, '00:00', event.timezone).toISOString();
     const recently = new Date(Date.now() - 2 * 60000).toISOString();
-    const hm = (iso) => (iso ? new Intl.DateTimeFormat('en-GB', { timeZone: event.timezone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso)) : null);
-    const gates = db.all('SELECT g.*, z.name AS zone_name FROM gates g JOIN zones z ON z.id = g.zone_id WHERE g.event_id = ? AND g.active = 1 ORDER BY g.code', event.id).map((g) => {
-      const devices = db.all("SELECT * FROM devices WHERE gate_id = ? AND status = 'active'", g.id);
-      const queued = devices.reduce((a, d) => a + d.queued_count, 0);
-      const online = devices.filter((d) => d.last_seen_at && d.last_seen_at > recently).length;
-      const lastSeen = devices.map((d) => d.last_seen_at).filter(Boolean).sort().pop();
-      let status = 'none';
-      let statusText = 'No device';
-      if (queued > 0) [status, statusText] = ['pending', `${queued} scans pending`];
-      else if (online) [status, statusText] = ['online', 'Online'];
-      else if (devices.length) [status, statusText] = ['offline', `Offline since ${hm(lastSeen) || 'enrolment'}`];
-      return {
-        id: g.id, code: g.code, name: g.name, zone: g.zone_name, status, statusText,
-        devices: devices.length, queued,
-        scansToday: db.value('SELECT COUNT(*) FROM scan_events WHERE gate_id = ? AND scanned_at >= ?', g.id, dayStart),
-        admittedToday: db.value('SELECT COUNT(*) FROM scan_events WHERE gate_id = ? AND scanned_at >= ? AND counted = 1', g.id, dayStart),
-        lastScanAt: db.value('SELECT MAX(scanned_at) FROM scan_events WHERE gate_id = ?', g.id) || null,
-      };
-    });
+    const hm = (iso) =>
+      iso
+        ? new Intl.DateTimeFormat('en-GB', { timeZone: event.timezone, hour: '2-digit', minute: '2-digit', hour12: false }).format(
+            new Date(iso),
+          )
+        : null;
+    const gates = db
+      .all(
+        'SELECT g.*, z.name AS zone_name FROM gates g JOIN zones z ON z.id = g.zone_id WHERE g.event_id = ? AND g.active = 1 ORDER BY g.code',
+        event.id,
+      )
+      .map((g) => {
+        const devices = db.all("SELECT * FROM devices WHERE gate_id = ? AND status = 'active'", g.id);
+        const queued = devices.reduce((a, d) => a + d.queued_count, 0);
+        const online = devices.filter((d) => d.last_seen_at && d.last_seen_at > recently).length;
+        const lastSeen = devices
+          .map((d) => d.last_seen_at)
+          .filter(Boolean)
+          .sort()
+          .pop();
+        let status = 'none';
+        let statusText = 'No device';
+        if (queued > 0) [status, statusText] = ['pending', `${queued} scans pending`];
+        else if (online) [status, statusText] = ['online', 'Online'];
+        else if (devices.length) [status, statusText] = ['offline', `Offline since ${hm(lastSeen) || 'enrolment'}`];
+        return {
+          id: g.id,
+          code: g.code,
+          name: g.name,
+          zone: g.zone_name,
+          status,
+          statusText,
+          devices: devices.length,
+          queued,
+          scansToday: db.value('SELECT COUNT(*) FROM scan_events WHERE gate_id = ? AND scanned_at >= ?', g.id, dayStart),
+          admittedToday: db.value('SELECT COUNT(*) FROM scan_events WHERE gate_id = ? AND scanned_at >= ? AND counted = 1', g.id, dayStart),
+          lastScanAt: db.value('SELECT MAX(scanned_at) FROM scan_events WHERE gate_id = ?', g.id) || null,
+        };
+      });
     const attention = [
-      { key: 'print', n: one("SELECT COUNT(*) FROM print_jobs WHERE event_id = ? AND status = 'failed'"), one: 'printer job failed', many: 'printer jobs failed', link: 'gates' },
-      { key: 'exhibitors', n: one("SELECT COUNT(*) FROM exhibitors WHERE event_id = ? AND status = 'submitted'"), one: 'exhibitor approval', many: 'exhibitor approvals', link: 'exhibitors?status=submitted' },
-      { key: 'registrations', n: one("SELECT COUNT(*) FROM registrations WHERE event_id = ? AND status = 'pending_review'"), one: 'registration to review', many: 'registrations to review', link: 'registrations?status=pending_review' },
-      { key: 'conflicts', n: one('SELECT COUNT(*) FROM scan_events WHERE event_id = ? AND conflict = 1'), one: 'scan conflict', many: 'scan conflicts', link: 'gates' },
-      { key: 'drawings', n: one("SELECT COUNT(*) FROM checklist_items WHERE event_id = ? AND status = 'awaiting_review'"), one: 'exhibitor upload to review', many: 'exhibitor uploads to review', link: 'exhibitors' },
-      { key: 'finance', n: reconciliation(db, event).issues.length, one: 'finance item to reconcile', many: 'finance items to reconcile', link: 'finance' },
-    ].filter((a) => a.n > 0).map((a) => ({ key: a.key, count: a.n, text: `${a.n} ${a.n === 1 ? a.one : a.many}`, link: a.link }));
+      {
+        key: 'print',
+        n: one("SELECT COUNT(*) FROM print_jobs WHERE event_id = ? AND status = 'failed'"),
+        one: 'printer job failed',
+        many: 'printer jobs failed',
+        link: 'gates',
+      },
+      {
+        key: 'exhibitors',
+        n: one("SELECT COUNT(*) FROM exhibitors WHERE event_id = ? AND status = 'submitted'"),
+        one: 'exhibitor approval',
+        many: 'exhibitor approvals',
+        link: 'exhibitors?status=submitted',
+      },
+      {
+        key: 'registrations',
+        n: one("SELECT COUNT(*) FROM registrations WHERE event_id = ? AND status = 'pending_review'"),
+        one: 'registration to review',
+        many: 'registrations to review',
+        link: 'registrations?status=pending_review',
+      },
+      {
+        key: 'conflicts',
+        n: one('SELECT COUNT(*) FROM scan_events WHERE event_id = ? AND conflict = 1'),
+        one: 'scan conflict',
+        many: 'scan conflicts',
+        link: 'gates',
+      },
+      {
+        key: 'drawings',
+        n: one("SELECT COUNT(*) FROM checklist_items WHERE event_id = ? AND status = 'awaiting_review'"),
+        one: 'exhibitor upload to review',
+        many: 'exhibitor uploads to review',
+        link: 'exhibitors',
+      },
+      {
+        key: 'finance',
+        n: reconciliation(db, event).issues.length,
+        one: 'finance item to reconcile',
+        many: 'finance items to reconcile',
+        link: 'finance',
+      },
+    ]
+      .filter((a) => a.n > 0)
+      .map((a) => ({ key: a.key, count: a.n, text: `${a.n} ${a.n === 1 ? a.one : a.many}`, link: a.link }));
     const exits = one("SELECT COUNT(*) FROM scan_events WHERE event_id = ? AND direction = 'out' AND scanned_at >= ?", dayStart);
     res.json({
       today,
@@ -466,13 +605,23 @@ export default function orgRoutes(ctx) {
         passesIssued: one("SELECT COUNT(*) FROM passes WHERE event_id = ? AND status = 'active'"),
         // Unique entries: each pass counts once however many times or gates it was scanned at.
         checkedIn: one('SELECT COUNT(DISTINCT pass_id) FROM scan_events WHERE event_id = ? AND counted = 1'),
-        checkedInToday: one('SELECT COUNT(DISTINCT pass_id) FROM scan_events WHERE event_id = ? AND counted = 1 AND scanned_at >= ?', dayStart),
+        checkedInToday: one(
+          'SELECT COUNT(DISTINCT pass_id) FROM scan_events WHERE event_id = ? AND counted = 1 AND scanned_at >= ?',
+          dayStart,
+        ),
         boothsConfirmed: one("SELECT COUNT(*) FROM booth_assignments WHERE event_id = ? AND status = 'confirmed'"),
         boothsTotal: one('SELECT COUNT(*) FROM booths WHERE event_id = ? AND blocked = 0'),
       },
       // Occupancy is only an estimate, and only when exits are scanned too.
       occupancy: exits
-        ? { tracked: true, estimate: Math.max(0, one('SELECT COUNT(DISTINCT pass_id) FROM scan_events WHERE event_id = ? AND counted = 1 AND scanned_at >= ?', dayStart) - exits) }
+        ? {
+            tracked: true,
+            estimate: Math.max(
+              0,
+              one('SELECT COUNT(DISTINCT pass_id) FROM scan_events WHERE event_id = ? AND counted = 1 AND scanned_at >= ?', dayStart) -
+                exits,
+            ),
+          }
         : { tracked: false, estimate: null },
       gates,
       attention,
@@ -492,9 +641,37 @@ export default function orgRoutes(ctx) {
     const event = ev(req, 'gate.view');
     res.json({
       devices: db
-        .all('SELECT d.*, g.name AS gate_name, u.name AS user_name FROM devices d LEFT JOIN gates g ON g.id = d.gate_id JOIN users u ON u.id = d.user_id WHERE d.event_id = ? ORDER BY d.id DESC', event.id)
-        .map((d) => ({ id: d.id, name: d.name, platform: d.platform, gate: d.gate_name, user: d.user_name, status: d.status, queued: d.queued_count, lastSeenAt: d.last_seen_at, lastSyncAt: d.last_sync_at })),
-      printJobs: printJobs(db, event.id).slice(0, 60).map((j) => ({ id: j.id, gateId: j.gate_id, name: j.holder_name, passClass: j.class_name, gate: j.gate_name, printer: j.printer_name, kind: j.kind, reason: j.reason, status: j.status, error: j.error, attempts: j.attempts, updatedAt: j.updated_at })),
+        .all(
+          'SELECT d.*, g.name AS gate_name, u.name AS user_name FROM devices d LEFT JOIN gates g ON g.id = d.gate_id JOIN users u ON u.id = d.user_id WHERE d.event_id = ? ORDER BY d.id DESC',
+          event.id,
+        )
+        .map((d) => ({
+          id: d.id,
+          name: d.name,
+          platform: d.platform,
+          gate: d.gate_name,
+          user: d.user_name,
+          status: d.status,
+          queued: d.queued_count,
+          lastSeenAt: d.last_seen_at,
+          lastSyncAt: d.last_sync_at,
+        })),
+      printJobs: printJobs(db, event.id)
+        .slice(0, 60)
+        .map((j) => ({
+          id: j.id,
+          gateId: j.gate_id,
+          name: j.holder_name,
+          passClass: j.class_name,
+          gate: j.gate_name,
+          printer: j.printer_name,
+          kind: j.kind,
+          reason: j.reason,
+          status: j.status,
+          error: j.error,
+          attempts: j.attempts,
+          updatedAt: j.updated_at,
+        })),
       conflicts: db
         .all(
           `SELECT s.id, s.scanned_at, s.result, s.device_result, g.name AS gate, d.name AS device, p.holder_name,
@@ -507,7 +684,10 @@ export default function orgRoutes(ctx) {
         )
         .map((c) => camel(c)),
       overrides: db
-        .all("SELECT s.scanned_at, s.override_reason, g.name AS gate, p.holder_name, u.name AS by FROM scan_events s JOIN gates g ON g.id = s.gate_id JOIN passes p ON p.id = s.pass_id LEFT JOIN users u ON u.id = s.user_id WHERE s.event_id = ? AND s.method = 'override' ORDER BY s.scanned_at DESC LIMIT 50", event.id)
+        .all(
+          "SELECT s.scanned_at, s.override_reason, g.name AS gate, p.holder_name, u.name AS by FROM scan_events s JOIN gates g ON g.id = s.gate_id JOIN passes p ON p.id = s.pass_id LEFT JOIN users u ON u.id = s.user_id WHERE s.event_id = ? AND s.method = 'override' ORDER BY s.scanned_at DESC LIMIT 50",
+          event.id,
+        )
         .map((o) => camel(o)),
     });
   });
@@ -531,33 +711,95 @@ export default function orgRoutes(ctx) {
       params.push(like, like, like, like);
     }
     const status = oneOf(req.query.status, ['unverified', 'pending_review', 'confirmed', 'rejected', 'cancelled']);
-    if (status) { where.push('r.status = ?'); params.push(status); }
+    if (status) {
+      where.push('r.status = ?');
+      params.push(status);
+    }
     const pay = oneOf(req.query.payment, ['not_required', 'pending', 'paid', 'failed', 'refunded']);
-    if (pay) { where.push('r.payment_status = ?'); params.push(pay); }
-    if (req.query.passClass) { where.push('c.code = ?'); params.push(String(req.query.passClass)); }
-    if (req.query.admitted === 'yes') where.push('EXISTS (SELECT 1 FROM passes p JOIN scan_events s ON s.pass_id = p.id AND s.counted = 1 WHERE p.registration_id = r.id)');
-    if (req.query.admitted === 'no') where.push('NOT EXISTS (SELECT 1 FROM passes p JOIN scan_events s ON s.pass_id = p.id AND s.counted = 1 WHERE p.registration_id = r.id)');
+    if (pay) {
+      where.push('r.payment_status = ?');
+      params.push(pay);
+    }
+    if (req.query.passClass) {
+      where.push('c.code = ?');
+      params.push(String(req.query.passClass));
+    }
+    if (req.query.admitted === 'yes')
+      where.push('EXISTS (SELECT 1 FROM passes p JOIN scan_events s ON s.pass_id = p.id AND s.counted = 1 WHERE p.registration_id = r.id)');
+    if (req.query.admitted === 'no')
+      where.push(
+        'NOT EXISTS (SELECT 1 FROM passes p JOIN scan_events s ON s.pass_id = p.id AND s.counted = 1 WHERE p.registration_id = r.id)',
+      );
     return { where: where.join(' AND '), params };
   };
   const REG_SELECT = `SELECT r.*, c.name AS class_name, c.code AS class_code,
       (SELECT MIN(s.scanned_at) FROM passes p JOIN scan_events s ON s.pass_id = p.id AND s.counted = 1 WHERE p.registration_id = r.id) AS admitted_at
     FROM registrations r JOIN pass_classes c ON c.id = r.pass_class_id`;
-  const regRow = (x) => ({ id: x.id, ref: x.ref, name: x.name, email: x.email, phone: x.phone, company: x.company, jobTitle: x.job_title, passClass: x.class_name, status: x.status, paymentStatus: x.payment_status, source: x.source, admittedAt: x.admitted_at, createdAt: x.created_at });
+  const regRow = (x) => ({
+    id: x.id,
+    ref: x.ref,
+    name: x.name,
+    email: x.email,
+    phone: x.phone,
+    company: x.company,
+    jobTitle: x.job_title,
+    passClass: x.class_name,
+    status: x.status,
+    paymentStatus: x.payment_status,
+    source: x.source,
+    admittedAt: x.admitted_at,
+    createdAt: x.created_at,
+  });
 
   r.get('/org/events/:eid/registrations', (req, res) => {
     const event = ev(req, 'reg.view');
     const { where, params } = regFilter(req, event);
     const { page, pageSize, offset } = paging(req.query);
     const total = db.value(`SELECT COUNT(*) FROM registrations r JOIN pass_classes c ON c.id = r.pass_class_id WHERE ${where}`, ...params);
-    res.json({ total, page, pageSize, rows: db.all(`${REG_SELECT} WHERE ${where} ORDER BY r.id DESC LIMIT ? OFFSET ?`, ...params, pageSize, offset).map(regRow) });
+    res.json({
+      total,
+      page,
+      pageSize,
+      rows: db.all(`${REG_SELECT} WHERE ${where} ORDER BY r.id DESC LIMIT ? OFFSET ?`, ...params, pageSize, offset).map(regRow),
+    });
   });
   r.get('/org/events/:eid/registrations.csv', (req, res) => {
     const event = ev(req, 'reports.view');
     const { where, params } = regFilter(req, event);
     const rows = db.all(`${REG_SELECT} WHERE ${where} ORDER BY r.id`, ...params);
     audit(db, req, 'report.export', { event, detail: { report: 'registrations', rows: rows.length } });
-    sendCsv(res, `registrations-${event.slug}.csv`, ['Reference', 'Name', 'Email', 'Phone', 'Company', 'Job title', 'Pass type', 'Status', 'Payment', 'Source', 'First admitted', 'Registered'],
-      rows.map((x) => [x.ref, x.name, x.email, x.phone, x.company, x.job_title, x.class_name, x.status, x.payment_status, x.source, x.admitted_at, x.created_at]));
+    sendCsv(
+      res,
+      `registrations-${event.slug}.csv`,
+      [
+        'Reference',
+        'Name',
+        'Email',
+        'Phone',
+        'Company',
+        'Job title',
+        'Pass type',
+        'Status',
+        'Payment',
+        'Source',
+        'First admitted',
+        'Registered',
+      ],
+      rows.map((x) => [
+        x.ref,
+        x.name,
+        x.email,
+        x.phone,
+        x.company,
+        x.job_title,
+        x.class_name,
+        x.status,
+        x.payment_status,
+        x.source,
+        x.admitted_at,
+        x.created_at,
+      ]),
+    );
   });
   const regOf = (req, event) => owned('registrations', event, req.params.rid, 'Registration');
   r.get('/org/events/:eid/registrations/:rid', (req, res) => {
@@ -575,7 +817,12 @@ export default function orgRoutes(ctx) {
       contactVerifiedAt: reg.contact_verified_at,
       orders: db.all('SELECT * FROM orders WHERE registration_id = ? ORDER BY id', reg.id).map((o) => orderView(db, o)),
       scans: pass
-        ? db.all('SELECT s.scanned_at, s.result, s.mode, s.conflict, g.name AS gate FROM scan_events s JOIN gates g ON g.id = s.gate_id WHERE s.pass_id = ? ORDER BY s.scanned_at DESC LIMIT 30', pass.id).map((s) => camel(s))
+        ? db
+            .all(
+              'SELECT s.scanned_at, s.result, s.mode, s.conflict, g.name AS gate FROM scan_events s JOIN gates g ON g.id = s.gate_id WHERE s.pass_id = ? ORDER BY s.scanned_at DESC LIMIT 30',
+              pass.id,
+            )
+            .map((s) => camel(s))
         : [],
     });
   });
@@ -602,19 +849,43 @@ export default function orgRoutes(ctx) {
   // Staffed registration at the help desk: staff have seen the person, so no email code.
   r.post('/org/events/:eid/registrations', (req, res) => {
     const event = ev(req, 'reg.manage');
-    const cls = db.get('SELECT * FROM pass_classes WHERE event_id = ? AND code = ? AND active = 1', event.id, String(req.body.passClass || ''));
+    const cls = db.get(
+      'SELECT * FROM pass_classes WHERE event_id = ? AND code = ? AND active = 1',
+      event.id,
+      String(req.body.passClass || ''),
+    );
     if (!cls || cls.kind === 'exhibitor') fail(400, 'Choose a pass type');
     const email = vEmail(req.body.email, { required: true });
     const out = db.tx(() => {
-      if (db.value("SELECT 1 FROM registrations WHERE event_id = ? AND email = ? AND pass_class_id = ? AND status NOT IN ('cancelled','rejected')", event.id, email, cls.id))
+      if (
+        db.value(
+          "SELECT 1 FROM registrations WHERE event_id = ? AND email = ? AND pass_class_id = ? AND status NOT IN ('cancelled','rejected')",
+          event.id,
+          email,
+          cls.id,
+        )
+      )
         fail(409, 'This email already has that pass. Use lookup to find it.');
       const name = str(req.body.name, { max: 120, required: true, name: 'Full name' });
       const rid = db.insert('registrations', {
-        event_id: event.id, pass_class_id: cls.id, user_id: findOrCreateUser(db, { email, name }),
-        ref: randomRef(eventSettings(event).refPrefix || 'REG'), name, email,
-        phone: vPhone(req.body.phone), company: str(req.body.company, { max: 160 }), job_title: str(req.body.jobTitle, { max: 120 }),
-        source: 'desk', consent_at: nowIso(), contact_verified_at: nowIso(), status: 'confirmed',
-        payment_status: cls.price_paise > 0 ? 'pending' : 'not_required', decided_by: req.user.id, decided_at: nowIso(), updated_at: nowIso(), created_at: nowIso(),
+        event_id: event.id,
+        pass_class_id: cls.id,
+        user_id: findOrCreateUser(db, { email, name }),
+        ref: randomRef(eventSettings(event).refPrefix || 'REG'),
+        name,
+        email,
+        phone: vPhone(req.body.phone),
+        company: str(req.body.company, { max: 160 }),
+        job_title: str(req.body.jobTitle, { max: 120 }),
+        source: 'desk',
+        consent_at: nowIso(),
+        contact_verified_at: nowIso(),
+        status: 'confirmed',
+        payment_status: cls.price_paise > 0 ? 'pending' : 'not_required',
+        decided_by: req.user.id,
+        decided_at: nowIso(),
+        updated_at: nowIso(),
+        created_at: nowIso(),
       });
       const reg = db.get('SELECT * FROM registrations WHERE id = ?', rid);
       if (reg.payment_status === 'pending') ensureRegistrationOrder(ctx, event, reg);
@@ -645,7 +916,20 @@ export default function orgRoutes(ctx) {
           event.id,
         )
         .filter((e) => (!status || e.status === status) && (!q || e.company_name.toLowerCase().includes(q)))
-        .map((e) => ({ id: e.id, companyName: e.company_name, industry: e.industry, contactName: e.contact_name, status: e.status, boothCode: e.booth_code, boothStatus: e.booth_status, assignmentId: e.assignment_id, billedPaise: e.billed, paidPaise: e.paid, toReview: e.to_review, submittedAt: e.submitted_at })),
+        .map((e) => ({
+          id: e.id,
+          companyName: e.company_name,
+          industry: e.industry,
+          contactName: e.contact_name,
+          status: e.status,
+          boothCode: e.booth_code,
+          boothStatus: e.booth_status,
+          assignmentId: e.assignment_id,
+          billedPaise: e.billed,
+          paidPaise: e.paid,
+          toReview: e.to_review,
+          submittedAt: e.submitted_at,
+        })),
     );
   });
   const exOf = (req, event) => owned('exhibitors', event, req.params.xid, 'Exhibitor');
@@ -655,9 +939,25 @@ export default function orgRoutes(ctx) {
     refreshChecklist(db, event, ex.id);
     res.json({
       exhibitor: exhibitorView(ex),
-      booth: db.get("SELECT a.id AS assignmentId, a.status, a.hold_expires_at AS holdExpiresAt, b.code, z.name AS hall FROM booth_assignments a JOIN booths b ON b.id = a.booth_id JOIN zones z ON z.id = b.zone_id WHERE a.exhibitor_id = ? AND a.status IN ('held','confirmed') ORDER BY a.id DESC LIMIT 1", ex.id) || null,
-      orders: db.all("SELECT * FROM orders WHERE exhibitor_id = ? AND status != 'cancelled' ORDER BY id", ex.id).map((o) => orderView(db, o)),
-      checklist: db.all('SELECT * FROM checklist_items WHERE exhibitor_id = ? ORDER BY sort', ex.id).map((c) => ({ id: c.id, title: c.title, kind: c.kind, dueOn: c.due_on, status: c.status, note: c.note, hasUpload: Boolean(c.upload_id) })),
+      booth:
+        db.get(
+          "SELECT a.id AS assignmentId, a.status, a.hold_expires_at AS holdExpiresAt, b.code, z.name AS hall FROM booth_assignments a JOIN booths b ON b.id = a.booth_id JOIN zones z ON z.id = b.zone_id WHERE a.exhibitor_id = ? AND a.status IN ('held','confirmed') ORDER BY a.id DESC LIMIT 1",
+          ex.id,
+        ) || null,
+      orders: db
+        .all("SELECT * FROM orders WHERE exhibitor_id = ? AND status != 'cancelled' ORDER BY id", ex.id)
+        .map((o) => orderView(db, o)),
+      checklist: db
+        .all('SELECT * FROM checklist_items WHERE exhibitor_id = ? ORDER BY sort', ex.id)
+        .map((c) => ({
+          id: c.id,
+          title: c.title,
+          kind: c.kind,
+          dueOn: c.due_on,
+          status: c.status,
+          note: c.note,
+          hasUpload: Boolean(c.upload_id),
+        })),
       team: db.all("SELECT name, email, role, status FROM team_badges WHERE exhibitor_id = ? AND status != 'revoked' ORDER BY id", ex.id),
       // Organisers see how many leads a company captured, never the leads themselves.
       leadCount: db.value('SELECT COUNT(*) FROM leads WHERE exhibitor_id = ?', ex.id),
@@ -722,13 +1022,31 @@ export default function orgRoutes(ctx) {
     );
     res.json(
       db.all('SELECT * FROM zones WHERE event_id = ? ORDER BY sort, id', event.id).map((z) => ({
-        id: z.id, code: z.code, name: z.name, kind: z.kind, ...json(z.plan, {}),
+        id: z.id,
+        code: z.code,
+        name: z.name,
+        kind: z.kind,
+        ...json(z.plan, {}),
         gates: db.all('SELECT id, code, name, x, y FROM gates WHERE zone_id = ? AND active = 1', z.id),
-        booths: booths.filter((b) => b.zone_id === z.id).map((b) => ({
-          id: b.id, code: b.code, kind: b.kind, sizeSqm: b.size_sqm, pricePaise: b.price_paise, x: b.x, y: b.y, w: b.w, h: b.h, note: b.note,
-          status: b.blocked ? 'blocked' : b.a_status || 'available',
-          assignmentId: b.assignment_id, holdExpiresAt: b.hold_expires_at, exhibitorId: b.exhibitor_id, exhibitor: b.company_name,
-        })),
+        booths: booths
+          .filter((b) => b.zone_id === z.id)
+          .map((b) => ({
+            id: b.id,
+            code: b.code,
+            kind: b.kind,
+            sizeSqm: b.size_sqm,
+            pricePaise: b.price_paise,
+            x: b.x,
+            y: b.y,
+            w: b.w,
+            h: b.h,
+            note: b.note,
+            status: b.blocked ? 'blocked' : b.a_status || 'available',
+            assignmentId: b.assignment_id,
+            holdExpiresAt: b.hold_expires_at,
+            exhibitorId: b.exhibitor_id,
+            exhibitor: b.company_name,
+          })),
       })),
     );
   });
@@ -742,12 +1060,26 @@ export default function orgRoutes(ctx) {
        WHERE o.event_id = ? ORDER BY o.id DESC LIMIT 300`,
       event.id,
     );
-    const payments = db.all('SELECT p.*, o.number FROM payments p JOIN orders o ON o.id = p.order_id WHERE p.event_id = ? ORDER BY p.id DESC LIMIT 300', event.id);
+    const payments = db.all(
+      'SELECT p.*, o.number FROM payments p JOIN orders o ON o.id = p.order_id WHERE p.event_id = ? ORDER BY p.id DESC LIMIT 300',
+      event.id,
+    );
     res.json({
       canManage: req.orgRole === 'organiser_admin' || req.orgRole === 'finance',
       report: reconciliation(db, event),
       orders: orders.map((o) => ({ ...orderView(db, o), items: undefined, customer: o.customer, ref: o.ref })),
-      payments: payments.map((p) => ({ id: p.id, order: p.number, provider: p.provider, method: p.method, amountPaise: p.amount_paise, refundedPaise: p.refunded_paise, status: p.status, statusAt: p.status_at, note: p.note, reconciled: Boolean(p.reconciled_at) })),
+      payments: payments.map((p) => ({
+        id: p.id,
+        order: p.number,
+        provider: p.provider,
+        method: p.method,
+        amountPaise: p.amount_paise,
+        refundedPaise: p.refunded_paise,
+        status: p.status,
+        statusAt: p.status_at,
+        note: p.note,
+        reconciled: Boolean(p.reconciled_at),
+      })),
     });
   });
   const orderOf = (req, event) => owned('orders', event, req.params.oid, 'Order');
@@ -787,8 +1119,17 @@ export default function orgRoutes(ctx) {
     const event = ev(req, 'event.view');
     res.json({
       announcements: db.all('SELECT * FROM announcements WHERE event_id = ? ORDER BY id DESC', event.id).map((a) => camel(a)),
-      outbox: db.all('SELECT id, channel, adapter, recipient, subject, body, template, status, error, created_at FROM outbox WHERE event_id = ? ORDER BY id DESC LIMIT 100', event.id).map((o) => camel(o)),
-      adapters: { email: adapters.email.label, push: adapters.push.label, whatsapp: adapters.whatsapp.enabled ? adapters.whatsapp.name : 'Off' },
+      outbox: db
+        .all(
+          'SELECT id, channel, adapter, recipient, subject, body, template, status, error, created_at FROM outbox WHERE event_id = ? ORDER BY id DESC LIMIT 100',
+          event.id,
+        )
+        .map((o) => camel(o)),
+      adapters: {
+        email: adapters.email.label,
+        push: adapters.push.label,
+        whatsapp: adapters.whatsapp.enabled ? adapters.whatsapp.name : 'Off',
+      },
     });
   });
   // Publishes an announcement: it appears in the apps and on displays, and opted-in phones
@@ -819,7 +1160,9 @@ export default function orgRoutes(ctx) {
           event.id,
         )
         .filter((t) => json(t.topics, []).includes(row.kind));
-      adapters.push.send({ eventId: event.id, tokens, title: row.title, body: row.body, data: { event: event.slug, kind: row.kind } }).catch(() => {});
+      adapters.push
+        .send({ eventId: event.id, tokens, title: row.title, body: row.body, data: { event: event.slug, kind: row.kind } })
+        .catch(() => {});
     }
     res.status(201).json(camel(db.get('SELECT * FROM announcements WHERE id = ?', aid)));
   });
@@ -860,7 +1203,12 @@ export default function orgRoutes(ctx) {
     db.run(
       `INSERT INTO memberships (user_id, organiser_id, event_id, role, gate_id, created_at) VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT (user_id, COALESCE(event_id, 0), role, COALESCE(exhibitor_id, 0)) DO UPDATE SET status = 'active', gate_id = excluded.gate_id`,
-      userId, event.organiser_id, event.id, role, gate?.id ?? null, nowIso(),
+      userId,
+      event.organiser_id,
+      event.id,
+      role,
+      gate?.id ?? null,
+      nowIso(),
     );
     audit(db, req, 'staff.add', { event, entity: 'user', entityId: userId, detail: { email, role, gate: gate?.name } });
     mail.staffInvite(ctx, event, email, name, role.replace(/_/g, ' '));
@@ -868,12 +1216,21 @@ export default function orgRoutes(ctx) {
   });
   r.delete('/org/events/:eid/staff/:mid', (req, res) => {
     const event = ev(req, 'staff.manage');
-    const m = db.get("SELECT * FROM memberships WHERE id = ? AND organiser_id = ? AND exhibitor_id IS NULL AND status = 'active'", id(req.params.mid), event.organiser_id);
+    const m = db.get(
+      "SELECT * FROM memberships WHERE id = ? AND organiser_id = ? AND exhibitor_id IS NULL AND status = 'active'",
+      id(req.params.mid),
+      event.organiser_id,
+    );
     if (!m) fail(404, 'Staff member not found');
     if (m.user_id === req.user.id) fail(409, 'You cannot remove your own access');
     db.update('memberships', m.id, { status: 'revoked' });
     // Their devices are revoked too, so cached eligibility data is purged on next contact.
-    db.run("UPDATE devices SET status = 'revoked', revoked_at = ? WHERE user_id = ? AND event_id = ? AND status = 'active'", nowIso(), m.user_id, event.id);
+    db.run(
+      "UPDATE devices SET status = 'revoked', revoked_at = ? WHERE user_id = ? AND event_id = ? AND status = 'active'",
+      nowIso(),
+      m.user_id,
+      event.id,
+    );
     destroyUserSessions(db, m.user_id);
     audit(db, req, 'staff.remove', { event, entity: 'user', entityId: m.user_id, detail: { role: m.role } });
     res.json({ ok: true });
@@ -903,14 +1260,26 @@ export default function orgRoutes(ctx) {
         zoneEntries: 'First admission of a pass to an area on a day. One person entering two halls counts once in each.',
         leads: 'Distinct visitors captured by an exhibitor. Repeat scans of the same visitor count once.',
       },
-      registrationsByPass: all("SELECT c.name, COUNT(*) AS registered, SUM(r.status = 'confirmed') AS confirmed FROM registrations r JOIN pass_classes c ON c.id = r.pass_class_id WHERE r.event_id = ? AND r.status IN ('pending_review','confirmed') GROUP BY c.id ORDER BY registered DESC"),
+      registrationsByPass: all(
+        "SELECT c.name, COUNT(*) AS registered, SUM(r.status = 'confirmed') AS confirmed FROM registrations r JOIN pass_classes c ON c.id = r.pass_class_id WHERE r.event_id = ? AND r.status IN ('pending_review','confirmed') GROUP BY c.id ORDER BY registered DESC",
+      ),
       uniqueEntries: db.value('SELECT COUNT(DISTINCT pass_id) FROM scan_events WHERE event_id = ? AND counted = 1', event.id),
-      zoneEntriesByDay: Object.entries(byDay).sort().map(([day, count]) => ({ day, count })),
-      entriesByHourToday: Object.entries(byHour).sort().map(([hour, count]) => ({ hour, count })),
-      entriesByZone: all('SELECT z.name, COUNT(*) AS count FROM scan_events s JOIN zones z ON z.id = s.zone_id WHERE s.event_id = ? AND s.counted = 1 GROUP BY z.id ORDER BY count DESC'),
+      zoneEntriesByDay: Object.entries(byDay)
+        .sort()
+        .map(([day, count]) => ({ day, count })),
+      entriesByHourToday: Object.entries(byHour)
+        .sort()
+        .map(([hour, count]) => ({ hour, count })),
+      entriesByZone: all(
+        'SELECT z.name, COUNT(*) AS count FROM scan_events s JOIN zones z ON z.id = s.zone_id WHERE s.event_id = ? AND s.counted = 1 GROUP BY z.id ORDER BY count DESC',
+      ),
       scanOutcomes: all('SELECT result, COUNT(*) AS count FROM scan_events WHERE event_id = ? GROUP BY result ORDER BY count DESC'),
-      leadsByExhibitor: all('SELECT e.company_name AS name, COUNT(*) AS count FROM leads l JOIN exhibitors e ON e.id = l.exhibitor_id WHERE l.event_id = ? GROUP BY e.id ORDER BY count DESC'),
-      leadExports: all('SELECT x.created_at, x.row_count, e.company_name AS company, u.name AS by FROM lead_exports x JOIN exhibitors e ON e.id = x.exhibitor_id JOIN users u ON u.id = x.user_id WHERE x.event_id = ? ORDER BY x.id DESC LIMIT 50').map((x) => camel(x)),
+      leadsByExhibitor: all(
+        'SELECT e.company_name AS name, COUNT(*) AS count FROM leads l JOIN exhibitors e ON e.id = l.exhibitor_id WHERE l.event_id = ? GROUP BY e.id ORDER BY count DESC',
+      ),
+      leadExports: all(
+        'SELECT x.created_at, x.row_count, e.company_name AS company, u.name AS by FROM lead_exports x JOIN exhibitors e ON e.id = x.exhibitor_id JOIN users u ON u.id = x.user_id WHERE x.event_id = ? ORDER BY x.id DESC LIMIT 50',
+      ).map((x) => camel(x)),
     });
   });
   const REPORTS = {
@@ -923,7 +1292,20 @@ export default function orgRoutes(ctx) {
     },
     scans: {
       perm: 'reports.view',
-      headers: ['Scan id', 'Scanned at', 'Gate', 'Device', 'Mode', 'Method', 'Result', 'Shown on device', 'Counted', 'Conflict', 'Pass holder', 'Override reason'],
+      headers: [
+        'Scan id',
+        'Scanned at',
+        'Gate',
+        'Device',
+        'Mode',
+        'Method',
+        'Result',
+        'Shown on device',
+        'Counted',
+        'Conflict',
+        'Pass holder',
+        'Override reason',
+      ],
       sql: `SELECT s.id, s.scanned_at, g.name AS gate, d.name AS device, s.mode, s.method, s.result, s.device_result, s.counted, s.conflict, p.holder_name, s.override_reason FROM scan_events s
             JOIN gates g ON g.id = s.gate_id LEFT JOIN devices d ON d.id = s.device_id LEFT JOIN passes p ON p.id = s.pass_id WHERE s.event_id = ? ORDER BY s.scanned_at`,
     },
@@ -945,13 +1327,36 @@ export default function orgRoutes(ctx) {
     },
     orders: {
       perm: 'reports.finance',
-      headers: ['Order', 'Invoice', 'Type', 'Customer', 'Status', 'Subtotal (INR)', 'GST (INR)', 'Total (INR)', 'Paid (INR)', 'Refunded (INR)', 'Created'],
+      headers: [
+        'Order',
+        'Invoice',
+        'Type',
+        'Customer',
+        'Status',
+        'Subtotal (INR)',
+        'GST (INR)',
+        'Total (INR)',
+        'Paid (INR)',
+        'Refunded (INR)',
+        'Created',
+      ],
       sql: `SELECT o.number, o.invoice_no, o.kind, COALESCE(x.company_name, g.name) AS customer, o.status, o.subtotal_paise / 100.0, o.gst_paise / 100.0, o.total_paise / 100.0, o.paid_paise / 100.0, o.refunded_paise / 100.0, o.created_at
             FROM orders o LEFT JOIN exhibitors x ON x.id = o.exhibitor_id LEFT JOIN registrations g ON g.id = o.registration_id WHERE o.event_id = ? ORDER BY o.id`,
     },
     payments: {
       perm: 'reports.finance',
-      headers: ['Order', 'Provider', 'Reference', 'Method', 'Amount (INR)', 'Refunded (INR)', 'Status', 'Status at', 'Reconciled by hand', 'Note'],
+      headers: [
+        'Order',
+        'Provider',
+        'Reference',
+        'Method',
+        'Amount (INR)',
+        'Refunded (INR)',
+        'Status',
+        'Status at',
+        'Reconciled by hand',
+        'Note',
+      ],
       sql: `SELECT o.number, p.provider, p.intent_id, p.method, p.amount_paise / 100.0, p.refunded_paise / 100.0, p.status, p.status_at, CASE WHEN p.reconciled_at IS NULL THEN 'no' ELSE 'yes' END, p.note
             FROM payments p JOIN orders o ON o.id = p.order_id WHERE p.event_id = ? ORDER BY p.id`,
     },
@@ -969,7 +1374,16 @@ export default function orgRoutes(ctx) {
     const event = ev(req, 'event.view');
     if (req.orgRole !== 'organiser_admin' && req.orgRole !== 'finance') fail(403, 'Your role does not allow this action');
     const { pageSize, offset } = paging(req.query, { size: 100 });
-    res.json(db.all('SELECT id, actor, action, entity, entity_id, detail, created_at FROM audit_log WHERE event_id = ? ORDER BY id DESC LIMIT ? OFFSET ?', event.id, pageSize, offset).map((a) => ({ ...camel(a), detail: json(a.detail, null) })));
+    res.json(
+      db
+        .all(
+          'SELECT id, actor, action, entity, entity_id, detail, created_at FROM audit_log WHERE event_id = ? ORDER BY id DESC LIMIT ? OFFSET ?',
+          event.id,
+          pageSize,
+          offset,
+        )
+        .map((a) => ({ ...camel(a), detail: json(a.detail, null) })),
+    );
   });
 
   // Retention: once the configured period after the event has passed, an administrator can
@@ -979,7 +1393,10 @@ export default function orgRoutes(ctx) {
     const unlocks = addDays(event.ends_on, eventSettings(event).retentionDays);
     if (ymdIn(event.timezone) <= unlocks) fail(409, `Personal data can be removed after ${unlocks}`);
     db.tx(() => {
-      db.run("UPDATE registrations SET name = 'Removed', email = 'removed-' || id || '@invalid', phone = NULL, company = NULL, job_title = NULL, answers = '{}', access_hash = NULL WHERE event_id = ?", event.id);
+      db.run(
+        "UPDATE registrations SET name = 'Removed', email = 'removed-' || id || '@invalid', phone = NULL, company = NULL, job_title = NULL, answers = '{}', access_hash = NULL WHERE event_id = ?",
+        event.id,
+      );
       db.run("UPDATE passes SET holder_name = 'Removed', holder_company = NULL WHERE event_id = ?", event.id);
       db.run("UPDATE leads SET shared = '{}', notes = NULL WHERE event_id = ?", event.id);
       db.run("UPDATE team_badges SET name = 'Removed', email = 'removed-' || id || '@invalid' WHERE event_id = ?", event.id);

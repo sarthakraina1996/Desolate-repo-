@@ -50,8 +50,7 @@ export const RESULTS = {
     hint: 'This is not a pass for this event, or it was issued after the last sync.',
   },
 };
-export const isAdmit = (result) =>
-  result === 'admitted' || result === 'reentry' || result === 'override_admitted';
+export const isAdmit = (result) => result === 'admitted' || result === 'reentry' || result === 'override_admitted';
 
 // Splits a QR payload into its opaque token id and signature. The QR carries no personal data.
 export function parseQr(text) {
@@ -80,16 +79,7 @@ export function eventDay(timezone, at) {
 //   prior      earlier admitting scans of this pass in this zone on this day, oldest first,
 //              each { scannedAt }
 //   online     false on a device that cannot reach the server
-export function decideScan({
-  pass,
-  passClass,
-  zone,
-  day,
-  scannedAt,
-  prior = [],
-  repeatWindowSeconds = 90,
-  online = true,
-}) {
+export function decideScan({ pass, passClass, zone, day, scannedAt, prior = [], repeatWindowSeconds = 90, online = true }) {
   if (!pass || !passClass) return 'denied_unknown';
   if (pass.status !== 'active') return 'denied_revoked';
   if (day < passClass.validFrom) return 'denied_not_yet_valid';

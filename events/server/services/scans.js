@@ -1,15 +1,7 @@
 // Gate scanning: storing immutable scan events, reconciling them into one answer per pass,
 // the signed offline eligibility set for enrolled devices, and badge print jobs.
 import crypto from 'node:crypto';
-import {
-  addDays,
-  eventSettings,
-  fail,
-  nowIso,
-  randomToken,
-  ymdIn,
-  zonedToUtc,
-} from '../core.js';
+import { addDays, eventSettings, fail, nowIso, randomToken, ymdIn, zonedToUtc } from '../core.js';
 import { decideScan, isAdmit } from '../../shared/scanRules.js';
 import { passClasses, passFromQr } from './passes.js';
 
@@ -57,10 +49,7 @@ export function reconcile(db, event, passId, zoneId, day) {
     const admits = isAdmit(result);
     const isCounted = admits && !counted ? 1 : 0;
     // The device told staff "accepted" but another device had already admitted this pass.
-    const conflict =
-      s.device_result === 'admitted' && result !== 'admitted' && counted && counted.device_id !== s.device_id
-        ? 1
-        : 0;
+    const conflict = s.device_result === 'admitted' && result !== 'admitted' && counted && counted.device_id !== s.device_id ? 1 : 0;
     if (s.result !== result || s.counted !== isCounted || s.conflict !== conflict)
       db.run(
         'UPDATE scan_events SET result = ?, counted = ?, conflict = ?, conflict_with = ? WHERE id = ?',
@@ -87,9 +76,7 @@ export function recordScan(
   const at = scannedAt && !Number.isNaN(Date.parse(scannedAt)) ? new Date(scannedAt) : new Date();
   // A device clock far in the future would corrupt ordering; clamp it to now.
   const when = at.getTime() > Date.now() + 5 * 60000 ? new Date() : at;
-  const pass = passId
-    ? db.get('SELECT * FROM passes WHERE id = ? AND event_id = ?', passId, event.id)
-    : passFromQr(db, event, qr);
+  const pass = passId ? db.get('SELECT * FROM passes WHERE id = ? AND event_id = ?', passId, event.id) : passFromQr(db, event, qr);
   db.insert('scan_events', {
     id,
     event_id: event.id,
@@ -185,10 +172,7 @@ export function buildBundle(db, event, device) {
   const settings = eventSettings(event);
   const today = ymdIn(event.timezone);
   const passes = {};
-  for (const p of db.all(
-    'SELECT token_id, pass_class_id, holder_name, status FROM passes WHERE event_id = ?',
-    event.id,
-  ))
+  for (const p of db.all('SELECT token_id, pass_class_id, holder_name, status FROM passes WHERE event_id = ?', event.id))
     passes[p.token_id] = [p.pass_class_id, p.holder_name, p.status === 'active' ? 0 : 1];
   const from = zonedToUtc(today, '00:00', event.timezone).toISOString();
   const seen = db
@@ -292,10 +276,7 @@ export function retryPrintJob(db, adapters, job) {
 // Sends a failed job to the event's configured spare printer.
 export function printOnSpare(db, adapters, job, user) {
   if (job.status !== 'failed') fail(409, 'Only a failed print job can move to the spare printer');
-  const spare = db.get(
-    "SELECT * FROM printers WHERE event_id = ? AND is_spare = 1 AND status = 'ready' ORDER BY id LIMIT 1",
-    job.event_id,
-  );
+  const spare = db.get("SELECT * FROM printers WHERE event_id = ? AND is_spare = 1 AND status = 'ready' ORDER BY id LIMIT 1", job.event_id);
   if (!spare) fail(409, 'No working spare printer is set up for this event');
   db.update('print_jobs', job.id, { kind: 'spare', resolved_by: user.id });
   return submitJob(db, adapters, job.id, spare);

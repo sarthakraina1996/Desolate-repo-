@@ -68,7 +68,12 @@ export default function gateRoutes(ctx) {
     for (const m of memberships(db, req)) {
       if (GATE_ROLES.includes(m.role)) eventIds.add(m.event_id);
       if (ORG_ROLES.includes(m.role) && roleCan(m.role, 'gate.scan'))
-        for (const e of db.all('SELECT id FROM events WHERE organiser_id = ? AND (? IS NULL OR id = ?)', m.organiser_id, m.event_id, m.event_id))
+        for (const e of db.all(
+          'SELECT id FROM events WHERE organiser_id = ? AND (? IS NULL OR id = ?)',
+          m.organiser_id,
+          m.event_id,
+          m.event_id,
+        ))
           eventIds.add(e.id);
     }
     const out = [];
@@ -101,7 +106,12 @@ export default function gateRoutes(ctx) {
       platform: oneOf(req.body.platform, ['ios', 'android', 'web', 'windows']) || 'web',
       appVersion: str(req.body.appVersion, { max: 20 }),
     });
-    audit(db, req, 'device.enroll', { event: eventOf(gate), entity: 'device', entityId: device.id, detail: { name: device.name, gate: gate.name } });
+    audit(db, req, 'device.enroll', {
+      event: eventOf(gate),
+      entity: 'device',
+      entityId: device.id,
+      detail: { name: device.name, gate: gate.name },
+    });
     res.status(201).json({ deviceId: device.id, key: device.key, gateId: gate.id });
   });
 
@@ -220,7 +230,12 @@ export default function gateRoutes(ctx) {
     const out = db.tx(() =>
       recordScan(db, { event, gate, device, user: req.user, id: req.body.id, passId: pass.id, method: 'override', overrideReason: reason }),
     );
-    audit(db, req, 'gate.override', { event, entity: 'pass', entityId: pass.id, detail: { gate: gate.name, holder: pass.holder_name, reason } });
+    audit(db, req, 'gate.override', {
+      event,
+      entity: 'pass',
+      entityId: pass.id,
+      detail: { gate: gate.name, holder: pass.holder_name, reason },
+    });
     res.json(scanView(db, out.scan));
   });
 
@@ -240,7 +255,12 @@ export default function gateRoutes(ctx) {
     }
     const job = createPrintJob(db, adapters, { event, pass, gate, user: req.user, kind, reason });
     if (kind === 'reprint')
-      audit(db, req, 'badge.reprint', { event, entity: 'pass', entityId: pass.id, detail: { holder: pass.holder_name, reason, gate: gate.name } });
+      audit(db, req, 'badge.reprint', {
+        event,
+        entity: 'pass',
+        entityId: pass.id,
+        detail: { holder: pass.holder_name, reason, gate: gate.name },
+      });
     res.status(201).json(jobOut(job));
   });
 
@@ -261,7 +281,12 @@ export default function gateRoutes(ctx) {
   r.post('/gate/print-jobs/:id/spare', (req, res) => {
     const job = ownJob(req, 'gate.print');
     const out = printOnSpare(db, adapters, job, req.user);
-    audit(db, req, 'badge.spare_printer', { event: db.get('SELECT * FROM events WHERE id = ?', job.event_id), entity: 'print_job', entityId: job.id, detail: { holder: job.holder_name, failedWith: job.error } });
+    audit(db, req, 'badge.spare_printer', {
+      event: db.get('SELECT * FROM events WHERE id = ?', job.event_id),
+      entity: 'print_job',
+      entityId: job.id,
+      detail: { holder: job.holder_name, failedWith: job.error },
+    });
     res.json(jobOut(out));
   });
 
@@ -271,20 +296,39 @@ export default function gateRoutes(ctx) {
     const gate = gateAccess(db, req, id(req.body.gateId), 'gate.print');
     const event = eventOf(gate);
     const job = db.tx(() => {
-      const next = db.get("SELECT id FROM print_jobs WHERE event_id = ? AND gate_id = ? AND status = 'queued' ORDER BY id LIMIT 1", event.id, gate.id);
+      const next = db.get(
+        "SELECT id FROM print_jobs WHERE event_id = ? AND gate_id = ? AND status = 'queued' ORDER BY id LIMIT 1",
+        event.id,
+        gate.id,
+      );
       if (!next) return null;
       db.run("UPDATE print_jobs SET status = 'printing', attempts = attempts + 1, updated_at = ? WHERE id = ?", nowIso(), next.id);
       return printJob(db, next.id);
     });
     if (!job) return res.json({ job: null });
     const pass = db.get('SELECT * FROM passes WHERE id = ?', job.pass_id);
-    res.json({ job: jobOut(job), badge: { name: pass.holder_name, company: pass.holder_company, passClass: job.class_name, qr: qrFor(event, pass.token_id), event: event.name } });
+    res.json({
+      job: jobOut(job),
+      badge: {
+        name: pass.holder_name,
+        company: pass.holder_company,
+        passClass: job.class_name,
+        qr: qrFor(event, pass.token_id),
+        event: event.name,
+      },
+    });
   });
   r.post('/gate/print-jobs/:id/result', (req, res) => {
     const job = ownJob(req, 'gate.print');
     if (job.status !== 'printing') fail(409, 'This job is not printing');
     const ok = Boolean(req.body.ok);
-    db.run('UPDATE print_jobs SET status = ?, error = ?, updated_at = ? WHERE id = ?', ok ? 'printed' : 'failed', ok ? null : str(req.body.error, { max: 200 }) || 'Printer error', nowIso(), job.id);
+    db.run(
+      'UPDATE print_jobs SET status = ?, error = ?, updated_at = ? WHERE id = ?',
+      ok ? 'printed' : 'failed',
+      ok ? null : str(req.body.error, { max: 200 }) || 'Printer error',
+      nowIso(),
+      job.id,
+    );
     res.json(jobOut(printJob(db, job.id)));
   });
 
@@ -299,7 +343,13 @@ export default function gateRoutes(ctx) {
       event.id,
     );
     if (!pass) fail(404, 'Pass not found');
-    res.json({ name: pass.holder_name, company: pass.holder_company, passClass: pass.class_name, qr: qrFor(event, pass.token_id), event: event.name });
+    res.json({
+      name: pass.holder_name,
+      company: pass.holder_company,
+      passClass: pass.class_name,
+      qr: qrFor(event, pass.token_id),
+      event: event.name,
+    });
   });
 
   return r;

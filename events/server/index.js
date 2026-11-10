@@ -19,7 +19,6 @@ app.listen(port, host, () => {
   console.log('\n  BrainADZ Events is running.\n');
   console.log(`  On this computer:  http://localhost:${port}`);
   for (const list of Object.values(os.networkInterfaces()))
-    for (const a of list || [])
-      if (a.family === 'IPv4' && !a.internal) console.log(`  On the venue Wi-Fi: http://${a.address}:${port}`);
+    for (const a of list || []) if (a.family === 'IPv4' && !a.internal) console.log(`  On the venue Wi-Fi: http://${a.address}:${port}`);
   console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
 });

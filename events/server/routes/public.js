@@ -28,18 +28,13 @@ export default function publicRoutes(ctx) {
   };
 
   r.get('/public/events', (_req, res) => {
-    res.json(
-      db
-        .all("SELECT * FROM events WHERE status = 'published' ORDER BY starts_on")
-        .map(eventSummary),
-    );
+    res.json(db.all("SELECT * FROM events WHERE status = 'published' ORDER BY starts_on").map(eventSummary));
   });
   r.get('/public/events/:slug', (req, res) => res.json(landing(db, published(req))));
   r.get('/public/events/:slug/guide', (req, res) => {
     const event = published(req);
     // Apps send the version they hold; an unchanged guide costs one small response.
-    if (Number(req.query.have) === event.guide_version)
-      return res.json({ version: event.guide_version, unchanged: true });
+    if (Number(req.query.have) === event.guide_version) return res.json({ version: event.guide_version, unchanged: true });
     res.json(guide(db, event));
   });
   r.get('/public/events/:slug/exhibitors', (req, res) => res.json(directory(db, published(req))));
@@ -105,9 +100,7 @@ export default function publicRoutes(ctx) {
     const order = orderByToken(ctx, req.params.token);
     if (!order) fail(404, 'Order not found');
     const event = db.get('SELECT * FROM events WHERE id = ?', order.event_id);
-    const reg = order.registration_id
-      ? db.get('SELECT * FROM registrations WHERE id = ?', order.registration_id)
-      : null;
+    const reg = order.registration_id ? db.get('SELECT * FROM registrations WHERE id = ?', order.registration_id) : null;
     // Only same-site paths are accepted as a return address.
     const back = str(req.body.returnPath, { max: 300 });
     const returnUrl = `${ctx.baseUrl}${back && /^\/[^/\\]/.test(back) ? back : '/'}`;

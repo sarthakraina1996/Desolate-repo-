@@ -90,26 +90,23 @@ function whatsapp(db, env) {
       });
       if (env.WHATSAPP_ADAPTER !== 'cloud') return;
       try {
-        const res = await fetch(
-          `https://graph.facebook.com/v20.0/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp',
-              to: to.replace(/[^0-9]/g, ''),
-              type: 'template',
-              template: {
-                name: template,
-                language: { code: 'en' },
-                components: [{ type: 'body', parameters: [{ type: 'text', text }] }],
-              },
-            }),
+        const res = await fetch(`https://graph.facebook.com/v20.0/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+            'Content-Type': 'application/json',
           },
-        );
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: to.replace(/[^0-9]/g, ''),
+            type: 'template',
+            template: {
+              name: template,
+              language: { code: 'en' },
+              components: [{ type: 'body', parameters: [{ type: 'text', text }] }],
+            },
+          }),
+        });
         if (!res.ok) throw new Error(`WhatsApp API answered ${res.status}`);
         db.update('outbox', id, { status: 'sent' });
       } catch (e) {
@@ -125,8 +122,7 @@ function jwt(header, claims, sign) {
   return `${head}.${sign(head).toString('base64url')}`;
 }
 function apnsSender(env) {
-  if (!env.APNS_KEY_ID || !env.APNS_TEAM_ID || !env.APNS_KEY_FILE || !env.APNS_BUNDLE_ID)
-    return null;
+  if (!env.APNS_KEY_ID || !env.APNS_TEAM_ID || !env.APNS_KEY_FILE || !env.APNS_BUNDLE_ID) return null;
   let cached = { token: null, at: 0 };
   const bearer = () => {
     // Apple accepts a provider token for up to an hour; refresh after 40 minutes.
@@ -134,17 +130,14 @@ function apnsSender(env) {
       const key = fs.readFileSync(env.APNS_KEY_FILE, 'utf8');
       cached = {
         at: Date.now(),
-        token: jwt(
-          { alg: 'ES256', kid: env.APNS_KEY_ID },
-          { iss: env.APNS_TEAM_ID, iat: Math.floor(Date.now() / 1000) },
-          (data) => crypto.sign('sha256', Buffer.from(data), { key, dsaEncoding: 'ieee-p1363' }),
+        token: jwt({ alg: 'ES256', kid: env.APNS_KEY_ID }, { iss: env.APNS_TEAM_ID, iat: Math.floor(Date.now() / 1000) }, (data) =>
+          crypto.sign('sha256', Buffer.from(data), { key, dsaEncoding: 'ieee-p1363' }),
         ),
       };
     }
     return cached.token;
   };
-  const host =
-    env.APNS_ENV === 'production' ? 'https://api.push.apple.com' : 'https://api.sandbox.push.apple.com';
+  const host = env.APNS_ENV === 'production' ? 'https://api.push.apple.com' : 'https://api.sandbox.push.apple.com';
   return (token, { title, body, data }) =>
     new Promise((resolve, reject) => {
       const client = http2.connect(host);
@@ -202,14 +195,11 @@ function fcmSender(env) {
   };
   return async (token, { title, body, data }) => {
     const bearer = await accessToken();
-    const res = await fetch(
-      `https://fcm.googleapis.com/v1/projects/${account.project_id}/messages:send`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: { token, notification: { title, body }, data } }),
-      },
-    );
+    const res = await fetch(`https://fcm.googleapis.com/v1/projects/${account.project_id}/messages:send`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: { token, notification: { title, body }, data } }),
+    });
     if (!res.ok) throw new Error(`FCM answered ${res.status}`);
   };
 }
@@ -259,14 +249,19 @@ function localPayments(env) {
   return {
     name: 'local',
     label: 'Local demo payment adapter (no money moves)',
-    async createCheckout({ payment }) {
-      return { url: `/pay/${payment.intent_id}`, providerRef: null };
+    async createCheckout({ payment, returnUrl }) {
+      let back = '/';
+      try {
+        back = new URL(returnUrl).pathname;
+      } catch {
+        // No usable return address: go back to the home page.
+      }
+      return { url: `/pay/${payment.intent_id}?return=${encodeURIComponent(back)}`, providerRef: null };
     },
     sign: (rawBody) => hmacHex(secret, rawBody),
     parseWebhook(rawBody, headers) {
       const given = String(headers['x-signature'] || '');
-      if (!given || !safeEqual(given, hmacHex(secret, rawBody)))
-        throw Object.assign(new Error('Bad webhook signature'), { status: 401 });
+      if (!given || !safeEqual(given, hmacHex(secret, rawBody))) throw Object.assign(new Error('Bad webhook signature'), { status: 401 });
       const e = JSON.parse(rawBody.toString('utf8'));
       return {
         eventId: String(e.id),
@@ -361,15 +356,12 @@ function printer(env) {
   return {
     name: mode,
     label:
-      mode === 'station'
-        ? 'Print stations (Windows desktop app with a badge printer)'
-        : 'Local demo printer adapter (nothing is printed)',
+      mode === 'station' ? 'Print stations (Windows desktop app with a badge printer)' : 'Local demo printer adapter (nothing is printed)',
     // Returns the state a new job should move to straight away, if any.
     submit(job, target) {
       if (mode === 'station') return { status: 'queued' };
       if (!target) return { status: 'failed', error: 'No printer is set up for this gate' };
-      if (target.status !== 'ready')
-        return { status: 'failed', error: target.last_error || `Printer is ${target.status}` };
+      if (target.status !== 'ready') return { status: 'failed', error: target.last_error || `Printer is ${target.status}` };
       return { status: 'printed' };
     },
   };
@@ -381,10 +373,7 @@ export function createAdapters(db, env = process.env) {
     email: env.EMAIL_ADAPTER === 'smtp' && env.SMTP_HOST ? smtpEmail(db, env) : localEmail(db),
     whatsapp: whatsapp(db, env),
     push: push(db, env),
-    payments:
-      env.PAYMENT_ADAPTER === 'razorpay' && env.RAZORPAY_KEY_ID
-        ? razorpayPayments(env)
-        : localPayments(env),
+    payments: env.PAYMENT_ADAPTER === 'razorpay' && env.RAZORPAY_KEY_ID ? razorpayPayments(env) : localPayments(env),
     printer: printer(env),
   };
 }

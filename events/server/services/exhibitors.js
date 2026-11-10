@@ -108,15 +108,13 @@ export function updateApplication(ctx, req, event, exhibitor, body) {
         catalogue_links: row.catalogue_links,
         categories: row.categories,
       };
-  if (body.profilePublished != null && exhibitor.status === 'approved')
-    patch.profile_published = body.profilePublished ? 1 : 0;
+  if (body.profilePublished != null && exhibitor.status === 'approved') patch.profile_published = body.profilePublished ? 1 : 0;
   if (submit) {
     patch.status = 'submitted';
     patch.submitted_at = nowIso();
   }
   db.update('exhibitors', exhibitor.id, { ...patch, updated_at: nowIso() });
-  if (submit)
-    audit(db, req, 'exhibitor.submit', { event, entity: 'exhibitor', entityId: exhibitor.id });
+  if (submit) audit(db, req, 'exhibitor.submit', { event, entity: 'exhibitor', entityId: exhibitor.id });
   refreshChecklist(db, event, exhibitor.id);
   if (exhibitor.status === 'approved') touchGuide(db, event.id);
   return db.get('SELECT * FROM exhibitors WHERE id = ?', exhibitor.id);
@@ -124,12 +122,36 @@ export function updateApplication(ctx, req, event, exhibitor, body) {
 
 // ---------- review ----------
 const CHECKLIST = [
-  { key: 'profile', title: 'Complete company profile', kind: 'profile', dueDays: -21, help: 'Add a description and product categories, then publish your profile.' },
-  { key: 'stand_drawing', title: 'Submit stand drawing', kind: 'upload', dueDays: -14, help: 'Upload the stand design (PDF or image) for the organiser to review.' },
-  { key: 'power_wifi', title: 'Order power & Wi-Fi', kind: 'order', dueDays: -10, help: 'Order electrical connections and internet for your stand.' },
+  {
+    key: 'profile',
+    title: 'Complete company profile',
+    kind: 'profile',
+    dueDays: -21,
+    help: 'Add a description and product categories, then publish your profile.',
+  },
+  {
+    key: 'stand_drawing',
+    title: 'Submit stand drawing',
+    kind: 'upload',
+    dueDays: -14,
+    help: 'Upload the stand design (PDF or image) for the organiser to review.',
+  },
+  {
+    key: 'power_wifi',
+    title: 'Order power & Wi-Fi',
+    kind: 'order',
+    dueDays: -10,
+    help: 'Order electrical connections and internet for your stand.',
+  },
   { key: 'team', title: 'Add booth staff', kind: 'team', dueDays: -7, help: 'Add the people who need exhibitor badges.' },
   { key: 'balance', title: 'Pay stand balance', kind: 'order', dueDays: -7, help: 'Clear the balance on your stand order.' },
-  { key: 'safety', title: 'Confirm fire & safety declaration', kind: 'confirm', dueDays: -3, help: 'Confirm your stand follows the venue fire and safety rules.' },
+  {
+    key: 'safety',
+    title: 'Confirm fire & safety declaration',
+    kind: 'confirm',
+    dueDays: -3,
+    help: 'Confirm your stand follows the venue fire and safety rules.',
+  },
 ];
 
 // Organiser decision on an application: approve, reject or send back with a note.
@@ -166,11 +188,18 @@ export function reviewApplication(ctx, req, event, exhibitor, decision, note) {
       // The applicant gets the first exhibitor badge.
       const owner = db.get('SELECT * FROM users WHERE id = ?', exhibitor.created_by);
       if (owner)
-        addTeamMember(ctx, req, event, { ...exhibitor, status }, {
-          name: exhibitor.contact_name || owner.name || owner.email,
-          email: owner.email,
-          role: 'exhibitor_admin',
-        }, { quiet: true });
+        addTeamMember(
+          ctx,
+          req,
+          event,
+          { ...exhibitor, status },
+          {
+            name: exhibitor.contact_name || owner.name || owner.email,
+            email: owner.email,
+            role: 'exhibitor_admin',
+          },
+          { quiet: true },
+        );
     }
     audit(db, req, `exhibitor.${decision}`, {
       event,
@@ -292,11 +321,7 @@ export function releaseAssignment(ctx, req, event, assignmentId) {
   if (!a) fail(404, 'Assignment not found');
   db.tx(() => {
     db.update('booth_assignments', a.id, { status: 'released', released_at: nowIso() });
-    db.run(
-      "UPDATE orders SET status = 'cancelled', updated_at = ? WHERE booth_assignment_id = ? AND status = 'open'",
-      nowIso(),
-      a.id,
-    );
+    db.run("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE booth_assignment_id = ? AND status = 'open'", nowIso(), a.id);
     audit(db, req, 'booth.release', { event, entity: 'booth', entityId: a.booth_id });
     touchGuide(db, event.id);
   });
@@ -341,16 +366,10 @@ export function addTeamMember(ctx, req, event, exhibitor, body, { quiet = false 
   const name = str(body.name, { max: 120, required: true, name: 'Name' });
   const email = vEmail(body.email, { required: true });
   const role = oneOf(body.role, ['exhibitor_admin', 'booth_staff']) || 'booth_staff';
-  const cls = db.get(
-    "SELECT * FROM pass_classes WHERE event_id = ? AND kind = 'exhibitor' AND active = 1 ORDER BY id LIMIT 1",
-    event.id,
-  );
+  const cls = db.get("SELECT * FROM pass_classes WHERE event_id = ? AND kind = 'exhibitor' AND active = 1 ORDER BY id LIMIT 1", event.id);
   if (!cls) fail(409, 'This event has no exhibitor pass type set up');
   return db.tx(() => {
-    const used = db.value(
-      "SELECT COUNT(*) FROM team_badges WHERE exhibitor_id = ? AND status != 'revoked'",
-      exhibitor.id,
-    );
+    const used = db.value("SELECT COUNT(*) FROM team_badges WHERE exhibitor_id = ? AND status != 'revoked'", exhibitor.id);
     if (used >= exhibitor.badge_quota)
       fail(409, `All ${exhibitor.badge_quota} badges are in use. Ask the organiser for a larger quota.`, 'quota_full');
     const userId = findOrCreateUser(db, { email, name });
@@ -402,11 +421,7 @@ export function revokeTeamMember(ctx, req, event, exhibitor, badgeId) {
     db.update('team_badges', badge.id, { status: 'revoked', revoked_at: nowIso() });
     const pass = db.get('SELECT id FROM passes WHERE team_badge_id = ?', badge.id);
     if (pass) revokePass(db, pass.id, 'Removed from exhibitor team');
-    db.run(
-      "UPDATE memberships SET status = 'revoked' WHERE user_id = ? AND exhibitor_id = ?",
-      badge.user_id,
-      exhibitor.id,
-    );
+    db.run("UPDATE memberships SET status = 'revoked' WHERE user_id = ? AND exhibitor_id = ?", badge.user_id, exhibitor.id);
     refreshChecklist(db, event, exhibitor.id);
     audit(db, req, 'team.revoke', { event, entity: 'exhibitor', entityId: exhibitor.id, detail: { email: badge.email } });
   });
@@ -422,13 +437,9 @@ export function captureLead(ctx, req, event, exhibitor, { qr, notes, tags, ratin
   if (!pass) fail(404, 'That is not a badge for this event', 'unknown_badge');
   if (pass.status !== 'active') fail(409, 'That badge has been cancelled', 'badge_cancelled');
   const cls = db.get('SELECT * FROM pass_classes WHERE id = ?', pass.pass_class_id);
-  const reg = pass.registration_id
-    ? db.get('SELECT * FROM registrations WHERE id = ?', pass.registration_id)
-    : null;
-  if (!cls.lead_scannable || !reg)
-    fail(403, `${cls.name} badges cannot be scanned for leads`, 'not_scannable');
-  if (reg.lead_opt_out)
-    fail(403, 'This visitor has chosen not to share contact details with exhibitors', 'opted_out');
+  const reg = pass.registration_id ? db.get('SELECT * FROM registrations WHERE id = ?', pass.registration_id) : null;
+  if (!cls.lead_scannable || !reg) fail(403, `${cls.name} badges cannot be scanned for leads`, 'not_scannable');
+  if (reg.lead_opt_out) fail(403, 'This visitor has chosen not to share contact details with exhibitors', 'opted_out');
   const policy = eventSettings(event).leadSharing.fields;
   const all = { name: reg.name, company: reg.company, jobTitle: reg.job_title, email: reg.email, phone: reg.phone };
   const shared = Object.fromEntries(policy.filter((f) => all[f]).map((f) => [f, all[f]]));
@@ -436,12 +447,7 @@ export function captureLead(ctx, req, event, exhibitor, { qr, notes, tags, ratin
   const cleanNotes = str(notes, { max: 1000, name: 'Notes' });
   const cleanRating = oneOf(rating, ['hot', 'warm', 'cold']);
   return db.tx(() => {
-    const existing = db.get(
-      'SELECT * FROM leads WHERE event_id = ? AND exhibitor_id = ? AND pass_id = ?',
-      event.id,
-      exhibitor.id,
-      pass.id,
-    );
+    const existing = db.get('SELECT * FROM leads WHERE event_id = ? AND exhibitor_id = ? AND pass_id = ?', event.id, exhibitor.id, pass.id);
     if (existing) {
       const merged = [...new Set([...json(existing.tags, []), ...cleanTags])];
       db.update('leads', existing.id, {
@@ -501,19 +507,17 @@ export function workspace(ctx, event, exhibitor, role) {
   const orders = db
     .all("SELECT * FROM orders WHERE exhibitor_id = ? AND status != 'cancelled' ORDER BY id", ex.id)
     .map((o) => orderView(db, o));
-  const checklist = db
-    .all('SELECT * FROM checklist_items WHERE exhibitor_id = ? ORDER BY sort', ex.id)
-    .map((c) => ({
-      id: c.id,
-      key: c.key,
-      title: c.title,
-      help: c.help,
-      kind: c.kind,
-      dueOn: c.due_on,
-      status: c.status,
-      note: c.note,
-      hasUpload: Boolean(c.upload_id),
-    }));
+  const checklist = db.all('SELECT * FROM checklist_items WHERE exhibitor_id = ? ORDER BY sort', ex.id).map((c) => ({
+    id: c.id,
+    key: c.key,
+    title: c.title,
+    help: c.help,
+    kind: c.kind,
+    dueOn: c.due_on,
+    status: c.status,
+    note: c.note,
+    hasUpload: Boolean(c.upload_id),
+  }));
   const team = db
     .all("SELECT * FROM team_badges WHERE exhibitor_id = ? AND status != 'revoked' ORDER BY id", ex.id)
     .map((t) => ({ id: t.id, name: t.name, email: t.email, role: t.role, status: t.status }));
@@ -545,7 +549,11 @@ export function workspace(ctx, event, exhibitor, role) {
         }
       : null,
     next,
-    checklist: checklist.map((c) => ({ ...c, overdue: c.status !== 'complete' && c.dueOn && c.dueOn < today })),
+    // Overdue only while the exhibitor still has to act; an item under review is with the organiser.
+    checklist: checklist.map((c) => ({
+      ...c,
+      overdue: ['todo', 'changes_requested'].includes(c.status) && Boolean(c.dueOn) && c.dueOn < today,
+    })),
     orders,
     totals: {
       totalPaise: orders.reduce((a, o) => a + o.totalPaise, 0),

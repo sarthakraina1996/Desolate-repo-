@@ -94,7 +94,9 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
   app.get('/.well-known/apple-app-site-association', (_req, res) => {
     res.json({
       applinks: {
-        details: [{ appIDs: [env.IOS_APP_ID || 'TEAMID.com.brainadz.events'], components: [{ '/': '/p/*' }, { '/': '/e/*' }, { '/': '/signin' }] }],
+        details: [
+          { appIDs: [env.IOS_APP_ID || 'TEAMID.com.brainadz.events'], components: [{ '/': '/p/*' }, { '/': '/e/*' }, { '/': '/signin' }] },
+        ],
       },
     });
   });
@@ -105,7 +107,10 @@ export function createApp({ dbFile, dataDir, seed = 'demo', serveClient = true, 
         target: {
           namespace: 'android_app',
           package_name: env.ANDROID_PACKAGE || 'com.brainadz.events',
-          sha256_cert_fingerprints: (env.ANDROID_CERT_SHA256 || '').split(',').map((s) => s.trim()).filter(Boolean),
+          sha256_cert_fingerprints: (env.ANDROID_CERT_SHA256 || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean),
         },
       },
     ]);

@@ -16,15 +16,7 @@ import {
   str,
   strList,
 } from '../core.js';
-import {
-  consumeOtp,
-  createSession,
-  destroySession,
-  findOrCreateUser,
-  issueOtp,
-  loginThrottle,
-  verifyPassword,
-} from '../auth.js';
+import { consumeOtp, createSession, destroySession, findOrCreateUser, issueOtp, loginThrottle, verifyPassword } from '../auth.js';
 import { passView } from '../services/passes.js';
 import { cancelRegistration, registrationState } from '../services/registrations.js';
 import { orderByToken, startCheckout } from '../services/payments.js';
@@ -38,11 +30,7 @@ export default function authRoutes(ctx) {
 
   // Marks team invitations as accepted the first time the invited person signs in.
   const acceptInvites = (userId) =>
-    db.run(
-      "UPDATE team_badges SET status = 'accepted', accepted_at = ? WHERE user_id = ? AND status = 'invited'",
-      nowIso(),
-      userId,
-    );
+    db.run("UPDATE team_badges SET status = 'accepted', accepted_at = ? WHERE user_id = ? AND status = 'invited'", nowIso(), userId);
 
   r.get('/auth/config', (_req, res) => {
     res.json({
@@ -85,11 +73,7 @@ export default function authRoutes(ctx) {
     const user = db.get('SELECT * FROM users WHERE id = ?', userId);
     if (!user.active) fail(403, 'This account has been disabled');
     // Registrations made with this email before the account existed now belong to it.
-    db.run(
-      "UPDATE registrations SET user_id = ? WHERE email = ? AND user_id IS NULL AND status != 'unverified'",
-      userId,
-      email,
-    );
+    db.run("UPDATE registrations SET user_id = ? WHERE email = ? AND user_id IS NULL AND status != 'unverified'", userId, email);
     acceptInvites(userId);
     res.json({ ...createSession(db, req, res, userId), user: { id: user.id, email: user.email, name: user.name } });
   });
@@ -112,7 +96,10 @@ export default function authRoutes(ctx) {
     for (const m of mine.filter((x) => ORG_ROLES.includes(x.role))) {
       const list = m.event_id
         ? [eventOf(m.event_id)]
-        : db.all('SELECT id, slug, name, starts_on, ends_on, status FROM events WHERE organiser_id = ? ORDER BY starts_on DESC', m.organiser_id);
+        : db.all(
+            'SELECT id, slug, name, starts_on, ends_on, status FROM events WHERE organiser_id = ? ORDER BY starts_on DESC',
+            m.organiser_id,
+          );
       for (const e of list)
         if (e && !organiser.some((o) => o.eventId === e.id))
           organiser.push({ eventId: e.id, slug: e.slug, name: e.name, status: e.status, role: m.role, perms: ROLE_PERMS[m.role] });
@@ -125,7 +112,16 @@ export default function authRoutes(ctx) {
       .map((m) => {
         const ex = db.get('SELECT id, company_name, status FROM exhibitors WHERE id = ?', m.exhibitor_id);
         const e = eventOf(m.event_id);
-        return { exhibitorId: ex.id, companyName: ex.company_name, status: ex.status, role: m.role, eventId: e.id, slug: e.slug, eventName: e.name, perms: ROLE_PERMS[m.role] };
+        return {
+          exhibitorId: ex.id,
+          companyName: ex.company_name,
+          status: ex.status,
+          role: m.role,
+          eventId: e.id,
+          slug: e.slug,
+          eventName: e.name,
+          perms: ROLE_PERMS[m.role],
+        };
       });
     res.json({
       user: req.user,

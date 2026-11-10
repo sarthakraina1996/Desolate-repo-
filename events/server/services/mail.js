@@ -6,9 +6,7 @@ const sign = (event) => `\n\n${event.name}\n${event.venue_name || ''}${event.cit
 
 // Sends without making the caller wait or fail: delivery problems are recorded in the outbox.
 function send(ctx, event, to, subject, text, template) {
-  ctx.adapters.email
-    .send({ eventId: event?.id, to, subject, text, template })
-    .catch((e) => console.error('Email failed', e.message));
+  ctx.adapters.email.send({ eventId: event?.id, to, subject, text, template }).catch((e) => console.error('Email failed', e.message));
 }
 
 export const mail = {
@@ -43,9 +41,7 @@ export const mail = {
       'pass_ready',
     );
     if (reg.whatsapp_opt_in && reg.phone)
-      ctx.adapters.whatsapp
-        .send({ eventId: event.id, to: reg.phone, text: link, template: 'pass_ready' })
-        .catch(() => {});
+      ctx.adapters.whatsapp.send({ eventId: event.id, to: reg.phone, text: link, template: 'pass_ready' }).catch(() => {});
   },
   passLink(ctx, event, reg, token) {
     send(

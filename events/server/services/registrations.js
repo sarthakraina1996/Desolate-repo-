@@ -28,16 +28,10 @@ const PUBLIC_MODES = ['free', 'paid', 'invited', 'approval'];
 // Pass types a member of the public can register for, with live availability.
 export function publicPassClasses(db, event) {
   return db
-    .all(
-      `SELECT * FROM pass_classes WHERE event_id = ? AND active = 1 AND mode != 'internal' ORDER BY sort, id`,
-      event.id,
-    )
+    .all(`SELECT * FROM pass_classes WHERE event_id = ? AND active = 1 AND mode != 'internal' ORDER BY sort, id`, event.id)
     .map((c) => {
       const taken = c.capacity
-        ? db.value(
-            "SELECT COUNT(*) FROM registrations WHERE pass_class_id = ? AND status NOT IN ('cancelled','rejected')",
-            c.id,
-          )
+        ? db.value("SELECT COUNT(*) FROM registrations WHERE pass_class_id = ? AND status NOT IN ('cancelled','rejected')", c.id)
         : 0;
       const gst = gstOn(c.price_paise, c.gst_percent);
       return {
@@ -58,15 +52,13 @@ export function publicPassClasses(db, event) {
 }
 
 export const formFields = (db, eventId) =>
-  db
-    .all('SELECT * FROM form_fields WHERE event_id = ? AND active = 1 ORDER BY sort, id', eventId)
-    .map((f) => ({
-      key: f.key,
-      label: f.label,
-      type: f.type,
-      options: json(f.options, []),
-      required: Boolean(f.required),
-    }));
+  db.all('SELECT * FROM form_fields WHERE event_id = ? AND active = 1 ORDER BY sort, id', eventId).map((f) => ({
+    key: f.key,
+    label: f.label,
+    type: f.type,
+    options: json(f.options, []),
+    required: Boolean(f.required),
+  }));
 
 // Validates the organiser's configurable questions and returns the cleaned answers.
 function readAnswers(db, eventId, input = {}) {
@@ -178,10 +170,7 @@ export function advance(ctx, event, regId, { notify = true } = {}) {
     const reg = db.get('SELECT * FROM registrations WHERE id = ?', regId);
     const settled = reg.payment_status === 'not_required' || reg.payment_status === 'paid';
     if (reg.status !== 'confirmed' || !settled) return null;
-    const had = db.get(
-      "SELECT id FROM passes WHERE registration_id = ? AND status = 'active'",
-      reg.id,
-    );
+    const had = db.get("SELECT id FROM passes WHERE registration_id = ? AND status = 'active'", reg.id);
     const pass = issuePass(db, {
       event,
       passClassId: reg.pass_class_id,
@@ -218,8 +207,7 @@ export function verifyRegistration(ctx, event, { ref, code }) {
       patch.status = cls.mode === 'approval' ? 'pending_review' : 'confirmed';
       // Approval-based paid passes are charged only once approved.
       patch.payment_status = cls.price_paise > 0 && cls.mode !== 'approval' ? 'pending' : 'not_required';
-      if (reg.invite_id)
-        db.run('UPDATE invites SET used_count = used_count + 1 WHERE id = ?', reg.invite_id);
+      if (reg.invite_id) db.run('UPDATE invites SET used_count = used_count + 1 WHERE id = ?', reg.invite_id);
     }
     db.update('registrations', reg.id, patch);
     let current = db.get('SELECT * FROM registrations WHERE id = ?', reg.id);
@@ -242,10 +230,7 @@ export function verifyRegistration(ctx, event, { ref, code }) {
 // The order for a paid registration; created once and reused.
 export function ensureRegistrationOrder(ctx, event, reg) {
   const { db } = ctx;
-  const existing = db.get(
-    "SELECT * FROM orders WHERE registration_id = ? AND status != 'cancelled' ORDER BY id LIMIT 1",
-    reg.id,
-  );
+  const existing = db.get("SELECT * FROM orders WHERE registration_id = ? AND status != 'cancelled' ORDER BY id LIMIT 1", reg.id);
   if (existing) return existing;
   const cls = db.get('SELECT * FROM pass_classes WHERE id = ?', reg.pass_class_id);
   return createOrder(ctx, event, {
@@ -267,10 +252,7 @@ export function registrationState(ctx, event, reg) {
   const { db } = ctx;
   const cls = db.get('SELECT * FROM pass_classes WHERE id = ?', reg.pass_class_id);
   const pass = db.get('SELECT * FROM passes WHERE registration_id = ?', reg.id);
-  const order = db.get(
-    "SELECT * FROM orders WHERE registration_id = ? AND status != 'cancelled' ORDER BY id LIMIT 1",
-    reg.id,
-  );
+  const order = db.get("SELECT * FROM orders WHERE registration_id = ? AND status != 'cancelled' ORDER BY id LIMIT 1", reg.id);
   let step = 'pass';
   if (reg.status === 'cancelled') step = 'cancelled';
   else if (reg.status === 'rejected') step = 'rejected';
@@ -291,10 +273,7 @@ export function registrationState(ctx, event, reg) {
     reviewNote: reg.review_note,
     passClass: { code: cls.code, name: cls.name, kind: cls.kind, mode: cls.mode },
     pass: pass && step === 'pass' ? passView(db, event, pass) : null,
-    order:
-      order && step === 'payment'
-        ? { ...orderView(db, order), token: orderToken(ctx, order) }
-        : null,
+    order: order && step === 'payment' ? { ...orderView(db, order), token: orderToken(ctx, order) } : null,
     createdAt: reg.created_at,
     event: { slug: event.slug, name: event.name },
   };
@@ -344,11 +323,7 @@ export function cancelRegistration(ctx, req, event, reg, { by }) {
     });
     const pass = db.get('SELECT * FROM passes WHERE registration_id = ?', reg.id);
     if (pass) revokePass(db, pass.id, 'Registration cancelled');
-    db.run(
-      "UPDATE orders SET status = 'cancelled', updated_at = ? WHERE registration_id = ? AND status = 'open'",
-      nowIso(),
-      reg.id,
-    );
+    db.run("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE registration_id = ? AND status = 'open'", nowIso(), reg.id);
     audit(db, req, 'registration.cancel', {
       event,
       entity: 'registration',

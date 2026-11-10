@@ -2,20 +2,7 @@
 // enforces the company boundary on the server.
 import { Router } from 'express';
 import path from 'node:path';
-import {
-  audit,
-  exhibitorAccess,
-  fail,
-  id,
-  inr,
-  nowIso,
-  num,
-  oneOf,
-  requireUser,
-  sendCsv,
-  str,
-  strList,
-} from '../core.js';
+import { audit, exhibitorAccess, fail, id, inr, nowIso, num, oneOf, requireUser, sendCsv, str, strList } from '../core.js';
 import {
   addTeamMember,
   captureLead,
@@ -140,7 +127,12 @@ export default function exhibitorRoutes(ctx) {
     if (!items.length) fail(400, 'Choose at least one service');
     const order = createOrder(ctx, event, { kind: 'service', exhibitorId: exhibitor.id, items });
     refreshChecklist(db, event, exhibitor.id);
-    audit(db, req, 'order.service', { event, entity: 'order', entityId: order.id, detail: { order: order.number, total: inr(order.total_paise) } });
+    audit(db, req, 'order.service', {
+      event,
+      entity: 'order',
+      entityId: order.id,
+      detail: { order: order.number, total: inr(order.total_paise) },
+    });
     res.status(201).json(orderView(db, order));
   });
   // Hosted checkout for an order's balance, or a chosen part of it (the deposit).
@@ -198,13 +190,51 @@ export default function exhibitorRoutes(ctx) {
   r.get('/exhibitor/:id/leads/export.csv', (req, res) => {
     const { exhibitor, event } = scope(req, 'x.leads.export');
     const rows = leadRows(req, exhibitor);
-    db.insert('lead_exports', { event_id: event.id, exhibitor_id: exhibitor.id, user_id: req.user.id, row_count: rows.length, ip: req.ip, created_at: nowIso() });
-    audit(db, req, 'leads.export', { event, entity: 'exhibitor', entityId: exhibitor.id, detail: { company: exhibitor.company_name, rows: rows.length } });
+    db.insert('lead_exports', {
+      event_id: event.id,
+      exhibitor_id: exhibitor.id,
+      user_id: req.user.id,
+      row_count: rows.length,
+      ip: req.ip,
+      created_at: nowIso(),
+    });
+    audit(db, req, 'leads.export', {
+      event,
+      entity: 'exhibitor',
+      entityId: exhibitor.id,
+      detail: { company: exhibitor.company_name, rows: rows.length },
+    });
     sendCsv(
       res,
       `leads-${exhibitor.company_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`,
-      ['Name', 'Company', 'Job title', 'Email', 'Phone', 'Rating', 'Interest tags', 'Notes', 'Scans', 'First scanned', 'Last scanned', 'Captured by'],
-      rows.map((l) => [l.name, l.company, l.jobTitle, l.email, l.phone, l.rating, l.tags.join('; '), l.notes, l.scanCount, l.firstScannedAt, l.lastScannedAt, l.capturedBy]),
+      [
+        'Name',
+        'Company',
+        'Job title',
+        'Email',
+        'Phone',
+        'Rating',
+        'Interest tags',
+        'Notes',
+        'Scans',
+        'First scanned',
+        'Last scanned',
+        'Captured by',
+      ],
+      rows.map((l) => [
+        l.name,
+        l.company,
+        l.jobTitle,
+        l.email,
+        l.phone,
+        l.rating,
+        l.tags.join('; '),
+        l.notes,
+        l.scanCount,
+        l.firstScannedAt,
+        l.lastScannedAt,
+        l.capturedBy,
+      ]),
     );
   });
 

@@ -6,8 +6,7 @@ import { eventSettings, nowIso, randomToken, safeEqual } from '../core.js';
 import { parseQr, QR_PREFIX } from '../../shared/scanRules.js';
 
 // Signature over a token id with the event's secret, shortened to keep the QR easy to scan.
-const signToken = (event, tokenId) =>
-  crypto.createHmac('sha256', event.qr_secret).update(tokenId).digest('base64url').slice(0, 22);
+const signToken = (event, tokenId) => crypto.createHmac('sha256', event.qr_secret).update(tokenId).digest('base64url').slice(0, 22);
 
 export const qrFor = (event, tokenId) => `${QR_PREFIX}.${tokenId}.${signToken(event, tokenId)}`;
 
@@ -17,10 +16,7 @@ export function passFromQr(db, event, text) {
   const parsed = parseQr(text);
   if (!parsed) return null;
   if (!safeEqual(parsed.signature, signToken(event, parsed.tokenId))) return null;
-  return (
-    db.get('SELECT * FROM passes WHERE token_id = ? AND event_id = ?', parsed.tokenId, event.id) ||
-    null
-  );
+  return db.get('SELECT * FROM passes WHERE token_id = ? AND event_id = ?', parsed.tokenId, event.id) || null;
 }
 
 // Issues the pass for a registration or team badge. Safe to call twice: the UNIQUE index on
@@ -30,8 +26,7 @@ export function issuePass(db, { event, passClassId, registrationId, teamBadgeId,
     ? db.get('SELECT * FROM passes WHERE registration_id = ?', registrationId)
     : db.get('SELECT * FROM passes WHERE team_badge_id = ?', teamBadgeId);
   if (existing) {
-    if (existing.status === 'revoked')
-      db.update('passes', existing.id, { status: 'active', revoked_at: null, revoked_reason: null });
+    if (existing.status === 'revoked') db.update('passes', existing.id, { status: 'active', revoked_at: null, revoked_reason: null });
     return db.get('SELECT * FROM passes WHERE id = ?', existing.id);
   }
   try {
@@ -65,20 +60,18 @@ export function revokePass(db, passId, reason) {
 
 // Pass classes of an event in the shape the scan rules use.
 export function passClasses(db, eventId) {
-  return db
-    .all('SELECT * FROM pass_classes WHERE event_id = ? ORDER BY sort, id', eventId)
-    .map((c) => ({
-      id: c.id,
-      code: c.code,
-      name: c.name,
-      kind: c.kind,
-      mode: c.mode,
-      zoneIds: json(c.zone_ids, []),
-      validFrom: c.valid_from,
-      validTo: c.valid_to,
-      reentry: Boolean(c.reentry),
-      leadScannable: Boolean(c.lead_scannable),
-    }));
+  return db.all('SELECT * FROM pass_classes WHERE event_id = ? ORDER BY sort, id', eventId).map((c) => ({
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    kind: c.kind,
+    mode: c.mode,
+    zoneIds: json(c.zone_ids, []),
+    validFrom: c.valid_from,
+    validTo: c.valid_to,
+    reentry: Boolean(c.reentry),
+    leadScannable: Boolean(c.lead_scannable),
+  }));
 }
 
 // Everything a holder's screen shows for a pass: QR, name, pass type, dates and where to enter.
@@ -94,13 +87,8 @@ export function passView(db, event, pass) {
       event.id,
     )
     .filter((g) => zoneIds.includes(g.zone_id));
-  const reg = pass.registration_id
-    ? db.get('SELECT ref FROM registrations WHERE id = ?', pass.registration_id)
-    : null;
-  const admitted = db.get(
-    'SELECT MIN(scanned_at) AS first FROM scan_events WHERE pass_id = ? AND counted = 1',
-    pass.id,
-  );
+  const reg = pass.registration_id ? db.get('SELECT ref FROM registrations WHERE id = ?', pass.registration_id) : null;
+  const admitted = db.get('SELECT MIN(scanned_at) AS first FROM scan_events WHERE pass_id = ? AND counted = 1', pass.id);
   return {
     id: pass.id,
     ref: reg?.ref || null,

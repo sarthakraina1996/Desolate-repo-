@@ -23,9 +23,7 @@ function normalize(params) {
 // Applies every migrations/NNN_name.sql file that has not run yet, each in its own
 // transaction, and records it in schema_migrations. Returns the versions applied.
 export function migrate(raw) {
-  raw.exec(
-    'CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)',
-  );
+  raw.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
   const done = new Set(
     raw
       .prepare('SELECT version FROM schema_migrations')
@@ -40,9 +38,7 @@ export function migrate(raw) {
     raw.exec('BEGIN');
     try {
       raw.exec(fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8'));
-      raw
-        .prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)')
-        .run(version, new Date().toISOString());
+      raw.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(version, new Date().toISOString());
       raw.exec('COMMIT');
     } catch (e) {
       raw.exec('ROLLBACK');

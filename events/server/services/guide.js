@@ -56,68 +56,66 @@ export function directory(db, event) {
 // Halls with their booths, gates and amenities on a simple grid, for the 2D plan and its
 // accessible list view.
 export function mapData(db, event) {
-  const exhibitors = new Map(directory(db, event).filter((e) => e.boothId).map((e) => [e.boothId, e]));
+  const exhibitors = new Map(
+    directory(db, event)
+      .filter((e) => e.boothId)
+      .map((e) => [e.boothId, e]),
+  );
   const booths = db.all('SELECT * FROM booths WHERE event_id = ? ORDER BY code', event.id);
   const gates = db.all('SELECT * FROM gates WHERE event_id = ? AND active = 1 ORDER BY code', event.id);
   const amenities = db.all('SELECT * FROM amenities WHERE event_id = ? ORDER BY id', event.id);
-  return db
-    .all('SELECT * FROM zones WHERE event_id = ? ORDER BY sort, id', event.id)
-    .map((z) => {
-      const plan = json(z.plan, {});
-      return {
-        id: z.id,
-        code: z.code,
-        name: z.name,
-        kind: z.kind,
-        cols: plan.cols || 0,
-        rows: plan.rows || 0,
-        booths: booths
-          .filter((b) => b.zone_id === z.id)
-          .map((b) => {
-            const ex = exhibitors.get(b.id);
-            return {
-              id: b.id,
-              code: b.code,
-              x: b.x,
-              y: b.y,
-              w: b.w,
-              h: b.h,
-              exhibitorId: ex?.id ?? null,
-              exhibitor: ex?.name ?? null,
-              categories: ex?.categories ?? [],
-            };
-          }),
-        gates: gates
-          .filter((g) => g.zone_id === z.id)
-          .map((g) => ({ id: g.id, code: g.code, name: g.name, x: g.x, y: g.y })),
-        amenities: amenities
-          .filter((a) => a.zone_id === z.id)
-          .map((a) => ({ id: a.id, kind: a.kind, label: a.label, x: a.x, y: a.y, accessible: Boolean(a.accessible) })),
-      };
-    });
+  return db.all('SELECT * FROM zones WHERE event_id = ? ORDER BY sort, id', event.id).map((z) => {
+    const plan = json(z.plan, {});
+    return {
+      id: z.id,
+      code: z.code,
+      name: z.name,
+      kind: z.kind,
+      cols: plan.cols || 0,
+      rows: plan.rows || 0,
+      booths: booths
+        .filter((b) => b.zone_id === z.id)
+        .map((b) => {
+          const ex = exhibitors.get(b.id);
+          return {
+            id: b.id,
+            code: b.code,
+            x: b.x,
+            y: b.y,
+            w: b.w,
+            h: b.h,
+            exhibitorId: ex?.id ?? null,
+            exhibitor: ex?.name ?? null,
+            categories: ex?.categories ?? [],
+          };
+        }),
+      gates: gates.filter((g) => g.zone_id === z.id).map((g) => ({ id: g.id, code: g.code, name: g.name, x: g.x, y: g.y })),
+      amenities: amenities
+        .filter((a) => a.zone_id === z.id)
+        .map((a) => ({ id: a.id, kind: a.kind, label: a.label, x: a.x, y: a.y, accessible: Boolean(a.accessible) })),
+    };
+  });
 }
 
 export function agenda(db, event) {
   const tracks = db.all('SELECT id, name, description FROM tracks WHERE event_id = ? ORDER BY sort, id', event.id);
   const rooms = db.all('SELECT id, name, capacity FROM rooms WHERE event_id = ? ORDER BY id', event.id);
-  const sessions = db
-    .all('SELECT * FROM agenda_sessions WHERE event_id = ? ORDER BY day, start_time, id', event.id)
-    .map((s) => ({
-      id: s.id,
-      title: s.title,
-      description: s.description,
-      speakers: json(s.speakers, []),
-      day: s.day,
-      startTime: s.start_time,
-      endTime: s.end_time,
-      trackId: s.track_id,
-      track: tracks.find((t) => t.id === s.track_id)?.name ?? null,
-      roomId: s.room_id,
-      room: rooms.find((r) => r.id === s.room_id)?.name ?? null,
-      capacity: s.capacity,
-      full: Boolean(s.capacity) && s.seats_taken >= s.capacity,
-      status: s.status,
-    }));
+  const sessions = db.all('SELECT * FROM agenda_sessions WHERE event_id = ? ORDER BY day, start_time, id', event.id).map((s) => ({
+    id: s.id,
+    title: s.title,
+    description: s.description,
+    speakers: json(s.speakers, []),
+    day: s.day,
+    startTime: s.start_time,
+    endTime: s.end_time,
+    trackId: s.track_id,
+    track: tracks.find((t) => t.id === s.track_id)?.name ?? null,
+    roomId: s.room_id,
+    room: rooms.find((r) => r.id === s.room_id)?.name ?? null,
+    capacity: s.capacity,
+    full: Boolean(s.capacity) && s.seats_taken >= s.capacity,
+    status: s.status,
+  }));
   return { tracks, rooms, sessions };
 }
 

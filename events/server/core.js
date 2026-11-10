@@ -29,22 +29,17 @@ export function str(v, { max = 500, required = false, name = 'Field' } = {}) {
   return s;
 }
 // Number or null; enforces required, range and optionally integer.
-export function num(
-  v,
-  { min = -Infinity, max = Infinity, required = false, name = 'Value', int = false } = {},
-) {
+export function num(v, { min = -Infinity, max = Infinity, required = false, name = 'Value', int = false } = {}) {
   if (v == null || v === '') {
     if (required) fail(400, `${name} is required`);
     return null;
   }
   const n = Number(v);
-  if (!Number.isFinite(n) || n < min || n > max || (int && !Number.isInteger(n)))
-    fail(400, `${name} is invalid`);
+  if (!Number.isFinite(n) || n < min || n > max || (int && !Number.isInteger(n))) fail(400, `${name} is invalid`);
   return n;
 }
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
-export const isYmd = (v) =>
-  typeof v === 'string' && YMD.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+export const isYmd = (v) => typeof v === 'string' && YMD.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
 // YYYY-MM-DD date string or null; rejects impossible dates.
 export function date(v, { required = false, name = 'Date' } = {}) {
   if (v == null || v === '') {
@@ -211,8 +206,7 @@ export const DEFAULT_EVENT_SETTINGS = {
   // Fields an exhibitor receives when a visitor lets them scan a badge. Disclosed at registration.
   leadSharing: {
     fields: ['name', 'company', 'jobTitle', 'email'],
-    notice:
-      'When you let an exhibitor scan your badge, we share your name, company, job title and work email with that exhibitor only.',
+    notice: 'When you let an exhibitor scan your badge, we share your name, company, job title and work email with that exhibitor only.',
   },
   // Days after the event ends before personal data is purged or anonymised.
   retentionDays: 180,
@@ -247,11 +241,7 @@ export function eventSettings(row) {
 }
 // Marks published data as changed so apps and kiosks know to refresh their cached guide.
 export function touchGuide(db, eventId) {
-  db.run(
-    'UPDATE events SET guide_version = guide_version + 1, updated_at = ? WHERE id = ?',
-    nowIso(),
-    eventId,
-  );
+  db.run('UPDATE events SET guide_version = guide_version + 1, updated_at = ? WHERE id = ?', nowIso(), eventId);
 }
 
 // ---------- access control ----------
@@ -276,33 +266,10 @@ export const ROLE_PERMS = {
     'gate.reprint',
     'reports.view',
   ],
-  finance: [
-    'event.view',
-    'reg.view',
-    'exh.view',
-    'finance.view',
-    'finance.manage',
-    'reports.view',
-    'reports.finance',
-  ],
-  gate_supervisor: [
-    'gate.view',
-    'gate.scan',
-    'gate.lookup',
-    'gate.print',
-    'gate.reprint',
-    'gate.override',
-  ],
+  finance: ['event.view', 'reg.view', 'exh.view', 'finance.view', 'finance.manage', 'reports.view', 'reports.finance'],
+  gate_supervisor: ['gate.view', 'gate.scan', 'gate.lookup', 'gate.print', 'gate.reprint', 'gate.override'],
   gate_staff: ['gate.scan', 'gate.lookup', 'gate.print'],
-  exhibitor_admin: [
-    'x.view',
-    'x.manage',
-    'x.team',
-    'x.orders',
-    'x.leads.view',
-    'x.leads.capture',
-    'x.leads.export',
-  ],
+  exhibitor_admin: ['x.view', 'x.manage', 'x.team', 'x.orders', 'x.leads.view', 'x.leads.capture', 'x.leads.export'],
   booth_staff: ['x.view', 'x.leads.view', 'x.leads.capture'],
 };
 export const ORG_ROLES = ['organiser_admin', 'organiser_staff', 'finance'];
@@ -321,11 +288,7 @@ export function requireUser(req) {
 // Active memberships of the signed-in user (cached on the request).
 export function memberships(db, req) {
   if (!req.user) return [];
-  if (!req._memberships)
-    req._memberships = db.all(
-      "SELECT * FROM memberships WHERE user_id = ? AND status = 'active'",
-      req.user.id,
-    );
+  if (!req._memberships) req._memberships = db.all("SELECT * FROM memberships WHERE user_id = ? AND status = 'active'", req.user.id);
   return req._memberships;
 }
 // Loads an event the user may act on with `perm` as organiser staff. A missing event and an
@@ -335,10 +298,7 @@ export function orgEvent(db, req, eventId, perm) {
   const event = db.get('SELECT * FROM events WHERE id = ?', eventId);
   const mine = event
     ? memberships(db, req).filter(
-        (m) =>
-          m.organiser_id === event.organiser_id &&
-          ORG_ROLES.includes(m.role) &&
-          (m.event_id == null || m.event_id === event.id),
+        (m) => m.organiser_id === event.organiser_id && ORG_ROLES.includes(m.role) && (m.event_id == null || m.event_id === event.id),
       )
     : [];
   if (!mine.length) notFound('Event');
@@ -362,17 +322,11 @@ export function hasOrgPerm(db, req, event, perm) {
 export function exhibitorAccess(db, req, exhibitorId, perm) {
   requireUser(req);
   const exhibitor = db.get('SELECT * FROM exhibitors WHERE id = ?', exhibitorId);
-  const mine = exhibitor
-    ? memberships(db, req).filter(
-        (m) => EXHIBITOR_ROLES.includes(m.role) && m.exhibitor_id === exhibitor.id,
-      )
-    : [];
+  const mine = exhibitor ? memberships(db, req).filter((m) => EXHIBITOR_ROLES.includes(m.role) && m.exhibitor_id === exhibitor.id) : [];
   if (!mine.length) notFound('Exhibitor');
   if (!mine.some((m) => roleCan(m.role, perm))) fail(403, 'Your role does not allow this action');
   req.exhibitor = exhibitor;
-  req.exhibitorRole = mine.some((m) => m.role === 'exhibitor_admin')
-    ? 'exhibitor_admin'
-    : 'booth_staff';
+  req.exhibitorRole = mine.some((m) => m.role === 'exhibitor_admin') ? 'exhibitor_admin' : 'booth_staff';
   return exhibitor;
 }
 // Gates of an event the user may operate with `perm`. Gate staff see only their own gate;
@@ -383,9 +337,7 @@ export function gatesFor(db, req, eventId, perm) {
   if (!event) return [];
   const all = db.all('SELECT * FROM gates WHERE event_id = ? AND active = 1 ORDER BY code', eventId);
   if (hasOrgPerm(db, req, event, perm)) return all;
-  const mine = memberships(db, req).filter(
-    (m) => GATE_ROLES.includes(m.role) && m.event_id === eventId && roleCan(m.role, perm),
-  );
+  const mine = memberships(db, req).filter((m) => GATE_ROLES.includes(m.role) && m.event_id === eventId && roleCan(m.role, perm));
   if (!mine.length) return [];
   if (mine.some((m) => m.gate_id == null)) return all;
   const ids = new Set(mine.map((m) => m.gate_id));
@@ -399,9 +351,7 @@ export function gateAccess(db, req, gateId, perm) {
   const allowed = gatesFor(db, req, gate.event_id, perm);
   if (!allowed.some((g) => g.id === gate.id)) {
     // Staff of this event who lack the permission get 403; everyone else cannot see the gate.
-    const anyRole = memberships(db, req).some(
-      (m) => m.event_id === gate.event_id || m.event_id == null,
-    );
+    const anyRole = memberships(db, req).some((m) => m.event_id === gate.event_id || m.event_id == null);
     if (anyRole && gatesFor(db, req, gate.event_id, 'gate.scan').some((g) => g.id === gate.id))
       fail(403, 'Your role does not allow this action');
     if (anyRole) fail(403, 'This gate is outside your assignment', 'wrong_gate');

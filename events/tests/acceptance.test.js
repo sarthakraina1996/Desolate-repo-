@@ -21,11 +21,21 @@ test.after(() => t.close());
 async function register(passClass, email, extra = {}) {
   const c = client(t.base);
   const made = await c.post('/public/events/futureworks-expo/registrations', {
-    passClass, name: 'Test Visitor', email, company: 'Test Co', jobTitle: 'Buyer', consent: true,
-    answers: { interest: 'Digital signage' }, client: 'android', ...extra,
+    passClass,
+    name: 'Test Visitor',
+    email,
+    company: 'Test Co',
+    jobTitle: 'Buyer',
+    consent: true,
+    answers: { interest: 'Digital signage' },
+    client: 'android',
+    ...extra,
   });
   assert.equal(made.status, 201, JSON.stringify(made.body));
-  const v = await c.post(`/public/events/futureworks-expo/registrations/${made.body.ref}/verify`, { code: made.body.demoCode, client: 'android' });
+  const v = await c.post(`/public/events/futureworks-expo/registrations/${made.body.ref}/verify`, {
+    code: made.body.demoCode,
+    client: 'android',
+  });
   assert.equal(v.status, 200, JSON.stringify(v.body));
   c.setToken(v.body.token);
   return { c, state: v.body.registration, accessToken: v.body.accessToken };
@@ -85,7 +95,13 @@ test('approval-based and invited registration, resend and cancellation', async (
   assert.equal(ok.body.status, 'confirmed');
   assert.equal((await media.c.get('/me/passes')).body.registrations[0].step, 'pass');
 
-  const noCode = await client(t.base).post('/public/events/futureworks-expo/registrations', { passClass: 'VIP', name: 'A', email: 'vip@example.org', consent: true, answers: { interest: 'Digital signage' } });
+  const noCode = await client(t.base).post('/public/events/futureworks-expo/registrations', {
+    passClass: 'VIP',
+    name: 'A',
+    email: 'vip@example.org',
+    consent: true,
+    answers: { interest: 'Digital signage' },
+  });
   assert.equal(noCode.status, 400);
   const vip = await register('VIP', 'vip@example.org', { inviteCode: 'INV-FWVIP001' });
   assert.equal(vip.state.step, 'pass');
@@ -102,8 +118,15 @@ test('approval-based and invited registration, resend and cancellation', async (
 test('exhibitor to lead export: approve, allocate, badges, scan twice, export one row', async () => {
   const admin = await client(t.base).code('founder@newstand.example');
   const app = await admin.post('/events/futureworks-expo/exhibitor-applications', {
-    companyName: 'Newstand Robotics', industry: 'Robotics', contactName: 'Asha Founder', contactEmail: 'founder@newstand.example',
-    contactPhone: '+91 98765 43210', billingName: 'Newstand Robotics Pvt Ltd', billingAddress: 'Pune', categories: ['Robotics'], submit: true,
+    companyName: 'Newstand Robotics',
+    industry: 'Robotics',
+    contactName: 'Asha Founder',
+    contactEmail: 'founder@newstand.example',
+    contactPhone: '+91 98765 43210',
+    billingName: 'Newstand Robotics Pvt Ltd',
+    billingAddress: 'Pune',
+    categories: ['Robotics'],
+    submit: true,
   });
   assert.equal(app.status, 201, JSON.stringify(app.body));
   const xid = app.body.id;
@@ -114,7 +137,11 @@ test('exhibitor to lead export: approve, allocate, badges, scan twice, export on
   assert.equal(alloc.body.status, 'confirmed');
 
   // Team badges: quota of 4 including the applicant.
-  for (const n of [1, 2, 3]) assert.equal((await admin.post(`/exhibitor/${xid}/team`, { name: `Staff ${n}`, email: `staff${n}@newstand.example`, role: 'booth_staff' })).status, 201);
+  for (const n of [1, 2, 3])
+    assert.equal(
+      (await admin.post(`/exhibitor/${xid}/team`, { name: `Staff ${n}`, email: `staff${n}@newstand.example`, role: 'booth_staff' })).status,
+      201,
+    );
   assert.equal((await admin.post(`/exhibitor/${xid}/team`, { name: 'Staff 5', email: 'staff5@newstand.example' })).status, 409);
   const ws = await admin.get(`/exhibitor/${xid}`);
   assert.equal(ws.body.booth.code, 'B12');
@@ -122,7 +149,9 @@ test('exhibitor to lead export: approve, allocate, badges, scan twice, export on
 
   // Booth staff scan a permitted visitor badge twice: one lead.
   const staff = await client(t.base).code('staff1@newstand.example');
-  const visitor = t.db.get("SELECT p.token_id FROM passes p JOIN registrations r ON r.id = p.registration_id WHERE r.email = 'aarav.mehta@meridianretail.example'");
+  const visitor = t.db.get(
+    "SELECT p.token_id FROM passes p JOIN registrations r ON r.id = p.registration_id WHERE r.email = 'aarav.mehta@meridianretail.example'",
+  );
   const qr = qrFor(E, visitor.token_id);
   const one = await staff.post(`/exhibitor/${xid}/leads/scan`, { qr, tags: ['Robotics'], notes: 'Wants a demo', rating: 'hot' });
   assert.equal(one.status, 201);
@@ -132,7 +161,9 @@ test('exhibitor to lead export: approve, allocate, badges, scan twice, export on
   assert.equal(two.body.lead.scanCount, 2);
 
   // VIP and exhibitor badges are not scannable for leads.
-  const vipPass = t.db.get("SELECT p.token_id FROM passes p JOIN pass_classes c ON c.id = p.pass_class_id WHERE c.code = 'VIP' AND p.status = 'active' LIMIT 1");
+  const vipPass = t.db.get(
+    "SELECT p.token_id FROM passes p JOIN pass_classes c ON c.id = p.pass_class_id WHERE c.code = 'VIP' AND p.status = 'active' LIMIT 1",
+  );
   assert.equal((await staff.post(`/exhibitor/${xid}/leads/scan`, { qr: qrFor(E, vipPass.token_id) })).status, 403);
 
   // Booth staff cannot export; the admin exports exactly one deduplicated row, and it is logged.
@@ -156,29 +187,51 @@ test('concurrency and finance: one booth, one entitlement, accurate reconciliati
   const ids = t.db.all("SELECT id FROM exhibitors WHERE event_id = ? AND status = 'submitted' ORDER BY id LIMIT 2", E.id).map((x) => x.id);
   for (const x of ids) await org.post(`/org/events/${E.id}/exhibitors/${x}/review`, { decision: 'approve' });
   const booth = t.db.get("SELECT id FROM booths WHERE event_id = ? AND code = 'B10'", E.id);
-  const [a, b] = await Promise.all(ids.map((x) => org.post(`/org/events/${E.id}/exhibitors/${x}/allocate`, { boothId: booth.id, confirm: true })));
+  const [a, b] = await Promise.all(
+    ids.map((x) => org.post(`/org/events/${E.id}/exhibitors/${x}/allocate`, { boothId: booth.id, confirm: true })),
+  );
   assert.deepEqual([a.status, b.status].sort(), [201, 409]);
   assert.equal(t.db.value("SELECT COUNT(*) FROM booth_assignments WHERE booth_id = ? AND status IN ('held','confirmed')", booth.id), 1);
   // Confirming the same assignment twice is harmless.
   const won = a.status === 201 ? a : b;
-  for (let i = 0; i < 2; i++) assert.equal((await org.post(`/org/events/${E.id}/assignments/${won.body.assignmentId}/confirm`)).body.status, 'confirmed');
+  for (let i = 0; i < 2; i++)
+    assert.equal((await org.post(`/org/events/${E.id}/assignments/${won.body.assignmentId}/confirm`)).body.status, 'confirmed');
 
   // A paid registration whose gateway callback is delivered, replayed, then replayed out of order.
   const { c, state } = await register('DELEGATE', 'replay@example.org');
   const checkout = await c.post(`/public/orders/${state.order.token}/checkout`, {});
   const send = (evt) => {
     const body = Buffer.from(JSON.stringify(evt));
-    return client(t.base).post('/webhooks/payments/local', body, { 'Content-Type': 'application/json', 'X-Signature': t.ctx.adapters.payments.sign(body) });
+    return client(t.base).post('/webhooks/payments/local', body, {
+      'Content-Type': 'application/json',
+      'X-Signature': t.ctx.adapters.payments.sign(body),
+    });
   };
   const now = Date.now();
-  const captured = { id: 'evt_cap_1', type: 'payment.captured', intentId: checkout.body.intentId, amountPaise: 295000, method: 'card', occurredAt: new Date(now).toISOString() };
-  const pending = { id: 'evt_pend_1', type: 'payment.pending', intentId: checkout.body.intentId, amountPaise: 295000, occurredAt: new Date(now - 5000).toISOString() };
+  const captured = {
+    id: 'evt_cap_1',
+    type: 'payment.captured',
+    intentId: checkout.body.intentId,
+    amountPaise: 295000,
+    method: 'card',
+    occurredAt: new Date(now).toISOString(),
+  };
+  const pending = {
+    id: 'evt_pend_1',
+    type: 'payment.pending',
+    intentId: checkout.body.intentId,
+    amountPaise: 295000,
+    occurredAt: new Date(now - 5000).toISOString(),
+  };
   assert.equal((await send(captured)).body.outcome, 'applied');
   assert.equal((await send(captured)).body.outcome, 'duplicate');
   assert.equal((await send(pending)).body.outcome, 'stale', 'an older "pending" must not undo "captured"');
   assert.equal((await send({ ...captured, id: 'evt_cap_2' })).body.outcome, 'stale', 'a second capture event changes nothing');
   // A callback with a bad signature is refused.
-  const bad = await client(t.base).post('/webhooks/payments/local', Buffer.from(JSON.stringify(captured)), { 'Content-Type': 'application/json', 'X-Signature': 'nope' });
+  const bad = await client(t.base).post('/webhooks/payments/local', Buffer.from(JSON.stringify(captured)), {
+    'Content-Type': 'application/json',
+    'X-Signature': 'nope',
+  });
   assert.equal(bad.status, 401);
 
   const reg = t.db.get("SELECT * FROM registrations WHERE email = 'replay@example.org'");
@@ -193,7 +246,10 @@ test('concurrency and finance: one booth, one entitlement, accurate reconciliati
   assert.equal(report.capturedPaise, captureTotal);
   assert.equal(t.db.value('SELECT SUM(paid_paise) FROM orders WHERE event_id = ?', E.id), captureTotal, 'orders agree with payments');
   assert.ok(!report.issues.some((i) => i.kind === 'order_mismatch' || i.kind === 'paid_no_pass'));
-  assert.ok(report.issues.some((i) => i.kind === 'refund_due'), 'the seeded cancelled-after-paying delegate is listed');
+  assert.ok(
+    report.issues.some((i) => i.kind === 'refund_due'),
+    'the seeded cancelled-after-paying delegate is listed',
+  );
 });
 
 test('offline and hardware: two devices, queued scans sync, conflict counted once, printer recovery', async () => {
@@ -205,7 +261,11 @@ test('offline and hardware: two devices, queued scans sync, conflict counted onc
   // Both preload the signed eligibility set, then lose the network.
   const load = async (c, d) => {
     const b = (await c.get(`/gate/devices/${d.deviceId}/bundle`)).body;
-    assert.equal(crypto.createHmac('sha256', d.key).update(b.payload).digest('hex'), b.signature, 'bundle signature verifies with the device key');
+    assert.equal(
+      crypto.createHmac('sha256', d.key).update(b.payload).digest('hex'),
+      b.signature,
+      'bundle signature verifies with the device key',
+    );
     return JSON.parse(b.payload);
   };
   const [b1, b2] = [await load(s1, d1), await load(s2, d2)];
@@ -213,7 +273,13 @@ test('offline and hardware: two devices, queued scans sync, conflict counted onc
   const fresh = await register('VISITOR', 'offline.visitor@example.org');
   // Issued after the bundles were loaded: offline devices do not know this pass yet.
   const gate = { id: gates.G1, zoneId: t.db.get('SELECT zone_id FROM gates WHERE id = ?', gates.G1).zone_id };
-  const unknown = decideOffline({ bundle: b1, gate, history: [], tokenId: fresh.state.pass.qr.split('.')[1], scannedAt: new Date().toISOString() });
+  const unknown = decideOffline({
+    bundle: b1,
+    gate,
+    history: [],
+    tokenId: fresh.state.pass.qr.split('.')[1],
+    scannedAt: new Date().toISOString(),
+  });
   assert.equal(unknown.result, 'denied_unknown');
 
   // A pass both devices do know, never scanned today.
@@ -227,7 +293,16 @@ test('offline and hardware: two devices, queued scans sync, conflict counted onc
   const r2 = decideOffline({ bundle: b2, gate, history: [], tokenId: p.token_id, scannedAt: at2 });
   assert.deepEqual([r1.result, r2.result], ['admitted', 'admitted'], 'each offline device accepts the pass');
   // The same device sees its own repeat without the network.
-  assert.equal(decideOffline({ bundle: b1, gate, history: [{ tokenId: p.token_id, zoneId: gate.zoneId, scannedAt: at1 }], tokenId: p.token_id, scannedAt: new Date(Date.parse(at1) + 20000).toISOString() }).result, 'repeat');
+  assert.equal(
+    decideOffline({
+      bundle: b1,
+      gate,
+      history: [{ tokenId: p.token_id, zoneId: gate.zoneId, scannedAt: at1 }],
+      tokenId: p.token_id,
+      scannedAt: new Date(Date.parse(at1) + 20000).toISOString(),
+    }).result,
+    'repeat',
+  );
 
   // Connectivity returns. The later scan syncs first; reconciliation still puts them in order.
   const q = qrFor(E, p.token_id);
@@ -238,7 +313,14 @@ test('offline and hardware: two devices, queued scans sync, conflict counted onc
   const sync1 = await s1.post('/gate/scans/sync', { deviceId: d1.deviceId, scans: [scan1], queuedCount: 0 });
   assert.equal(sync1.body.results[0].result, 'admitted', 'the earlier scan is the real first entry');
   const rows = t.db.all('SELECT id, result, counted, conflict FROM scan_events WHERE pass_id = ? ORDER BY scanned_at', p.id);
-  assert.deepEqual(rows.map((r) => [r.counted, r.conflict]), [[1, 0], [0, 1]], 'counted once, the other flagged');
+  assert.deepEqual(
+    rows.map((r) => [r.counted, r.conflict]),
+    [
+      [1, 0],
+      [0, 1],
+    ],
+    'counted once, the other flagged',
+  );
   // Retrying an upload creates nothing new.
   await s1.post('/gate/scans/sync', { deviceId: d1.deviceId, scans: [scan1], queuedCount: 0 });
   assert.equal(t.db.value('SELECT COUNT(*) FROM scan_events WHERE pass_id = ?', p.id), 2);
@@ -249,8 +331,19 @@ test('offline and hardware: two devices, queued scans sync, conflict counted onc
 
   // A restricted area cannot be decided offline.
   const vipZone = t.db.get("SELECT id FROM zones WHERE code = 'VIP' AND event_id = ?", E.id).id;
-  const vipPass = t.db.get("SELECT p.token_id FROM passes p JOIN pass_classes c ON c.id = p.pass_class_id WHERE c.code = 'VIP' AND p.status = 'active' LIMIT 1");
-  assert.equal(decideOffline({ bundle: b1, gate: { id: 0, zoneId: vipZone }, history: [], tokenId: vipPass.token_id, scannedAt: new Date().toISOString() }).result, 'needs_online');
+  const vipPass = t.db.get(
+    "SELECT p.token_id FROM passes p JOIN pass_classes c ON c.id = p.pass_class_id WHERE c.code = 'VIP' AND p.status = 'active' LIMIT 1",
+  );
+  assert.equal(
+    decideOffline({
+      bundle: b1,
+      gate: { id: 0, zoneId: vipZone },
+      history: [],
+      tokenId: vipPass.token_id,
+      scannedAt: new Date().toISOString(),
+    }).result,
+    'needs_online',
+  );
 
   // A revoked device is told to purge.
   await org.post(`/org/events/${E.id}/devices/${d2.deviceId}/revoke`);
@@ -280,7 +373,11 @@ test('permissions: tenants, exhibitor companies, gates and roles are enforced on
     assert.equal((await fw.get(`/org/events/${other}${p}`)).status, 404, `futureworks -> northfield ${p}`);
   }
   const reg = t.db.get('SELECT id FROM registrations WHERE event_id = ? LIMIT 1', E.id).id;
-  assert.equal((await nf.post(`/org/events/${other}/registrations/${reg}/cancel`)).status, 404, 'cannot reach another tenant\'s record through own event');
+  assert.equal(
+    (await nf.post(`/org/events/${other}/registrations/${reg}/cancel`)).status,
+    404,
+    "cannot reach another tenant's record through own event",
+  );
   assert.equal((await nf.get('/org/events')).body.length, 1);
 
   // Exhibitor company boundaries.
@@ -298,13 +395,26 @@ test('permissions: tenants, exhibitor companies, gates and roles are enforced on
   assert.equal((await ops.post(`/org/events/${E.id}/staff`, { email: 'a@b.co', name: 'A', role: 'finance' })).status, 403);
   const gate1 = await as(t.base, 'gate1@futureworks.example');
   const somePass = t.db.get("SELECT p.id, p.token_id FROM passes p WHERE p.event_id = ? AND p.status = 'active' LIMIT 1", E.id);
-  assert.equal((await gate1.post('/gate/scans', { gateId: gates.G2, id: uuid(), qr: qrFor(E, somePass.token_id) })).status, 403, 'wrong gate');
+  assert.equal(
+    (await gate1.post('/gate/scans', { gateId: gates.G2, id: uuid(), qr: qrFor(E, somePass.token_id) })).status,
+    403,
+    'wrong gate',
+  );
   assert.equal((await gate1.post('/gate/override', { gateId: gates.G1, id: uuid(), passId: somePass.id, reason: 'x' })).status, 403);
   assert.equal((await gate1.get(`/org/events/${E.id}/live`)).status, 404);
   const sup = await as(t.base, 'supervisor@futureworks.example');
-  const over = await sup.post('/gate/override', { gateId: gates.G3, id: uuid(), passId: somePass.id, reason: 'Speaker guest, approved by organiser' });
+  const over = await sup.post('/gate/override', {
+    gateId: gates.G3,
+    id: uuid(),
+    passId: somePass.id,
+    reason: 'Speaker guest, approved by organiser',
+  });
   assert.equal(over.body.result, 'override_admitted');
-  assert.equal((await sup.post('/gate/override', { gateId: gates.G3, id: uuid(), passId: somePass.id })).status, 400, 'a reason is required');
+  assert.equal(
+    (await sup.post('/gate/override', { gateId: gates.G3, id: uuid(), passId: somePass.id })).status,
+    400,
+    'a reason is required',
+  );
 
   // Visitors and signed-out callers.
   const visitor = await client(t.base).code('aarav.mehta@meridianretail.example');

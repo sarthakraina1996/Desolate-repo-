@@ -3,28 +3,14 @@
 // callback can never create a second entitlement or move a payment backwards.
 import crypto from 'node:crypto';
 import { isUniqueViolation, json } from '../db.js';
-import {
-  audit,
-  eventSettings,
-  fail,
-  gstOn,
-  inr,
-  nextCounter,
-  nowIso,
-  randomToken,
-  safeEqual,
-} from '../core.js';
+import { audit, eventSettings, fail, gstOn, inr, nextCounter, nowIso, randomToken, safeEqual } from '../core.js';
 import { advance } from './registrations.js';
 import { confirmAssignment } from './exhibitors.js';
 import { revokePass } from './passes.js';
 import { mail } from './mail.js';
 
 // ---------- orders ----------
-export function createOrder(
-  ctx,
-  event,
-  { kind, registrationId, exhibitorId, boothAssignmentId, items, dueOn },
-) {
+export function createOrder(ctx, event, { kind, registrationId, exhibitorId, boothAssignmentId, items, dueOn }) {
   const { db } = ctx;
   return db.tx(() => {
     const lines = items.map((i) => ({
@@ -62,15 +48,13 @@ export function orderView(db, order) {
     number: order.number,
     kind: order.kind,
     status: order.status,
-    items: db
-      .all('SELECT * FROM order_items WHERE order_id = ? ORDER BY id', order.id)
-      .map((i) => ({
-        description: i.description,
-        qty: i.qty,
-        unitPaise: i.unit_paise,
-        gstPercent: i.gst_percent,
-        amountPaise: i.amount_paise,
-      })),
+    items: db.all('SELECT * FROM order_items WHERE order_id = ? ORDER BY id', order.id).map((i) => ({
+      description: i.description,
+      qty: i.qty,
+      unitPaise: i.unit_paise,
+      gstPercent: i.gst_percent,
+      amountPaise: i.amount_paise,
+    })),
     subtotalPaise: order.subtotal_paise,
     gstPaise: order.gst_paise,
     totalPaise: order.total_paise,
@@ -85,8 +69,7 @@ export function orderView(db, order) {
 
 // A stable link token for an order's hosted checkout: the order number signed with the
 // server secret. Nothing is stored and the token cannot be guessed from the number.
-const signOrder = (ctx, number) =>
-  crypto.createHmac('sha256', ctx.secret).update(`order:${number}`).digest('base64url').slice(0, 24);
+const signOrder = (ctx, number) => crypto.createHmac('sha256', ctx.secret).update(`order:${number}`).digest('base64url').slice(0, 24);
 export const orderToken = (ctx, order) => `${order.number}.${signOrder(ctx, order.number)}`;
 export function orderByToken(ctx, token) {
   const i = String(token || '').lastIndexOf('.');
@@ -140,10 +123,7 @@ const TYPE_TO_STATUS = {
 // Assigns the GST invoice number the first time money is captured against an order.
 function ensureInvoice(db, event, order) {
   if (order.invoice_no) return;
-  const profile = json(
-    db.value('SELECT invoice_profile FROM organisers WHERE id = ?', event.organiser_id),
-    {},
-  );
+  const profile = json(db.value('SELECT invoice_profile FROM organisers WHERE id = ?', event.organiser_id), {});
   const n = nextCounter(db, event.id, 'invoice');
   db.update('orders', order.id, {
     invoice_no: `${profile.invoicePrefix || 'INV'}/${String(n).padStart(4, '0')}`,
@@ -195,11 +175,7 @@ function onRefunded(ctx, event, order, payment, amountPaise) {
     updated_at: nowIso(),
   });
   if (order.registration_id && full) {
-    db.run(
-      "UPDATE registrations SET payment_status = 'refunded', updated_at = ? WHERE id = ?",
-      nowIso(),
-      order.registration_id,
-    );
+    db.run("UPDATE registrations SET payment_status = 'refunded', updated_at = ? WHERE id = ?", nowIso(), order.registration_id);
     const pass = db.get('SELECT id FROM passes WHERE registration_id = ?', order.registration_id);
     if (pass) revokePass(db, pass.id, 'Payment refunded');
   }
@@ -213,9 +189,7 @@ function onRefunded(ctx, event, order, payment, amountPaise) {
 export function applyPaymentEvent(ctx, provider, evt) {
   const { db } = ctx;
   return db.tx(() => {
-    const payment = evt.intentId
-      ? db.get('SELECT * FROM payments WHERE intent_id = ?', evt.intentId)
-      : null;
+    const payment = evt.intentId ? db.get('SELECT * FROM payments WHERE intent_id = ?', evt.intentId) : null;
     const log = (outcome) => {
       db.insert('payment_events', {
         provider,
@@ -237,16 +211,14 @@ export function applyPaymentEvent(ctx, provider, evt) {
 
     if (evt.type === 'refund.processed') {
       const room = payment.amount_paise - payment.refunded_paise;
-      if (!['captured', 'refunded'].includes(payment.status) || evt.amountPaise <= 0 || evt.amountPaise > room)
-        return log('ignored');
+      if (!['captured', 'refunded'].includes(payment.status) || evt.amountPaise <= 0 || evt.amountPaise > room) return log('ignored');
       onRefunded(ctx, event, order, payment, evt.amountPaise);
       return log('applied');
     }
     const next = TYPE_TO_STATUS[evt.type];
     if (!next) return log('ignored');
     const older = payment.status_at && evt.occurredAt < payment.status_at;
-    if (RANK[next] < RANK[payment.status] || next === payment.status || (RANK[next] === RANK[payment.status] && older))
-      return log('stale');
+    if (RANK[next] < RANK[payment.status] || next === payment.status || (RANK[next] === RANK[payment.status] && older)) return log('stale');
     // Money that does not match the intent is never applied automatically; finance reviews it.
     if (next === 'captured' && evt.amountPaise !== payment.amount_paise) {
       db.update('payments', payment.id, {
@@ -327,8 +299,7 @@ export function recordManualPayment(ctx, req, event, order, { amountPaise, metho
 // record. Goes through the same state machine, with a synthetic event id, and is audited.
 export function reconcilePayment(ctx, req, event, payment, { status, note }) {
   const { db } = ctx;
-  if (!['created', 'pending', 'failed'].includes(payment.status))
-    fail(409, 'Only an unsettled payment can be reconciled by hand');
+  if (!['created', 'pending', 'failed'].includes(payment.status)) fail(409, 'Only an unsettled payment can be reconciled by hand');
   const out = applyPaymentEvent(ctx, payment.provider, {
     eventId: `manual:${payment.id}:${status}:${Date.now()}`,
     type: status === 'captured' ? 'payment.captured' : 'payment.failed',
@@ -378,7 +349,11 @@ export function reconciliation(db, event) {
     event.id,
   ))
     if (o.paid_paise !== o.captured)
-      issues.push({ kind: 'order_mismatch', orderId: o.id, text: `Order ${o.number} shows ${inr(o.paid_paise)} paid but payments total ${inr(o.captured)}` });
+      issues.push({
+        kind: 'order_mismatch',
+        orderId: o.id,
+        text: `Order ${o.number} shows ${inr(o.paid_paise)} paid but payments total ${inr(o.captured)}`,
+      });
   for (const r of db.all(
     `SELECT r.id, r.ref FROM registrations r WHERE r.event_id = ? AND r.status = 'confirmed' AND r.payment_status = 'paid'
        AND NOT EXISTS (SELECT 1 FROM passes p WHERE p.registration_id = r.id AND p.status = 'active')`,
