@@ -132,12 +132,6 @@ export function addDays(ymd, n) {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
-// Every date from `from` to `to`, inclusive.
-export function daysBetween(from, to) {
-  const out = [];
-  for (let d = from; d <= to && out.length < 60; d = addDays(d, 1)) out.push(d);
-  return out;
-}
 // Offset of a timezone from UTC, in minutes, at a given instant.
 function tzOffsetMinutes(timezone, at) {
   const f = new Intl.DateTimeFormat('en-US', {

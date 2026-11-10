@@ -15,7 +15,6 @@ import {
   fail,
   GATE_ROLES,
   id,
-  inr,
   memberships,
   nowIso,
   num,
@@ -175,12 +174,10 @@ export default function orgRoutes(ctx) {
     const patch = { ...row, updated_at: nowIso() };
     if (Array.isArray(req.body.faqs))
       patch.faqs = JSON.stringify(
-        req.body.faqs
-          .slice(0, 30)
-          .map((f) => ({
-            q: str(f?.q, { max: 200, required: true, name: 'Question' }),
-            a: str(f?.a, { max: 1000, required: true, name: 'Answer' }),
-          })),
+        req.body.faqs.slice(0, 30).map((f) => ({
+          q: str(f?.q, { max: 200, required: true, name: 'Question' }),
+          a: str(f?.a, { max: 1000, required: true, name: 'Answer' }),
+        })),
       );
     if (req.body.settings && typeof req.body.settings === 'object') {
       const s = req.body.settings;
@@ -947,17 +944,15 @@ export default function orgRoutes(ctx) {
       orders: db
         .all("SELECT * FROM orders WHERE exhibitor_id = ? AND status != 'cancelled' ORDER BY id", ex.id)
         .map((o) => orderView(db, o)),
-      checklist: db
-        .all('SELECT * FROM checklist_items WHERE exhibitor_id = ? ORDER BY sort', ex.id)
-        .map((c) => ({
-          id: c.id,
-          title: c.title,
-          kind: c.kind,
-          dueOn: c.due_on,
-          status: c.status,
-          note: c.note,
-          hasUpload: Boolean(c.upload_id),
-        })),
+      checklist: db.all('SELECT * FROM checklist_items WHERE exhibitor_id = ? ORDER BY sort', ex.id).map((c) => ({
+        id: c.id,
+        title: c.title,
+        kind: c.kind,
+        dueOn: c.due_on,
+        status: c.status,
+        note: c.note,
+        hasUpload: Boolean(c.upload_id),
+      })),
       team: db.all("SELECT name, email, role, status FROM team_badges WHERE exhibitor_id = ? AND status != 'revoked' ORDER BY id", ex.id),
       // Organisers see how many leads a company captured, never the leads themselves.
       leadCount: db.value('SELECT COUNT(*) FROM leads WHERE exhibitor_id = ?', ex.id),

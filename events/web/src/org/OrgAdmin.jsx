@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { del, get, post, put } from '../api.js';
 import { Dialog, Empty, Field, FormDialog, Loaded, Notice, Status, Tabs, useAction, useFormDialog, useLoad } from '../ui.jsx';
-import { ago, clock, count, day, dayTime, inr, ROLE_LABELS, STATES, weekday } from '../format.js';
+import { ago, clock, count, day, dayTime, inr, ROLE_LABELS, weekday } from '../format.js';
 import { RESULTS } from '../../../shared/scanRules.js';
 import { PageTitle, scanTone, useOrg } from './shared.jsx';
 
