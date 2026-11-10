@@ -1,5 +1,7 @@
 # BrainADZ HRMS
 
+> This repository also holds **BrainADZ Events** (registration, passes, gate check-in, exhibitors and lead capture, with native iOS, Android and Windows apps). It is a separate project in [`events/`](events/README.md).
+
 People operations for **BrainADZ Live, BrainADZ Marketing and BrainADZ Exhibits** in one web app: hiring, AI resume screening, employee records, attendance, leave, Indian payroll, performance, POSH, resignations and reports.
 
 It is a complete application: a Node.js server with a SQLite database, real logins with roles, file uploads, and a React interface that follows the BrainADZ HRMS designs.

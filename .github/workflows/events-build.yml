@@ -74,6 +74,8 @@ jobs:
     defaults:
       run:
         working-directory: events/ios
+        # bash with pipefail, so a failed build is not hidden by the log trimming below
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen
