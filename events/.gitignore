@@ -1,0 +1,14 @@
+node_modules/
+data/
+web/dist/
+.env
+*.log
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.kotlin/
+ios/build/
+ios/*.xcodeproj/
+windows/bin/
+windows/obj/

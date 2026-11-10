@@ -1,0 +1,37 @@
+{
+  "name": "brainadz-events",
+  "version": "1.0.0",
+  "description": "BrainADZ Events - registration, passes, exhibitors, lead capture and gate operations for Indian exhibitions and conferences",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "build": "vite build --config web/vite.config.js",
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"tests/*.test.js\"",
+    "seed": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/reset.js",
+    "migrate": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/migrate.js",
+    "format": "prettier --write \"**/*.{js,jsx,mjs,css,html}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,mjs,css,html}\""
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-sans": "^5.2.8",
+    "@vitejs/plugin-react": "^4.7.0",
+    "express": "^5.3.0",
+    "jsqr": "^1.4.0",
+    "lucide-react": "^1.55.0",
+    "multer": "^2.4.0",
+    "nodemailer": "^7.0.10",
+    "qrcode": "^1.5.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4",
+    "vite": "^6.4.4"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10"
+  }
+}
