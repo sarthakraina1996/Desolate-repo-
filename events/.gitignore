@@ -12,3 +12,5 @@ ios/build/
 ios/*.xcodeproj/
 windows/bin/
 windows/obj/
+ios/BrainADZEvents/Info.plist
+ios/BrainADZEvents/BrainADZEvents.entitlements

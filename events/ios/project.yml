@@ -1,0 +1,48 @@
+# XcodeGen project definition. Generate the Xcode project with:  xcodegen generate
+name: BrainADZEvents
+options:
+  bundleIdPrefix: com.brainadz
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Set your Apple Developer team here or in Xcode (Signing & Capabilities).
+    DEVELOPMENT_TEAM: ""
+    # Address of the BrainADZ Events server, and the host that pass links (Universal Links) use.
+    API_BASE_URL: https:/$()/events.brainadz.example
+    LINK_HOST: events.brainadz.example
+  configs:
+    Debug:
+      # The simulator reaches a server on the development Mac at localhost.
+      API_BASE_URL: http:/$()/localhost:3100
+targets:
+  BrainADZEvents:
+    type: application
+    platform: iOS
+    sources: [BrainADZEvents]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.brainadz.events
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: BrainADZEvents/Info.plist
+      properties:
+        CFBundleDisplayName: BrainADZ Events
+        APIBaseURL: $(API_BASE_URL)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIUserInterfaceStyle: Light
+        NSCameraUsageDescription: The camera is used only to scan QR codes on passes and badges.
+        UIBackgroundModes: [remote-notification]
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    entitlements:
+      path: BrainADZEvents/BrainADZEvents.entitlements
+      properties:
+        aps-environment: development
+        com.apple.developer.associated-domains: ["applinks:$(LINK_HOST)"]
