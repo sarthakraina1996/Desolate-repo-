@@ -82,6 +82,6 @@ jobs:
       - run: xcodegen generate
       # A simulator build needs no signing identity; it proves the app compiles.
       - run: >
-          xcodebuild build -project BrainADZEvents.xcodeproj -scheme BrainADZEvents
+          xcodebuild build -quiet -project BrainADZEvents.xcodeproj -scheme BrainADZEvents
           -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
-          -configuration Debug CODE_SIGNING_ALLOWED=NO | tail -n 400
+          -configuration Debug CODE_SIGNING_ALLOWED=NO

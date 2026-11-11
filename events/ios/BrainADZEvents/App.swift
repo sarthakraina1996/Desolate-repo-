@@ -77,45 +77,74 @@ struct AppRoot: View {
         return isGate ? .gate : exhibitor != nil ? .exhibitor : .visitor
     }
 
-    var body: some View {
-        Group {
-            if !repo.ready {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.canvas)
-            } else {
-                TabView(selection: $tab) {
-                    switch mode {
-                    case .visitor:
-                        PassScreen(onRegister: { showRegister = true }, onSignIn: { if repo.signedIn { Task { await repo.start() } } else { showSignIn = true } })
-                            .tabItem { Label("Pass", systemImage: "ticket") }.tag("pass")
-                        guideTab(explore: true).tabItem { Label("Explore", systemImage: "map") }.tag("explore")
-                        guideTab(explore: false).tabItem { Label("Agenda", systemImage: "calendar") }.tag("agenda")
-                    case .exhibitor:
-                        if let role = exhibitor {
-                            BoothScreen(role: role).tabItem { Label("Booth", systemImage: "building.2") }.tag("booth")
-                            TeamScreen(role: role).tabItem { Label("Team", systemImage: "person.text.rectangle") }.tag("team")
-                            LeadsScreen(role: role).tabItem { Label("Leads", systemImage: "person.2") }.tag("leads")
-                            LeadScanScreen(role: role).tabItem { Label("Scan", systemImage: "qrcode.viewfinder") }.tag("scan")
-                        }
-                    case .gate:
-                        GateScreen().tabItem { Label("Scan", systemImage: "qrcode.viewfinder") }.tag("gate")
-                    }
-                    ProfileScreen(modes: modes, mode: mode, onMode: { chosen = $0 }, onSignIn: { showSignIn = true })
-                        .tabItem { Label("Profile", systemImage: "person") }.tag("profile")
-                }
+    // The tabs for the current workspace. Kept apart from `body` so each piece type-checks quickly.
+    @ViewBuilder
+    var workspaceTabs: some View {
+        switch mode {
+        case .visitor:
+            PassScreen(onRegister: { showRegister = true }, onSignIn: signInOrRefresh)
+                .tabItem { Label("Pass", systemImage: "ticket") }.tag("pass")
+            guideTab(explore: true).tabItem { Label("Explore", systemImage: "map") }.tag("explore")
+            guideTab(explore: false).tabItem { Label("Agenda", systemImage: "calendar") }.tag("agenda")
+        case .exhibitor:
+            if let role = exhibitor {
+                BoothScreen(role: role).tabItem { Label("Booth", systemImage: "building.2") }.tag("booth")
+                TeamScreen(role: role).tabItem { Label("Team", systemImage: "person.text.rectangle") }.tag("team")
+                LeadsScreen(role: role).tabItem { Label("Leads", systemImage: "person.2") }.tag("leads")
+                LeadScanScreen(role: role).tabItem { Label("Scan", systemImage: "qrcode.viewfinder") }.tag("scan")
+            }
+        case .gate:
+            GateScreen().tabItem { Label("Scan", systemImage: "qrcode.viewfinder") }.tag("gate")
+        }
+    }
+    func signInOrRefresh() {
+        if repo.signedIn { Task { await repo.start() } } else { showSignIn = true }
+    }
+    func firstTab(_ m: Mode) -> String {
+        switch m {
+        case .visitor: return "pass"
+        case .exhibitor: return "booth"
+        case .gate: return "gate"
+        }
+    }
+
+    @ViewBuilder
+    var content: some View {
+        if !repo.ready {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.canvas)
+        } else {
+            TabView(selection: $tab) {
+                workspaceTabs
+                ProfileScreen(modes: modes, mode: mode, onMode: { chosen = $0 }, onSignIn: { showSignIn = true })
+                    .tabItem { Label("Profile", systemImage: "person") }.tag("profile")
             }
         }
-        .task { await repo.start() }
-        // Coming back to the app refreshes passes and uploads any queued scans.
-        .onChange(of: phase) { p in if p == .active && repo.ready { Task { await repo.start() } } }
-        // The first tab of the new workspace is shown after a switch.
-        .onChange(of: mode) { m in tab = m == .visitor ? "pass" : m == .exhibitor ? "booth" : "gate" }
-        .onOpenURL(perform: open)
-        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in if let url = activity.webpageURL { open(url) } }
-        .sheet(isPresented: $showSignIn) { SignInScreen { showSignIn = false }.environmentObject(repo) }
-        .sheet(isPresented: $showRegister) {
-            if let guide = repo.guide { RegisterScreen(guide: guide) { showRegister = false; tab = "pass" }.environmentObject(repo) }
+    }
+
+    var body: some View {
+        let linkAlert = Binding<Bool>(get: { linkError != nil }, set: { if !$0 { linkError = nil } })
+        return content
+            .task { await repo.start() }
+            // Coming back to the app refreshes passes and uploads any queued scans.
+            .onChange(of: phase) { p in
+                if p == .active && repo.ready { Task { await repo.start() } }
+            }
+            // The first tab of the new workspace is shown after a switch.
+            .onChange(of: mode) { m in tab = firstTab(m) }
+            .onOpenURL(perform: open)
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { open(url) }
+            }
+            .sheet(isPresented: $showSignIn) { SignInScreen { showSignIn = false }.environmentObject(repo) }
+            .sheet(isPresented: $showRegister) { registerSheet }
+            .alert(linkError ?? "", isPresented: linkAlert) { Button("OK", role: .cancel) {} }
+    }
+
+    @ViewBuilder
+    var registerSheet: some View {
+        if let guide = repo.guide {
+            RegisterScreen(guide: guide) { showRegister = false; tab = "pass" }.environmentObject(repo)
         }
-        .alert(linkError ?? "", isPresented: Binding(get: { linkError != nil }, set: { if !$0 { linkError = nil } })) { Button("OK", role: .cancel) {} }
     }
 
     @ViewBuilder

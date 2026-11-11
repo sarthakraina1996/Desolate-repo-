@@ -1159,15 +1159,24 @@ details.faq p {
   display: none;
 }
 @media print {
-  body.printing-badge > #root > *:not(.badge-sheet) {
-    display: none !important;
+  /* Badge printing: hide the whole page, then show only the badge sheet at the top-left. */
+  body.printing-badge * {
+    visibility: hidden;
+  }
+  body.printing-badge .badge-sheet,
+  body.printing-badge .badge-sheet * {
+    visibility: visible;
   }
   body.printing-badge .badge-sheet {
     display: block;
+    position: fixed;
+    left: 0;
+    top: 0;
     width: 86mm;
     padding: 6mm;
     text-align: center;
     color: #000;
+    background: #fff;
   }
   .badge-sheet .n {
     font-size: 22pt;
