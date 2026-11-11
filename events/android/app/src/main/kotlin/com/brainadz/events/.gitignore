@@ -1,0 +1,2 @@
+# The repository ignores "data/" folders (server databases); this one is source code.
+!data/
