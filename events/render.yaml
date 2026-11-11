@@ -1,0 +1,23 @@
+# Render Blueprint for BrainADZ Events: one web service with a persistent disk for the
+# database and uploaded files. In Render: New > Blueprint > pick this repository and set
+# "Blueprint Path" to events/render.yaml.
+services:
+  - type: web
+    name: brainadz-events
+    runtime: docker
+    dockerfilePath: ./events/Dockerfile
+    dockerContext: ./events
+    plan: starter          # a persistent disk needs a paid instance
+    region: singapore      # closest Render region to India
+    healthCheckPath: /api/v1/auth/config
+    disk:
+      name: events-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: SEED
+        value: demo        # first start loads the FutureWorks Expo demo
+      - key: APP_SECRET
+        generateValue: true
