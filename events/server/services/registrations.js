@@ -178,7 +178,9 @@ export function advance(ctx, event, regId, { notify = true } = {}) {
       name: reg.name,
       company: reg.company,
     });
-    if (!had && notify) mail.passReady(ctx, event, reg, rotateAccess(db, reg));
+    // A visitor who already holds a ticket link (they paid or were approved after registering)
+    // keeps it working; the email then points to that link and to sign-in instead of a new one.
+    if (!had && notify) mail.passReady(ctx, event, reg, reg.access_hash ? null : rotateAccess(db, reg));
     return pass;
   });
 }

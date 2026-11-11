@@ -181,26 +181,27 @@ export function seedDemo(ctx) {
     // ---------- halls, gates, amenities, displays ----------
     const zone = (code, name, kind, plan, restricted = 0, sort = 0) =>
       db.insert('zones', { event_id: eid, code, name, kind, restricted, plan: JSON.stringify(plan), sort });
-    const hallA = zone('HALL-A', 'Hall A', 'hall', { cols: 10, rows: 7 }, 0, 1);
-    const hallB = zone('HALL-B', 'Hall B', 'hall', { cols: 10, rows: 7 }, 0, 2);
+    // Hall plans are in metres: 40 m wide, 28 m deep.
+    const hallA = zone('HALL-A', 'Hall A', 'hall', { cols: 40, rows: 28 }, 0, 1);
+    const hallB = zone('HALL-B', 'Hall B', 'hall', { cols: 40, rows: 28 }, 0, 2);
     const conf = zone('CONF', 'Conference Theatre', 'conference', {}, 0, 3);
     const vip = zone('VIP', 'VIP Lounge', 'restricted', {}, 1, 4);
     const gate = (code, name, zoneId, x, y) => db.insert('gates', { event_id: eid, zone_id: zoneId, code, name, x, y });
-    const g1 = gate('G1', 'Gate 1', hallA, 5, 7);
-    const g2 = gate('G2', 'Gate 2', hallB, 5, 7);
+    const g1 = gate('G1', 'Gate 1', hallA, 20, 28);
+    const g2 = gate('G2', 'Gate 2', hallB, 20, 28);
     const g3 = gate('G3', 'Gate 3', conf, null, null);
     const amenity = (zoneId, kind, label, x, y, accessible = 0) =>
       db.insert('amenities', { event_id: eid, zone_id: zoneId, kind, label, x, y, accessible });
-    amenity(hallA, 'help', 'Help desk', 1, 6.5);
-    amenity(hallA, 'toilets', 'Toilets (accessible)', 9.3, 0.4, 1);
-    amenity(hallA, 'first_aid', 'First aid and quiet room', 0.7, 0.4, 1);
-    amenity(hallA, 'cafe', 'Café', 9.3, 6.5);
-    amenity(hallB, 'stage', 'Expo Stage', 5, 5.6);
-    amenity(hallB, 'toilets', 'Toilets (accessible)', 9.3, 0.4, 1);
-    amenity(hallB, 'charging', 'Charging point', 0.7, 6.5);
-    amenity(hallB, 'prayer', 'Prayer room', 0.7, 0.4);
-    db.insert('kiosks', { event_id: eid, zone_id: hallA, code: 'K1', name: 'Hall A entrance display', mode: 'both', x: 5, y: 6.4 });
-    db.insert('kiosks', { event_id: eid, zone_id: hallB, code: 'K2', name: 'Hall B stage display', mode: 'both', x: 5, y: 3 });
+    amenity(hallA, 'help', 'Help desk', 3, 25.5);
+    amenity(hallA, 'toilets', 'Toilets (accessible)', 37, 1.5, 1);
+    amenity(hallA, 'first_aid', 'First aid and quiet room', 3, 1.5, 1);
+    amenity(hallA, 'cafe', 'Café', 37, 25.5);
+    amenity(hallB, 'stage', 'Expo Stage', 20, 22);
+    amenity(hallB, 'toilets', 'Toilets (accessible)', 37, 1.5, 1);
+    amenity(hallB, 'charging', 'Charging point', 3, 25.5);
+    amenity(hallB, 'prayer', 'Prayer room', 3, 1.5);
+    db.insert('kiosks', { event_id: eid, zone_id: hallA, code: 'K1', name: 'Hall A entrance display', mode: 'both', x: 20, y: 25 });
+    db.insert('kiosks', { event_id: eid, zone_id: hallB, code: 'K2', name: 'Hall B stage display', mode: 'both', x: 20, y: 11 });
 
     // ---------- booths ----------
     const booths = {};
@@ -210,19 +211,20 @@ export function seedDemo(ctx) {
         zone_id: zoneId,
         code,
         kind,
-        size_sqm: kind === 'premium' ? 18 : 9,
+        // Shell stalls are 6 × 3 m; premium corner stalls 7.5 × 4 m.
+        size_sqm: kind === 'premium' ? 30 : 18,
         price_paise: kind === 'premium' ? 9600000 : 4800000,
         x,
         y,
-        w: 2,
-        h: 1,
+        w: kind === 'premium' ? 7.5 : 6,
+        h: kind === 'premium' ? 4 : 3,
         blocked,
         note,
       });
     };
     let n = 0;
-    for (const y of [1, 2, 4, 5])
-      for (const x of [1, 3, 5, 7]) {
+    for (const y of [3, 7, 15, 18])
+      for (const x of [3, 12, 21, 30]) {
         n++;
         const code = `A${String(n).padStart(2, '0')}`;
         booth(
@@ -236,8 +238,8 @@ export function seedDemo(ctx) {
         );
       }
     n = 0;
-    for (const y of [1, 2, 4])
-      for (const x of [1, 3, 5, 7]) {
+    for (const y of [3, 6, 13])
+      for (const x of [3, 12, 21, 30]) {
         n++;
         booth(`B${String(n).padStart(2, '0')}`, hallB, x, y);
       }

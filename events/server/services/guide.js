@@ -5,6 +5,9 @@ import { json } from '../db.js';
 import { eventSettings, hmIn, ymdIn } from '../core.js';
 import { formFields, publicPassClasses } from './registrations.js';
 
+// Address of an uploaded floor drawing, or null.
+export const planImageUrl = (uploadId) => (uploadId ? `/api/v1/public/plan-image/${uploadId}` : null);
+
 export function eventSummary(event) {
   return {
     id: event.id,
@@ -73,6 +76,7 @@ export function mapData(db, event) {
       kind: z.kind,
       cols: plan.cols || 0,
       rows: plan.rows || 0,
+      image: planImageUrl(plan.image),
       booths: booths
         .filter((b) => b.zone_id === z.id)
         .map((b) => {

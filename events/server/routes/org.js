@@ -35,7 +35,7 @@ import {
   zonedToUtc,
 } from '../core.js';
 import { checkPasswordStrength, destroyUserSessions, findOrCreateUser, hashPassword } from '../auth.js';
-import { eventSummary } from '../services/guide.js';
+import { eventSummary, planImageUrl } from '../services/guide.js';
 import {
   advance,
   cancelRegistration,
@@ -67,6 +67,10 @@ function camel(row, jsonCols = []) {
   return out;
 }
 
+// Largest hall and stall the floor plan accepts, in metres.
+const MAX_HALL_M = 1000;
+const MAX_STALL_M = 200;
+
 export default function orgRoutes(ctx) {
   const { db, adapters } = ctx;
   const r = Router();
@@ -78,6 +82,57 @@ export default function orgRoutes(ctx) {
     return row;
   };
   const zoneOf = (event, zid) => owned('zones', event, zid, 'Hall').id;
+  // The first stall in a hall that would not fit a hall of this size, if any.
+  const stallOutside = (zoneId, cols, rows) =>
+    db.get(
+      'SELECT code, x, y, w, h FROM booths WHERE zone_id = ? AND (x + w > ? + 0.01 OR y + h > ? + 0.01) ORDER BY code LIMIT 1',
+      zoneId,
+      cols,
+      rows,
+    ) || null;
+  // Metres, rounded to the nearest 10 cm.
+  const metres = (v, opts) => {
+    const n = num(v, opts);
+    return n == null ? null : Math.round(n * 10) / 10;
+  };
+  // Checks a stall against its hall and the other stalls there; returns the problem, if any.
+  const layoutProblem = (zone, stall, others) => {
+    const plan = json(zone.plan, {});
+    if (plan.cols && (stall.x + stall.w > plan.cols + 0.01 || stall.y + stall.h > plan.rows + 0.01))
+      return `Stall ${stall.code} goes outside ${zone.name} (${plan.cols} × ${plan.rows} m)`;
+    const hit = others.find(
+      (o) =>
+        o.zone_id === stall.zone_id &&
+        o.x < stall.x + stall.w - 0.01 &&
+        stall.x < o.x + o.w - 0.01 &&
+        o.y < stall.y + stall.h - 0.01 &&
+        stall.y < o.y + o.h - 0.01,
+    );
+    return hit ? `Stall ${stall.code} overlaps stall ${hit.code}` : null;
+  };
+  // Validates one stall. Sizes are in metres; the area is width × depth.
+  const boothRow = (event, b, selfId) => {
+    const w = metres(b.w, { min: 0.5, max: MAX_STALL_M, required: true, name: 'Width' });
+    const h = metres(b.h, { min: 0.5, max: MAX_STALL_M, required: true, name: 'Depth' });
+    const row = {
+      code: code(b.code),
+      zone_id: zoneOf(event, b.zoneId),
+      kind: oneOf(b.kind, ['shell', 'raw', 'premium']) || 'shell',
+      size_sqm: Math.max(1, Math.round(w * h)),
+      price_paise: num(b.pricePaise, { min: 0, int: true, name: 'Price' }) || 0,
+      x: metres(b.x, { min: 0, max: MAX_HALL_M, required: true, name: 'Position from left' }),
+      y: metres(b.y, { min: 0, max: MAX_HALL_M, required: true, name: 'Position from top' }),
+      w,
+      h,
+      blocked: bool(b.blocked),
+      note: str(b.note, { max: 200 }),
+    };
+    const zone = db.get('SELECT * FROM zones WHERE id = ?', row.zone_id);
+    const others = db.all('SELECT * FROM booths WHERE event_id = ? AND id != ?', event.id, selfId ?? 0);
+    const problem = layoutProblem(zone, row, others);
+    if (problem) fail(409, problem);
+    return row;
+  };
 
   // ---------- events ----------
   r.get('/org/events', (req, res) => {
@@ -287,18 +342,27 @@ export default function orgRoutes(ctx) {
   }
   const code = (v) => str(v, { max: 24, required: true, name: 'Code' }).toUpperCase().replace(/\s+/g, '-');
 
-  resource('zones', 'zones', 'floor.manage', (b) => ({
-    code: code(b.code),
-    name: str(b.name, { max: 80, required: true, name: 'Name' }),
-    kind: oneOf(b.kind, ['hall', 'conference', 'restricted', 'service']) || 'hall',
-    restricted: bool(b.restricted),
-    capacity: num(b.capacity, { min: 0, int: true }),
-    plan: JSON.stringify({
-      cols: num(b.cols, { min: 0, max: 60, int: true }) || 0,
-      rows: num(b.rows, { min: 0, max: 60, int: true }) || 0,
-    }),
-    sort: num(b.sort, { int: true }) || 0,
-  }));
+  // A hall's plan is measured in metres: cols is its width and rows its depth.
+  resource('zones', 'zones', 'floor.manage', (b, _event, existing) => {
+    const cols = num(b.cols, { min: 0, max: MAX_HALL_M, name: 'Hall width' }) || 0;
+    const rows = num(b.rows, { min: 0, max: MAX_HALL_M, name: 'Hall depth' }) || 0;
+    // A hall cannot shrink past the stalls already placed in it.
+    const out = existing && cols ? stallOutside(existing.id, cols, rows) : null;
+    if (out)
+      fail(
+        409,
+        `Stall ${out.code} would be outside the hall. Move it first, or keep the hall at least ${Math.max(out.x + out.w, 0)} × ${out.y + out.h} m.`,
+      );
+    return {
+      code: code(b.code),
+      name: str(b.name, { max: 80, required: true, name: 'Name' }),
+      kind: oneOf(b.kind, ['hall', 'conference', 'restricted', 'service']) || 'hall',
+      restricted: bool(b.restricted),
+      capacity: num(b.capacity, { min: 0, int: true }),
+      plan: JSON.stringify({ ...json(existing?.plan, {}), cols, rows }),
+      sort: num(b.sort, { int: true }) || 0,
+    };
+  });
   resource('gates', 'gates', 'floor.manage', (b, event) => ({
     code: code(b.code),
     name: str(b.name, { max: 80, required: true, name: 'Name' }),
@@ -355,19 +419,9 @@ export default function orgRoutes(ctx) {
     }),
     { jsonCols: ['options'] },
   );
-  resource('booths', 'booths', 'floor.manage', (b, event) => ({
-    code: code(b.code),
-    zone_id: zoneOf(event, b.zoneId),
-    kind: oneOf(b.kind, ['shell', 'raw', 'premium']) || 'shell',
-    size_sqm: num(b.sizeSqm, { min: 1, max: 2000, int: true, name: 'Size' }) || 9,
-    price_paise: num(b.pricePaise, { min: 0, int: true, name: 'Price' }) || 0,
-    x: num(b.x, { min: 0, max: 60, required: true, name: 'Column' }),
-    y: num(b.y, { min: 0, max: 60, required: true, name: 'Row' }),
-    w: num(b.w, { min: 0.5, max: 20 }) || 1,
-    h: num(b.h, { min: 0.5, max: 20 }) || 1,
-    blocked: bool(b.blocked),
-    note: str(b.note, { max: 200 }),
-  }));
+  resource('booths', 'booths', 'floor.manage', (b, event, existing) =>
+    boothRow(event, { ...b, code: b.code ?? existing?.code }, existing?.id ?? null),
+  );
   resource(
     'kiosks',
     'kiosks',
@@ -1021,7 +1075,9 @@ export default function orgRoutes(ctx) {
         code: z.code,
         name: z.name,
         kind: z.kind,
-        ...json(z.plan, {}),
+        cols: json(z.plan, {}).cols || 0,
+        rows: json(z.plan, {}).rows || 0,
+        image: planImageUrl(json(z.plan, {}).image),
         gates: db.all('SELECT id, code, name, x, y FROM gates WHERE zone_id = ? AND active = 1', z.id),
         booths: booths
           .filter((b) => b.zone_id === z.id)
@@ -1044,6 +1100,146 @@ export default function orgRoutes(ctx) {
           })),
       })),
     );
+  });
+
+  // ---------- floor plan drawing and stall import ----------
+  // Uploads the hall's floor drawing (an image). Visitors and staff see it under the stalls.
+  r.post(
+    '/org/events/:eid/zones/:zid/plan-image',
+    ctx.upload('plans', { maxMb: 12, exts: ['.png', '.jpg', '.jpeg', '.webp'] }).single('file'),
+    (req, res) => {
+      const event = ev(req, 'floor.manage');
+      const zone = owned('zones', event, req.params.zid, 'Hall');
+      if (!req.file) fail(400, 'Choose an image of the floor plan (PNG or JPG)');
+      const uploadId = db.insert('uploads', {
+        event_id: event.id,
+        kind: 'plan',
+        filename: req.file.originalname.slice(0, 200),
+        stored_name: req.file.filename,
+        mime: req.file.mimetype,
+        size: req.file.size,
+        uploaded_by: req.user.id,
+        created_at: nowIso(),
+      });
+      const plan = json(zone.plan, {});
+      // When the drawing's proportions are known and the hall has a width, the depth follows it.
+      const ratio = num(req.body?.ratio, { min: 0.05, max: 20 });
+      const next = { ...plan, image: uploadId };
+      let depthKept = false;
+      if (ratio && plan.cols) {
+        const rows = Math.round(plan.cols * ratio * 10) / 10;
+        // Keep the depth when following the drawing would leave stalls outside the hall.
+        if (stallOutside(zone.id, plan.cols, rows)) depthKept = true;
+        else next.rows = rows;
+      }
+      db.update('zones', zone.id, { plan: JSON.stringify(next) });
+      touchGuide(db, event.id);
+      audit(db, req, 'floor.plan_image', { event, entity: 'zone', entityId: zone.id, detail: { file: req.file.originalname } });
+      res.status(201).json({ image: planImageUrl(uploadId), cols: next.cols || 0, rows: next.rows || 0, depthKept });
+    },
+  );
+  r.delete('/org/events/:eid/zones/:zid/plan-image', (req, res) => {
+    const event = ev(req, 'floor.manage');
+    const zone = owned('zones', event, req.params.zid, 'Hall');
+    const { image, ...rest } = json(zone.plan, {});
+    db.update('zones', zone.id, { plan: JSON.stringify(rest) });
+    touchGuide(db, event.id);
+    audit(db, req, 'floor.plan_image_removed', { event, entity: 'zone', entityId: zone.id, detail: { upload: image } });
+    res.json({ ok: true });
+  });
+
+  // Imports a stall list (from a spreadsheet saved as CSV, parsed in the browser). Stalls are
+  // matched by code: new codes are added, existing ones updated, others left alone. Nothing is
+  // saved unless every row is valid and the finished layout has no overlaps.
+  r.post('/org/events/:eid/booths/import', (req, res) => {
+    const event = ev(req, 'floor.manage');
+    const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+    if (!rows.length) fail(400, 'The file has no stalls in it');
+    if (rows.length > 2000) fail(400, 'Import at most 2,000 stalls at a time');
+    const zones = db.all('SELECT * FROM zones WHERE event_id = ?', event.id);
+    const findZone = (v) => {
+      const k = String(v ?? '')
+        .trim()
+        .toLowerCase();
+      return zones.find((z) => z.code.toLowerCase() === k || z.name.toLowerCase() === k);
+    };
+    const errors = [];
+    const parsed = [];
+    const seen = new Set();
+    rows.forEach((raw, i) => {
+      const line = i + 2; // row 1 is the header in the spreadsheet
+      try {
+        const zone = findZone(raw.hall);
+        if (!zone) fail(400, `Hall "${raw.hall ?? ''}" is not one of: ${zones.map((z) => z.name).join(', ')}`);
+        const c = code(raw.code);
+        if (seen.has(c)) fail(400, `Stall ${c} appears twice in the file`);
+        seen.add(c);
+        const w = metres(raw.width, { min: 0.5, max: MAX_STALL_M, required: true, name: 'Width' });
+        const h = metres(raw.depth, { min: 0.5, max: MAX_STALL_M, required: true, name: 'Depth' });
+        const kind =
+          String(raw.type ?? '')
+            .trim()
+            .toLowerCase() || 'shell';
+        if (!['shell', 'raw', 'premium'].includes(kind)) fail(400, 'Type must be shell, raw or premium');
+        const price = num(String(raw.price ?? '').replace(/[₹,\s]/g, ''), { min: 0, name: 'Price' });
+        parsed.push({
+          line,
+          row: {
+            event_id: event.id,
+            code: c,
+            zone_id: zone.id,
+            kind,
+            x: metres(raw.x, { min: 0, max: MAX_HALL_M, required: true, name: 'x' }),
+            y: metres(raw.y, { min: 0, max: MAX_HALL_M, required: true, name: 'y' }),
+            w,
+            h,
+            size_sqm: Math.max(1, Math.round(w * h)),
+            price_paise: Math.round((price || 0) * 100),
+            blocked: ['yes', 'y', 'true', '1'].includes(
+              String(raw.blocked ?? '')
+                .trim()
+                .toLowerCase(),
+            ),
+            note: str(raw.note, { max: 200 }),
+          },
+        });
+      } catch (e) {
+        errors.push({ line, error: e.message });
+      }
+    });
+    if (!errors.length) {
+      // Check the finished layout: imported stalls plus the stalls the file does not mention.
+      const kept = db.all('SELECT * FROM booths WHERE event_id = ?', event.id).filter((b) => !seen.has(b.code));
+      const placed = [...kept];
+      for (const p of parsed) {
+        const problem = layoutProblem(
+          zones.find((z) => z.id === p.row.zone_id),
+          p.row,
+          placed,
+        );
+        if (problem) errors.push({ line: p.line, error: problem });
+        placed.push(p.row);
+      }
+    }
+    if (errors.length) return res.status(400).json({ error: `${errors.length} row(s) need fixing. Nothing was imported.`, errors });
+    let added = 0;
+    let updated = 0;
+    db.tx(() => {
+      for (const { row } of parsed) {
+        const existing = db.get('SELECT id FROM booths WHERE event_id = ? AND code = ?', event.id, row.code);
+        if (existing) {
+          const { event_id: _e, ...patch } = row;
+          db.update('booths', existing.id, patch);
+          updated++;
+        } else {
+          db.insert('booths', row);
+          added++;
+        }
+      }
+      touchGuide(db, event.id);
+      audit(db, req, 'floor.import', { event, detail: { added, updated } });
+    });
+    res.json({ added, updated });
   });
 
   // ---------- finance ----------

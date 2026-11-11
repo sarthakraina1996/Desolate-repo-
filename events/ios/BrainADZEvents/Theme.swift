@@ -6,14 +6,16 @@ extension Color {
     init(hex: UInt32) {
         self.init(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }
-    static let canvas = Color(hex: 0xF5F4F0)
+    static let canvas = Color(hex: 0xF4F5F7)
     static let surface = Color(hex: 0xFFFFFF)
-    static let ink = Color(hex: 0x20262B)
-    static let ink2 = Color(hex: 0x54615F)
-    static let petrol = Color(hex: 0x1F5154)
-    static let selectedFill = Color(hex: 0xE8EFED)
-    static let rule = Color(hex: 0xD9DEDA)
-    static let control = Color(hex: 0x7A8580)
+    static let ink = Color(hex: 0x231F20)
+    static let ink2 = Color(hex: 0x5A5F6B)
+    // BrainADZ Live red, used for actions; navy is the wordmark colour.
+    static let petrol = Color(hex: 0xC82026)
+    static let navy = Color(hex: 0x233E85)
+    static let selectedFill = Color(hex: 0xFBE9EA)
+    static let rule = Color(hex: 0xE1E3E8)
+    static let control = Color(hex: 0x7C818C)
     static let okText = Color(hex: 0x2E6046)
     static let okFill = Color(hex: 0xE8F2EB)
     static let pendingText = Color(hex: 0x765018)
@@ -127,7 +129,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .font(.body.weight(.semibold))
             .frame(maxWidth: .infinity, minHeight: 50)
             .foregroundColor(.white)
-            .background(configuration.isPressed ? Color(hex: 0x173E41) : Color.petrol, in: RoundedRectangle(cornerRadius: 6))
+            .background(configuration.isPressed ? Color(hex: 0xA3191F) : Color.petrol, in: RoundedRectangle(cornerRadius: 6))
             .opacity(enabled ? 1 : 0.55)
     }
 }

@@ -1,6 +1,7 @@
 // Organiser console: shell and the day-to-day screens (live operations, registrations,
 // exhibitors, floor plan). Configuration, finance and reporting live in OrgAdmin.jsx.
-import { useEffect, useMemo, useState } from 'react';
+import logo from '../assets/brainadz-live.png';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   BarChart3,
@@ -18,10 +19,10 @@ import {
 import { get, post, put } from '../api.js';
 import { useMe } from '../App.jsx';
 import { Dialog, Empty, FormDialog, Loaded, Notice, Status, Tabs, useAction, useFormDialog, useLoad } from '../ui.jsx';
-import { HallPlan } from '../components.jsx';
 import { clock, count, dateRange, day, dayTime, inr, ROLE_LABELS, STATES } from '../format.js';
 import { RESULTS } from '../../../shared/scanRules.js';
 import { AgendaAdmin, Comms, Finance, GateOps, Reports, SettingsPage } from './OrgAdmin.jsx';
+import FloorPlan from './FloorPlan.jsx';
 import { OrgCtx, PageTitle, scanTone, useOrg } from './shared.jsx';
 
 // Picks the event to open: the only one, or a list.
@@ -81,8 +82,8 @@ export default function OrgShell() {
         <OrgCtx.Provider value={{ eid, base, api: `/org/events/${eid}`, cfg, can, role: mine.role, reloadConfig: load.reload }}>
           <div className="shell">
             <aside className="side no-print">
-              <Link to={base} className="brand">
-                BrainADZ Events
+              <Link to={base} className="brand" aria-label="BrainADZ Live">
+                <img src={logo} alt="BrainADZ Live" width="85" height="40" />
               </Link>
               <nav aria-label="Console">
                 {items.map((n) => (
@@ -120,7 +121,7 @@ export default function OrgShell() {
                   <Route index element={<Live />} />
                   <Route path="registrations" element={<Registrations />} />
                   <Route path="exhibitors" element={<Exhibitors />} />
-                  <Route path="floor" element={<Floor />} />
+                  <Route path="floor" element={<FloorPlan />} />
                   <Route path="agenda" element={<AgendaAdmin />} />
                   <Route path="finance" element={<Finance />} />
                   <Route path="gates" element={<GateOps />} />
@@ -691,7 +692,7 @@ function Exhibitors() {
   );
 }
 
-function ExhibitorDialog({ id, onClose, onChanged }) {
+export function ExhibitorDialog({ id, onClose, onChanged }) {
   const { api, can } = useOrg();
   const load = useLoad(() => get(`${api}/exhibitors/${id}`), [id]);
   const floor = useLoad(() => get(`${api}/floor`), [api]);
@@ -922,146 +923,5 @@ function ExhibitorDialog({ id, onClose, onChanged }) {
         )}
       </Loaded>
     </Dialog>
-  );
-}
-
-// ---------- floor plan ----------
-function Floor() {
-  const { api, can, cfg } = useOrg();
-  const load = useLoad(() => get(`${api}/floor`), [api]);
-  const [sel, setSel] = useState(null);
-  const [edit, setEdit] = useState(null);
-  const [openEx, setOpenEx] = useState(null);
-  const act = useAction();
-  const halls = useMemo(() => (load.data || []).map((z) => ({ ...z, cols: z.cols || 0, rows: z.rows || 0, amenities: [] })), [load.data]);
-  const booth = halls.flatMap((h) => h.booths).find((b) => b.id === sel);
-  const tone = (b) => (b.status === 'available' ? 'free' : b.status === 'confirmed' ? '' : b.status);
-  const label = (b) => `Booth ${b.code}, ${STATES.booth[b.status][1]}${b.exhibitor ? `, ${b.exhibitor}` : ''}`;
-  const totals = halls.flatMap((h) => h.booths).reduce((a, b) => ((a[b.status] = (a[b.status] || 0) + 1), a), {});
-  const boothFields = [
-    { key: 'code', label: 'Booth code', required: true },
-    {
-      key: 'zoneId',
-      label: 'Hall',
-      type: 'select',
-      required: true,
-      options: cfg.zones.filter((z) => z.cols > 0).map((z) => ({ value: z.id, label: z.name })),
-    },
-    { key: 'kind', label: 'Type', type: 'select', required: true, options: ['shell', 'raw', 'premium'] },
-    { key: 'sizeSqm', label: 'Size (sq m)', type: 'number', required: true },
-    { key: 'pricePaise', label: 'Price before GST (₹)', type: 'money', required: true },
-    { key: 'x', label: 'Column on plan', type: 'number', step: '0.5', required: true },
-    { key: 'y', label: 'Row on plan', type: 'number', step: '0.5', required: true },
-    { key: 'w', label: 'Width in cells', type: 'number', step: '0.5', required: true, default: 2 },
-    { key: 'h', label: 'Depth in cells', type: 'number', step: '0.5', required: true, default: 1 },
-    { key: 'blocked', label: 'Blocked (cannot be allocated)', type: 'checkbox' },
-    { key: 'note', label: 'Note' },
-  ];
-  const save = (v) => (edit.id ? put(`${api}/booths/${edit.id}`, v) : post(`${api}/booths`, v)).then(load.reload);
-  return (
-    <div className="stack">
-      <PageTitle title="Floor plan">
-        <a className="btn" href={`/api/v1${api}/reports/booths.csv`}>
-          Export CSV
-        </a>
-        {can('floor.manage') && (
-          <button className="btn primary" onClick={() => setEdit({})}>
-            Add booth
-          </button>
-        )}
-      </PageTitle>
-      <div className="row wrap" role="group" aria-label="Booth totals">
-        {['confirmed', 'held', 'available', 'blocked'].map((s) => (
-          <span key={s}>
-            <Status kind="booth" value={s} /> <span className="num">{totals[s] || 0}</span>
-          </span>
-        ))}
-      </div>
-      <Loaded load={load}>
-        {() => (
-          <div className="split">
-            <HallPlan halls={halls} selected={sel} onSelect={(b) => setSel(b.id)} tone={tone} label={label} />
-            <aside className="panel" aria-live="polite">
-              {booth ? (
-                <div className="body stack tight">
-                  <div className="row between">
-                    <h2>Booth {booth.code}</h2>
-                    <Status kind="booth" value={booth.status} />
-                  </div>
-                  <dl className="kv">
-                    <dt>Type</dt>
-                    <dd>
-                      {booth.kind}, {booth.sizeSqm} sq m
-                    </dd>
-                    <dt>Price</dt>
-                    <dd>{inr(booth.pricePaise)} + GST</dd>
-                    <dt>Exhibitor</dt>
-                    <dd>{booth.exhibitor || '—'}</dd>
-                    {booth.holdExpiresAt && (
-                      <>
-                        <dt>Hold ends</dt>
-                        <dd>{dayTime(booth.holdExpiresAt)}</dd>
-                      </>
-                    )}
-                    {booth.note && (
-                      <>
-                        <dt>Note</dt>
-                        <dd>{booth.note}</dd>
-                      </>
-                    )}
-                  </dl>
-                  {booth.exhibitorId && (
-                    <button className="btn" onClick={() => setOpenEx(booth.exhibitorId)}>
-                      Open exhibitor
-                    </button>
-                  )}
-                  {booth.status === 'held' && can('exh.allocate') && (
-                    <button
-                      className="btn primary"
-                      onClick={() =>
-                        act(() => post(`${api}/assignments/${booth.assignmentId}/confirm`).then(load.reload), 'Booth confirmed')
-                      }
-                    >
-                      Confirm booth
-                    </button>
-                  )}
-                  {booth.assignmentId && can('exh.allocate') && (
-                    <button
-                      className="btn danger"
-                      onClick={() =>
-                        window.confirm(`Release booth ${booth.code}?`) &&
-                        act(() => post(`${api}/assignments/${booth.assignmentId}/release`).then(load.reload), 'Booth released')
-                      }
-                    >
-                      Release booth
-                    </button>
-                  )}
-                  {can('floor.manage') && (
-                    <button className="btn" onClick={() => setEdit({ ...booth, zoneId: halls.find((h) => h.booths.includes(booth))?.id })}>
-                      Edit booth
-                    </button>
-                  )}
-                  {booth.status === 'available' && (
-                    <p className="muted small">To allocate this booth, open an approved exhibitor and choose it.</p>
-                  )}
-                </div>
-              ) : (
-                <Empty>Choose a booth on the plan or in the list.</Empty>
-              )}
-            </aside>
-          </div>
-        )}
-      </Loaded>
-      {edit && (
-        <FormDialog
-          title={edit.id ? `Edit booth ${edit.code}` : 'Add booth'}
-          fields={boothFields}
-          initial={edit}
-          onSubmit={save}
-          onClose={() => setEdit(null)}
-        />
-      )}
-      {openEx && <ExhibitorDialog id={openEx} onClose={() => setOpenEx(null)} onChanged={load.reload} />}
-    </div>
   );
 }

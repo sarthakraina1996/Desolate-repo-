@@ -1,9 +1,10 @@
 // Small fetch wrapper for the versioned API. The session lives in an HttpOnly cookie.
 export class ApiError extends Error {
-  constructor(status, message, code) {
+  constructor(status, message, code, data) {
     super(message);
     this.status = status;
     this.code = code;
+    this.data = data;
   }
 }
 
@@ -23,7 +24,7 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   }
   const type = res.headers.get('content-type') || '';
   const data = type.includes('json') ? await res.json() : await res.text();
-  if (!res.ok) throw new ApiError(res.status, data?.error || 'Something went wrong', data?.code);
+  if (!res.ok) throw new ApiError(res.status, data?.error || 'Something went wrong', data?.code, data);
   return data;
 }
 export const get = (p) => api(p);

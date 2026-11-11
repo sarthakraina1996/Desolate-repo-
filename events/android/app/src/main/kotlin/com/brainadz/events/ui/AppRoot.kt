@@ -68,7 +68,7 @@ fun AppRoot(link: String?, onLinkHandled: () -> Unit) {
 
     val exhibitor = Repo.me.exhibitor.firstOrNull { it.status == "approved" } ?: Repo.me.exhibitor.firstOrNull()
     val modes = buildList {
-        add(Mode.VISITOR to "Visitor: my pass, explore, agenda")
+        add(Mode.VISITOR to "Visitor: my tickets, explore, agenda")
         exhibitor?.let { add(Mode.EXHIBITOR to "Exhibitor: ${it.companyName}") }
         if (Repo.me.gate.isNotEmpty()) add(Mode.GATE to "Gate scanner")
     }
@@ -79,7 +79,7 @@ fun AppRoot(link: String?, onLinkHandled: () -> Unit) {
         else -> Mode.VISITOR
     }
     val tabs = when (mode) {
-        Mode.VISITOR -> listOf(Tab("pass", "Pass", Icons.Outlined.ConfirmationNumber), Tab("explore", "Explore", Icons.Outlined.Map), Tab("agenda", "Agenda", Icons.Outlined.CalendarMonth), Tab("profile", "Profile", Icons.Outlined.Person))
+        Mode.VISITOR -> listOf(Tab("pass", "Tickets", Icons.Outlined.ConfirmationNumber), Tab("explore", "Explore", Icons.Outlined.Map), Tab("agenda", "Agenda", Icons.Outlined.CalendarMonth), Tab("profile", "Profile", Icons.Outlined.Person))
         Mode.EXHIBITOR -> listOf(Tab("booth", "Booth", Icons.Outlined.Storefront), Tab("team", "Team", Icons.Outlined.Badge), Tab("leads", "Leads", Icons.Outlined.Groups), Tab("scan", "Scan", Icons.Outlined.QrCodeScanner), Tab("profile", "Profile", Icons.Outlined.Person))
         Mode.GATE -> listOf(Tab("gate", "Scan", Icons.Outlined.QrCodeScanner), Tab("profile", "Profile", Icons.Outlined.Person))
     }

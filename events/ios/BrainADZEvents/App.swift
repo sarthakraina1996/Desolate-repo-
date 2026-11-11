@@ -66,7 +66,7 @@ struct AppRoot: View {
     var exhibitor: ExhibitorRole? { repo.me.exhibitor?.first { $0.status == "approved" } ?? repo.me.exhibitor?.first }
     var isGate: Bool { !(repo.me.gate ?? []).isEmpty }
     var modes: [(Mode, String)] {
-        var list: [(Mode, String)] = [(Mode.visitor, "Visitor: my pass, explore, agenda")]
+        var list: [(Mode, String)] = [(Mode.visitor, "Visitor: my tickets, explore, agenda")]
         if let ex = exhibitor { list.append((Mode.exhibitor, "Exhibitor: \(ex.companyName)")) }
         if isGate { list.append((Mode.gate, "Gate scanner")) }
         return list
@@ -83,7 +83,7 @@ struct AppRoot: View {
         switch mode {
         case .visitor:
             PassScreen(onRegister: { showRegister = true }, onSignIn: signInOrRefresh)
-                .tabItem { Label("Pass", systemImage: "ticket") }.tag("pass")
+                .tabItem { Label("Tickets", systemImage: "ticket") }.tag("pass")
             guideTab(explore: true).tabItem { Label("Explore", systemImage: "map") }.tag("explore")
             guideTab(explore: false).tabItem { Label("Agenda", systemImage: "calendar") }.tag("agenda")
         case .exhibitor:

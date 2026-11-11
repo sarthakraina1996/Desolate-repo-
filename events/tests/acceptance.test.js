@@ -426,3 +426,88 @@ test('permissions: tenants, exhibitor companies, gates and roles are enforced on
   const display = JSON.stringify((await client(t.base).get('/public/display/futureworks-expo/K1')).body);
   assert.ok(!display.includes('@') && !display.includes('+91'), 'no contact details on displays');
 });
+
+test('floor plan: stall sizes in metres, overlap checks, stall list import and floor drawing', async () => {
+  const org = await as(t.base, 'organiser@futureworks.example');
+  const hallA = t.db.get("SELECT id FROM zones WHERE event_id = ? AND code = 'HALL-A'", E.id).id;
+  const b12 = t.db.get("SELECT * FROM booths WHERE event_id = ? AND code = 'B12'", E.id);
+  const body = {
+    code: 'B12',
+    zoneId: t.db.get('SELECT zone_id FROM booths WHERE id = ?', b12.id).zone_id,
+    kind: 'shell',
+    pricePaise: 4800000,
+    x: 30,
+    y: 13,
+    w: 8,
+    h: 4,
+  };
+  // Resizing recomputes the area from width x depth.
+  const ok = await org.put(`/org/events/${E.id}/booths/${b12.id}`, body);
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(ok.body.sizeSqm, 32);
+  // Moving onto a neighbour or outside the hall is refused with the reason.
+  const clash = await org.put(`/org/events/${E.id}/booths/${b12.id}`, { ...body, x: 21 });
+  assert.equal(clash.status, 409);
+  assert.match(clash.body.error, /overlaps stall B11/);
+  const outside = await org.put(`/org/events/${E.id}/booths/${b12.id}`, { ...body, x: 36 });
+  assert.match(outside.body.error, /outside Hall B/);
+
+  // Import: one new stall and one update; a bad file changes nothing.
+  const bad = await org.post(`/org/events/${E.id}/booths/import`, {
+    rows: [
+      { code: 'A90', hall: 'Hall A', x: 1, y: 23, width: 3, depth: 3, type: 'shell', price: '30,000' },
+      { code: 'A91', hall: 'Hall Z', x: 5, y: 23, width: 3, depth: 3 },
+    ],
+  });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.errors[0].line, 3);
+  assert.equal(t.db.value("SELECT COUNT(*) FROM booths WHERE code = 'A90'"), 0, 'nothing saved from a bad file');
+  const good = await org.post(`/org/events/${E.id}/booths/import`, {
+    rows: [
+      { code: 'A90', hall: 'Hall A', x: 1, y: 23, width: 3, depth: 3, type: 'shell', price: '₹30,000' },
+      { code: 'A01', hall: 'HALL-A', x: 3, y: 3, width: 7.5, depth: 4, type: 'premium', price: 120000 },
+    ],
+  });
+  assert.deepEqual(good.body, { added: 1, updated: 1 });
+  assert.equal(t.db.get("SELECT price_paise FROM booths WHERE code = 'A90'").price_paise, 3000000);
+  assert.equal(t.db.get("SELECT price_paise FROM booths WHERE event_id = ? AND code = 'A01'", E.id).price_paise, 12000000);
+
+  // Floor drawing: upload, the hall depth follows the drawing, visitors can load it.
+  const form = new FormData();
+  form.append('file', new Blob([Buffer.from('ffd8ffe000104a464946', 'hex')], { type: 'image/jpeg' }), 'hall-a.jpg');
+  form.append('ratio', '0.75');
+  const res = await fetch(`${t.base}/org/events/${E.id}/zones/${hallA}/plan-image`, {
+    method: 'POST',
+    body: form,
+    headers: { Authorization: `Bearer ${await tokenOf('organiser@futureworks.example')}` },
+  });
+  const up = await res.json();
+  assert.equal(res.status, 201, JSON.stringify(up));
+  assert.equal(up.rows, 30);
+  assert.equal(up.depthKept, false);
+  const map = (await client(t.base).get('/public/events/futureworks-expo/map')).body;
+  const hall = map.find((h) => h.id === hallA);
+  assert.equal(hall.image, up.image);
+  // The hall cannot shrink past its stalls.
+  const zone = t.db.get('SELECT * FROM zones WHERE id = ?', hallA);
+  const shrink = await org.put(`/org/events/${E.id}/zones/${hallA}`, {
+    code: zone.code,
+    name: zone.name,
+    kind: zone.kind,
+    cols: 40,
+    rows: 12,
+  });
+  assert.equal(shrink.status, 409);
+  const img = await fetch(t.base.replace('/api/v1', '') + up.image);
+  assert.equal(img.status, 200);
+  assert.equal(img.headers.get('content-type'), 'image/jpeg');
+});
+
+async function tokenOf(email) {
+  const r = await fetch(`${t.base}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: 'Events@2026', client: 'android' }),
+  });
+  return (await r.json()).token;
+}

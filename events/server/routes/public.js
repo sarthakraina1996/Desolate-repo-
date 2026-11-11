@@ -1,7 +1,9 @@
 // Routes that need no sign-in: the published event, registration, pass retrieval, hosted
 // checkout, payment callbacks and venue displays.
 import express, { Router } from 'express';
-import { email as vEmail, fail, nowIso, oneOf, str } from '../core.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { email as vEmail, fail, hasOrgPerm, nowIso, oneOf, str } from '../core.js';
 import { createSession, issueOtp } from '../auth.js';
 import { agenda, directory, displayData, eventSummary, guide, landing, mapData } from '../services/guide.js';
 import {
@@ -76,14 +78,20 @@ export default function publicRoutes(ctx) {
       event.id,
       email,
     );
-    for (const reg of regs) mail.passLink(ctx, event, reg, rotateAccess(db, reg));
-    res.json({ ok: true });
+    const links = [];
+    for (const reg of regs) {
+      const token = rotateAccess(db, reg);
+      mail.passLink(ctx, event, reg, token);
+      links.push(`/p/${token}`);
+    }
+    // The demo delivers no email, so it shows the links instead.
+    res.json({ ok: true, ...(showCodes() ? { demoLinks: links } : {}) });
   });
 
   // ---------- pass retrieval link ----------
   const byToken = (req) => {
     const reg = registrationByToken(db, req.params.token);
-    if (!reg) fail(404, 'This link is no longer valid. Use "Find my pass" to get a new one.', 'link_invalid');
+    if (!reg) fail(404, 'This link is no longer valid. Use "Find my ticket" to get a new one, or sign in with your email.', 'link_invalid');
     return { reg, event: db.get('SELECT * FROM events WHERE id = ?', reg.event_id) };
   };
   r.get('/public/pass/:token', (req, res) => {
@@ -155,6 +163,17 @@ export default function publicRoutes(ctx) {
     const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body || {}));
     const out = handleWebhook(ctx, req.params.provider, raw, req.headers);
     res.json({ ok: true, outcome: out.outcome });
+  });
+
+  // ---------- floor drawings ----------
+  // A hall's floor drawing. Public once the event is published; organiser staff can see drafts.
+  r.get('/public/plan-image/:id', (req, res) => {
+    const up = db.get("SELECT * FROM uploads WHERE id = ? AND kind = 'plan'", Number(req.params.id) || 0);
+    const event = up && db.get('SELECT * FROM events WHERE id = ?', up.event_id);
+    if (!event || (event.status !== 'published' && !hasOrgPerm(db, req, event, 'event.view'))) fail(404, 'Not found');
+    res.setHeader('Content-Type', up.mime || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(fs.readFileSync(path.join(ctx.uploadsDir, 'plans', path.basename(up.stored_name))));
   });
 
   // ---------- venue displays ----------

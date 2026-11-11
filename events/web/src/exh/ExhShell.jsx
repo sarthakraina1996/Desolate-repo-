@@ -1,6 +1,7 @@
 // Exhibitor workspace: booth and orders, setup checklist, team badges, leads and the
 // one-handed scan-and-qualify view for booth staff. The server scopes everything to the
 // signed-in person's own company.
+import logo from '../assets/brainadz-live.png';
 import { createContext, useContext, useRef, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Coins, FileText, Home, IdCard, ScanLine, ShieldCheck, Store, Users, Wifi } from 'lucide-react';
@@ -52,8 +53,8 @@ export default function ExhShell() {
                 element={
                   <div className="shell">
                     <aside className="side no-print">
-                      <Link to={base} className="brand">
-                        BrainADZ Events
+                      <Link to={base} className="brand" aria-label="BrainADZ Live">
+                        <img src={logo} alt="BrainADZ Live" width="85" height="40" />
                       </Link>
                       <nav aria-label="Workspace">
                         {items.map((n) => (

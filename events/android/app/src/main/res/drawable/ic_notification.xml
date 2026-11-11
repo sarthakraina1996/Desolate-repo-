@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon: a ticket outline. Android draws it in a single colour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M3,6h18v4a2,2 0,0 0,0 4v4H3v-4a2,2 0,0 0,0 -4V6zM5,8v0.6a4,4 0,0 1,0 6.8V16h14v-0.6a4,4 0,0 1,0 -6.8V8H5zM10,9h2v6h-2z" />
+</vector>

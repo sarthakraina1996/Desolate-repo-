@@ -3,15 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <!-- The brief's colour tokens, shared with the web, iOS and Android apps. -->
-        <SolidColorBrush x:Key="Canvas" Color="#F5F4F0" />
+        <!-- BrainADZ Live colours, shared with the web, iOS and Android apps. -->
+        <SolidColorBrush x:Key="Canvas" Color="#F4F5F7" />
         <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="Ink" Color="#20262B" />
-        <SolidColorBrush x:Key="Ink2" Color="#54615F" />
-        <SolidColorBrush x:Key="Petrol" Color="#1F5154" />
-        <SolidColorBrush x:Key="Selected" Color="#E8EFED" />
-        <SolidColorBrush x:Key="Rule" Color="#D9DEDA" />
-        <SolidColorBrush x:Key="Control" Color="#7A8580" />
+        <SolidColorBrush x:Key="Ink" Color="#231F20" />
+        <SolidColorBrush x:Key="Ink2" Color="#5A5F6B" />
+        <SolidColorBrush x:Key="Petrol" Color="#C82026" />
+        <SolidColorBrush x:Key="Selected" Color="#FBE9EA" />
+        <SolidColorBrush x:Key="Rule" Color="#E1E3E8" />
+        <SolidColorBrush x:Key="Control" Color="#7C818C" />
 
         <Style TargetType="Button">
             <Setter Property="FontFamily" Value="Segoe UI" />

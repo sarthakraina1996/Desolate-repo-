@@ -1217,15 +1217,15 @@ export function SettingsPage() {
                 ),
               },
               { label: 'Type', render: (z) => z.kind },
-              { label: 'Plan grid', render: (z) => (z.cols ? `${z.cols} × ${z.rows}` : 'No plan') },
+              { label: 'Floor plan', render: (z) => (z.cols ? `${z.cols} × ${z.rows} m${z.image ? ', with drawing' : ''}` : 'No plan') },
               { label: 'Offline scanning', render: (z) => (z.restricted ? 'Needs online check' : 'Allowed') },
             ]}
             fields={[
               { key: 'code', label: 'Code', required: true },
               { key: 'name', label: 'Name', required: true },
               { key: 'kind', label: 'Type', type: 'select', required: true, options: ['hall', 'conference', 'restricted', 'service'] },
-              { key: 'cols', label: 'Plan columns', type: 'number' },
-              { key: 'rows', label: 'Plan rows', type: 'number' },
+              { key: 'cols', label: 'Hall width (m)', type: 'number', hint: 'Leave empty for areas without a stall plan' },
+              { key: 'rows', label: 'Hall depth (m)', type: 'number' },
               { key: 'restricted', label: 'Restricted: scans here must be checked online', type: 'checkbox' },
             ]}
           />
@@ -1255,8 +1255,8 @@ export function SettingsPage() {
                   { value: 'out', label: 'Exit (for occupancy estimates)' },
                 ],
               },
-              { key: 'x', label: 'Column on plan', type: 'number', step: '0.5' },
-              { key: 'y', label: 'Row on plan', type: 'number', step: '0.5' },
+              { key: 'x', label: 'Metres from left wall', type: 'number', step: '0.5' },
+              { key: 'y', label: 'Metres from top wall', type: 'number', step: '0.5' },
             ]}
           />
           <CrudList
@@ -1318,8 +1318,8 @@ export function SettingsPage() {
                   { value: 'agenda', label: 'Agenda only' },
                 ],
               },
-              { key: 'x', label: 'You-are-here column', type: 'number', step: '0.5', required: true },
-              { key: 'y', label: 'You-are-here row', type: 'number', step: '0.5', required: true },
+              { key: 'x', label: 'You-are-here, metres from left wall', type: 'number', step: '0.5', required: true },
+              { key: 'y', label: 'You-are-here, metres from top wall', type: 'number', step: '0.5', required: true },
             ]}
           />
           <CrudList

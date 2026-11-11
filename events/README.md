@@ -1,6 +1,6 @@
 # BrainADZ Events
 
-Registration, passes, gate check-in, exhibitors, lead capture and live operations for Indian exhibitions, conferences and combined events. One server, one sign-in and one permission model behind every surface:
+Registration, tickets, gate check-in, exhibitors, lead capture and live operations for Indian exhibitions, conferences and combined events. One server, one sign-in and one permission model behind every surface:
 
 | Surface | Who it is for | Where |
 |---|---|---|
@@ -55,6 +55,7 @@ Visitors have no password. They sign in with a one-time email code, for example 
 
 - **Visitor:** Register on the public site → enter the code → pass with QR. Try *Conference delegate* for the payment step (the hosted checkout page is the local demo adapter, clearly labelled) and *Media* for the review step.
 - **Organiser** (`/org`): Live operations shows Gate 3 with 12 scans pending, 2 failed printer jobs, approvals waiting, a scan conflict and finance items to reconcile. Each links to the screen that resolves it.
+- **Floor plan** (`/org` → Floor plan → **Edit layout**): upload a hall's floor drawing (PNG or JPG), set the hall size in metres, drag stalls to move them, drag a stall's corner to resize it, or import the whole stall list from a spreadsheet saved as CSV (columns: code, hall, x, y, width, depth, type, price, blocked, note; **Download current list** gives a ready-made file to edit). Stall sizes are in metres and the area is worked out from width × depth. Stalls cannot overlap or go outside the hall; an import with a problem in any row changes nothing and lists the rows to fix.
 - **Exhibitor** (`/x/1`): Booth A12, checklist, order summary, recent leads; **Scan a badge** is the one-handed lead capture view.
 - **Gate** (`/gate`): choose a gate, then scan with the camera, a USB scanner or by typing a code. Turn the network off to see offline decisions and the queue; turn it back on to see the sync.
 - **Venue display:** `/display/futureworks-expo/K1`.

@@ -133,14 +133,14 @@ fun PassScreen(onRegister: () -> Unit, onSignIn: () -> Unit) {
     }
     val regs = Repo.passes.registrations.ifEmpty { listOfNotNull(Repo.linked) }
     Column(screenPad.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ScreenTitle(if (regs.size + Repo.passes.badges.size == 1) "My pass" else "My passes", Repo.guide?.event?.name)
-        if (!Repo.online) Notice("Offline. Showing the passes saved on this phone${Repo.passes.syncedAt.let { if (it.isNotEmpty()) ", last updated ${clock(it)}" else "" }}.", StatusTone.PENDING)
+        ScreenTitle(if (regs.size + Repo.passes.badges.size == 1) "My ticket" else "My tickets", Repo.guide?.event?.name)
+        if (!Repo.online) Notice("Offline. Showing the tickets saved on this phone${Repo.passes.syncedAt.let { if (it.isNotEmpty()) ", last updated ${clock(it)}" else "" }}.", StatusTone.PENDING)
         Repo.passes.badges.forEach { PassCard(it) }
         regs.forEach { RegistrationCard(it) }
         if (regs.isEmpty() && Repo.passes.badges.isEmpty()) {
-            Text("You have no pass yet. Register for ${Repo.guide?.event?.name ?: "the event"}, or sign in to load a pass you already have.", color = C.Ink2)
+            Text("You have no ticket yet. Register for ${Repo.guide?.event?.name ?: "the event"}, or sign in to load a ticket you already have.", color = C.Ink2)
             PrimaryButton("Register", onClick = onRegister)
-            SecondaryButton(if (Repo.signedIn) "Refresh" else "Sign in or find my pass", onClick = onSignIn)
+            SecondaryButton(if (Repo.signedIn) "Refresh" else "Sign in or find my ticket", onClick = onSignIn)
         }
     }
 }
@@ -354,10 +354,10 @@ fun SignInScreen(onDone: () -> Unit) {
             }
         }
         LinkButton(if (usePassword) "Email me a code instead" else "Use a password instead") { usePassword = !usePassword; secret = ""; sent = false }
-        if (Repo.slug != null) LinkButton("Registered without an account? Email my pass link") { findEmail = true }
+        if (Repo.slug != null) LinkButton("Registered without an account? Email my ticket link") { findEmail = true }
         if (findEmail) {
-            Notice("Enter the email you registered with above, then tap Send. The link opens your pass in this app.")
-            SecondaryButton("Send my pass link", enabled = email.contains("@")) { action.run { Repo.passLink(email); toast("If that email is registered, a new pass link is on its way.") } }
+            Notice("Enter the email you registered with above, then tap Send. The link opens your ticket in this app.")
+            SecondaryButton("Send my ticket link", enabled = email.contains("@")) { action.run { Repo.passLink(email); toast("If that email is registered, a new ticket link is on its way.") } }
         }
         LinkButton("Server address") { showServer = !showServer }
         if (showServer) {

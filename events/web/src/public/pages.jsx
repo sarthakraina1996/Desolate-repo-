@@ -4,10 +4,62 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CalendarDays, Map as MapIcon, Search, Ticket, UserRound } from 'lucide-react';
 import { del, get, goTo, post, put } from '../api.js';
+import logo from '../assets/brainadz-live.png';
 import { useMe } from '../App.jsx';
 import { Field, Loaded, Loading, Notice, Status, useAction, useLoad } from '../ui.jsx';
 import { AgendaList, HallPlan, PassCard } from '../components.jsx';
 import { dateRange, inr, ROLE_LABELS } from '../format.js';
+
+// ---------- public frame ----------
+// The BrainADZ Live header used on every public page.
+export function SiteHeader({ home = '/', children }) {
+  const { me } = useMe();
+  return (
+    <header className="site-head">
+      <div className="in">
+        <Link to={home} className="brand" aria-label="BrainADZ Live home">
+          <img src={logo} alt="BrainADZ Live" width="72" height="34" />
+        </Link>
+        {children || <span className="grow" />}
+        <Link className="btn plain" to={me.user ? '/account' : '/signin'}>
+          {me.user ? 'My tickets' : 'Sign in'}
+        </Link>
+      </div>
+    </header>
+  );
+}
+// Red band at the foot of public pages, like the booklet's contact strip.
+function SiteFooter({ event }) {
+  return (
+    <footer className="site-foot no-print">
+      <div className="in">
+        {event ? (
+          <>
+            <span>{event.name}</span>
+            <span>
+              {dateRange(event.startsOn, event.endsOn)} · {event.openTime}–{event.closeTime}
+            </span>
+            <span>{[event.venueName, event.city].filter(Boolean).join(', ')}</span>
+          </>
+        ) : (
+          <span>BrainADZ Live · From Vision to Visibility</span>
+        )}
+      </div>
+    </footer>
+  );
+}
+// A standalone public page: header, content on the network background, footer.
+export function PublicPage({ children, narrow = true }) {
+  return (
+    <div className="on-network">
+      <SiteHeader />
+      <main id="main" className={`site-main ${narrow ? 'narrow stack' : ''}`}>
+        {children}
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}
 
 // ---------- event site frame ----------
 const EventCtx = createContext(null);
@@ -22,7 +74,7 @@ export function Home() {
         events.length === 1 ? (
           <Navigate to={`/e/${events[0].slug}`} replace />
         ) : (
-          <main id="main" className="site-main narrow stack">
+          <PublicPage>
             <h1>BrainADZ Events</h1>
             <div className="panel list">
               {events.map((e) => (
@@ -42,7 +94,7 @@ export function Home() {
                 </p>
               )}
             </div>
-          </main>
+          </PublicPage>
         )
       }
     </Loaded>
@@ -58,11 +110,8 @@ export function EventSite() {
     <Loaded load={load}>
       {(guide) => (
         <EventCtx.Provider value={{ guide, base, slug }}>
-          <header className="site-head">
-            <div className="in">
-              <Link to={base} className="brand" style={{ padding: 0 }}>
-                BrainADZ Events
-              </Link>
+          <div className="on-network">
+            <SiteHeader home={base}>
               <nav className="site-nav" aria-label="Event">
                 <NavLink to={base} end>
                   Overview
@@ -71,18 +120,16 @@ export function EventSite() {
                 <NavLink to={`${base}/map`}>Floor plan</NavLink>
                 <NavLink to={`${base}/agenda`}>Agenda</NavLink>
               </nav>
-              <Link className="btn plain" to={me.user ? '/account' : '/signin'}>
-                {me.user ? 'My passes' : 'Sign in'}
-              </Link>
-            </div>
-          </header>
-          <main id="main" className="site-main">
-            <Outlet />
-          </main>
+            </SiteHeader>
+            <main id="main" className="site-main">
+              <Outlet />
+            </main>
+            <SiteFooter event={guide.event} />
+          </div>
           <nav className="tabbar site-tabbar" aria-label="Event">
             <NavLink to={me.user ? '/account' : `${base}/register`}>
               <Ticket className="icon" />
-              Pass
+              Tickets
             </NavLink>
             <NavLink to={`${base}/map`}>
               <MapIcon className="icon" />
@@ -119,7 +166,7 @@ export function Landing() {
             Register
           </Link>
           <Link className="btn plain" to={`${base}/register?find=1`}>
-            Find my pass
+            Find my ticket
           </Link>
         </div>
       </section>
@@ -625,7 +672,7 @@ export function Register() {
         {busy ? 'Sending…' : cta}
       </button>
       <button type="button" className="btn plain" onClick={() => setStep('find')}>
-        Already registered? Find my pass
+        Already registered? Find my ticket
       </button>
     </form>
   );
@@ -633,7 +680,7 @@ export function Register() {
 
 function FindPass({ slug, onBack }) {
   const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState(null);
   const [error, setError] = useState(null);
   return (
     <form
@@ -641,16 +688,33 @@ function FindPass({ slug, onBack }) {
       onSubmit={(e) => (
         e.preventDefault(),
         post(`/public/events/${slug}/pass-link`, { email })
-          .then(() => setSent(true))
+          .then((out) => setSent(out))
           .catch((er) => setError(er.message))
       )}
     >
-      <h1>Find my pass</h1>
+      <h1>Find my ticket</h1>
       {sent ? (
-        <Notice tone="ok">If {email} is registered, a new pass link is on its way. Earlier links stop working.</Notice>
+        <>
+          <Notice tone="ok">If {email} is registered, a new ticket link is on its way. Earlier links stop working.</Notice>
+          {sent.demoLinks?.length > 0 && (
+            <Notice tone="pending">
+              <span className="demo-tag">Demo</span> No email is sent in the demo. Open your ticket here:{' '}
+              {sent.demoLinks.map((l) => (
+                <Link key={l} to={l}>
+                  {' '}
+                  Open ticket
+                </Link>
+              ))}
+            </Notice>
+          )}
+          {sent.demoLinks && !sent.demoLinks.length && <Notice>No ticket was found for {email}.</Notice>}
+        </>
       ) : (
         <>
-          <p>Enter the email you registered with and we will send a new link to your pass.</p>
+          <p>
+            Enter the email you registered with and we will send a new link to your ticket. You can also sign in with that email to see all
+            your tickets.
+          </p>
           <Field label="Email" error={error}>
             <input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
@@ -662,7 +726,7 @@ function FindPass({ slug, onBack }) {
           Back to registration
         </button>
       )}
-      <Link to="/signin">Sign in to see all your passes</Link>
+      <Link to="/signin">Sign in to see all your tickets</Link>
     </form>
   );
 }
@@ -750,24 +814,31 @@ export function RegistrationState({ state, onCancel, returnPath }) {
 // The pass retrieval link: works in any browser without the app or an account.
 export function PassPage() {
   const { token } = useParams();
+  const { me } = useMe();
   const load = useLoad(() => get(`/public/pass/${token}`), [token]);
   const act = useAction();
   if (load.error)
     return (
-      <main id="main" className="site-main">
+      <PublicPage narrow={false}>
         <FindPassFallback message={load.error.message} />
-      </main>
+      </PublicPage>
     );
   if (!load.data) return <Loading />;
   const s = load.data;
   return (
-    <main id="main" className="site-main narrow stack">
+    <PublicPage>
       <div>
         <p className="eyebrow">
           <Link to={`/e/${s.event.slug}`}>{s.event.name}</Link>
         </p>
-        <h1>{s.step === 'pass' ? 'My pass' : 'My registration'}</h1>
+        <h1>{s.step === 'pass' ? 'My ticket' : 'My registration'}</h1>
       </div>
+      {me.user && (
+        <Notice tone="ok">
+          You are signed in as <strong>{me.user.email}</strong>. Your tickets are always under <Link to="/account">My tickets</Link>. On
+          your phone, open this website and sign in with the same email to see them.
+        </Notice>
+      )}
       <RegistrationState
         state={s}
         returnPath={`/p/${token}`}
@@ -775,10 +846,10 @@ export function PassPage() {
       />
       {s.step === 'pass' && (
         <p className="muted small no-print">
-          With the BrainADZ Events app installed, this link opens your pass in the app, where it also works offline.
+          With the BrainADZ Events app installed, this link opens your ticket in the app, where it also works offline.
         </p>
       )}
-    </main>
+    </PublicPage>
   );
 }
 function FindPassFallback({ message }) {
@@ -797,13 +868,14 @@ export function Pay() {
   const [params] = useSearchParams();
   const load = useLoad(() => get(`/public/pay/${intent}`), [intent]);
   const [done, setDone] = useState(null);
+  const nav = useNavigate();
   const back = params.get('return') || '/';
   const go = (outcome, method) =>
     post(`/public/pay/${intent}/simulate`, { outcome, method })
       .then(() => setDone(outcome))
-      .catch((e) => alert(e.message));
+      .catch(() => setDone('failed'));
   return (
-    <main id="main" className="site-main narrow stack">
+    <PublicPage>
       <Loaded load={load}>
         {(p) => (
           <>
@@ -825,9 +897,9 @@ export function Pay() {
                       ? 'Payment failed. You have not been charged.'
                       : 'Payment is pending with the bank.'}
                 </Notice>
-                <a className="btn primary big block" href={back}>
-                  Continue
-                </a>
+                <button className="btn primary big block" onClick={() => nav(back, { replace: true })}>
+                  {done === 'captured' ? 'See my ticket' : 'Continue'}
+                </button>
               </>
             ) : (
               <div className="stack tight">
@@ -843,15 +915,15 @@ export function Pay() {
                 <button className="btn big block" onClick={() => go('pending', 'upi')}>
                   Simulate a pending payment
                 </button>
-                <a className="btn plain" href={back}>
+                <button className="btn plain" onClick={() => nav(back, { replace: true })}>
                   Cancel and go back
-                </a>
+                </button>
               </div>
             )}
           </>
         )}
       </Loaded>
-    </main>
+    </PublicPage>
   );
 }
 
@@ -904,7 +976,7 @@ export function SignIn() {
     return run(() => post('/auth/code/verify', { email, code: secret }).then(done));
   };
   return (
-    <main id="main" className="site-main narrow stack">
+    <PublicPage>
       <div>
         <Link to="/" className="eyebrow">
           BrainADZ Events
@@ -993,7 +1065,7 @@ export function SignIn() {
           </div>
         </div>
       )}
-    </main>
+    </PublicPage>
   );
 }
 
@@ -1004,11 +1076,11 @@ export function Account() {
   const load = useLoad(() => get('/me/passes'));
   const act = useAction();
   return (
-    <main id="main" className="site-main narrow stack">
+    <PublicPage>
       <div className="row between">
         <div>
           <p className="eyebrow">{me.user.email}</p>
-          <h1>My passes</h1>
+          <h1>My tickets</h1>
         </div>
         <button className="btn" onClick={() => signOut().then(() => nav('/'))}>
           Sign out
@@ -1065,13 +1137,13 @@ export function Account() {
             ))}
             {!d.badges.length && !d.registrations.length && (
               <p className="empty">
-                You have no passes yet. <Link to="/">Find an event</Link>
+                You have no tickets yet. <Link to="/">Find an event</Link>
               </p>
             )}
           </>
         )}
       </Loaded>
-    </main>
+    </PublicPage>
   );
 }
 

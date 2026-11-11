@@ -30,14 +30,18 @@ export const mail = {
       'registration_code',
     );
   },
+  // token is a new ticket link, or null when the visitor's earlier link still works.
   passReady(ctx, event, reg, token) {
-    const link = `${ctx.baseUrl}/p/${token}`;
+    const link = token ? `${ctx.baseUrl}/p/${token}` : `${ctx.baseUrl}/signin`;
+    const how = token
+      ? `Open your ticket here:\n${link}\n\nThe link opens the ticket in the BrainADZ Events app if you have it, or in your browser.`
+      : `Your ticket is ready. Open it from the link in our earlier email, or sign in with this email address on any phone or computer:\n${link}`;
     send(
       ctx,
       event,
       reg.email,
-      `Your pass for ${event.name}`,
-      `Hello ${reg.name},\n\nYou are confirmed. Open your pass here:\n${link}\n\nThe link opens the pass in the BrainADZ Events app if you have it, or in your browser. Show the QR at the gate. Reference: ${reg.ref}.${sign(event)}`,
+      `Your ticket for ${event.name}`,
+      `Hello ${reg.name},\n\nYou are confirmed. ${how}\n\nShow the QR at the gate. Reference: ${reg.ref}.${sign(event)}`,
       'pass_ready',
     );
     if (reg.whatsapp_opt_in && reg.phone)

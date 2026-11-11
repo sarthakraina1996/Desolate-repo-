@@ -72,14 +72,16 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 
 object C {
-    val Canvas = Color(0xFFF5F4F0)
+    val Canvas = Color(0xFFF4F5F7)
     val Surface = Color(0xFFFFFFFF)
-    val Ink = Color(0xFF20262B)
-    val Ink2 = Color(0xFF54615F)
-    val Petrol = Color(0xFF1F5154)
-    val Selected = Color(0xFFE8EFED)
-    val Rule = Color(0xFFD9DEDA)
-    val Control = Color(0xFF7A8580)
+    val Ink = Color(0xFF231F20)
+    val Ink2 = Color(0xFF5A5F6B)
+    // BrainADZ Live red, used for actions; navy is the wordmark colour.
+    val Petrol = Color(0xFFC82026)
+    val Navy = Color(0xFF233E85)
+    val Selected = Color(0xFFFBE9EA)
+    val Rule = Color(0xFFE1E3E8)
+    val Control = Color(0xFF7C818C)
     val Ok = Color(0xFF2E6046)
     val OkBg = Color(0xFFE8F2EB)
     val Pending = Color(0xFF765018)

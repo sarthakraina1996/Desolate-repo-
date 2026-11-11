@@ -5,9 +5,10 @@ import initSqlJs from 'sql.js/dist/sql-asm-memory-growth.js';
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
-import '@fontsource/ibm-plex-sans/latin-400.css';
-import '@fontsource/ibm-plex-sans/latin-500.css';
-import '@fontsource/ibm-plex-sans/latin-600.css';
+import '@fontsource/jost/latin-400.css';
+import '@fontsource/jost/latin-500.css';
+import '@fontsource/jost/latin-600.css';
+import '@fontsource/jost/latin-700.css';
 import '../web/src/styles.css';
 import { setSqlJs } from '../../demo/shims/sqlite.js';
 import { createDemoServer } from './server.js';
@@ -15,13 +16,8 @@ import App from '../web/src/App.jsx';
 
 const note = document.getElementById('demo-note');
 Object.assign(note.style, {
-  position: 'fixed',
-  left: '0',
-  right: '0',
-  bottom: '0',
-  zIndex: '90',
-  padding: '4px 16px calc(4px + env(safe-area-inset-bottom, 0px))',
-  background: '#20262b',
+  padding: '6px 16px',
+  background: '#233e85',
   color: '#fff',
   font: '13px/1.4 system-ui',
   textAlign: 'center',

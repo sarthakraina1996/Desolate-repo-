@@ -25,7 +25,7 @@ class PushService : FirebaseMessagingService() {
         val n = message.notification ?: return
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val built = NotificationCompat.Builder(this, App.CHANNEL)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(n.title)
             .setContentText(n.body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(n.body))

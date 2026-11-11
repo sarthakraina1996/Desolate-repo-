@@ -93,16 +93,16 @@ struct PassScreen: View {
     var body: some View {
         let regs = repo.passes.registrations.isEmpty ? [repo.linked].compactMap { $0 } : repo.passes.registrations
         Screen {
-            ScreenTitle(title: regs.count + repo.passes.badges.count == 1 ? "My pass" : "My passes", eyebrow: repo.guide?.event.name)
+            ScreenTitle(title: regs.count + repo.passes.badges.count == 1 ? "My ticket" : "My tickets", eyebrow: repo.guide?.event.name)
             if !repo.online {
-                Notice(text: "Offline. Showing the passes saved on this phone\(repo.passes.syncedAt.isEmpty ? "" : ", last updated \(Fmt.clock(repo.passes.syncedAt))").", tone: .pending)
+                Notice(text: "Offline. Showing the tickets saved on this phone\(repo.passes.syncedAt.isEmpty ? "" : ", last updated \(Fmt.clock(repo.passes.syncedAt))").", tone: .pending)
             }
             ForEach(repo.passes.badges) { PassCard(pass: $0) }
             ForEach(regs) { RegistrationCard(reg: $0) }
             if regs.isEmpty && repo.passes.badges.isEmpty {
-                Text("You have no pass yet. Register for \(repo.guide?.event.name ?? "the event"), or sign in to load a pass you already have.").foregroundColor(.ink2)
+                Text("You have no ticket yet. Register for \(repo.guide?.event.name ?? "the event"), or sign in to load a ticket you already have.").foregroundColor(.ink2)
                 Button("Register", action: onRegister).buttonStyle(PrimaryButtonStyle())
-                Button(repo.signedIn ? "Refresh" : "Sign in or find my pass", action: onSignIn).buttonStyle(SecondaryButtonStyle())
+                Button(repo.signedIn ? "Refresh" : "Sign in or find my ticket", action: onSignIn).buttonStyle(SecondaryButtonStyle())
             }
         }
         .refreshable { await repo.start() }
@@ -385,12 +385,12 @@ struct SignInScreen: View {
             .buttonStyle(PrimaryButtonStyle()).disabled(action.busy || !email.contains("@"))
             Button(usePassword ? "Email me a code instead" : "Use a password instead") { usePassword.toggle(); secret = ""; sent = false }.buttonStyle(LinkButtonStyle())
             if repo.slug != nil {
-                Button("Registered without an account? Email my pass link") { findPass = true }.buttonStyle(LinkButtonStyle())
+                Button("Registered without an account? Email my ticket link") { findPass = true }.buttonStyle(LinkButtonStyle())
             }
             if findPass {
-                Notice(text: "Enter the email you registered with above, then tap Send. The link opens your pass in this app.")
-                Button("Send my pass link") {
-                    action.run { try await repo.passLink(email: email); action.message = "If that email is registered, a new pass link is on its way." }
+                Notice(text: "Enter the email you registered with above, then tap Send. The link opens your ticket in this app.")
+                Button("Send my ticket link") {
+                    action.run { try await repo.passLink(email: email); action.message = "If that email is registered, a new ticket link is on its way." }
                 }
                 .buttonStyle(SecondaryButtonStyle()).disabled(!email.contains("@"))
             }

@@ -252,7 +252,7 @@ function localPayments(env) {
     async createCheckout({ payment, returnUrl }) {
       let back = '/';
       try {
-        back = new URL(returnUrl).pathname;
+        back = new URL(returnUrl, 'http://local.invalid').pathname;
       } catch {
         // No usable return address: go back to the home page.
       }

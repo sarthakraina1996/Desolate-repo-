@@ -54,6 +54,8 @@ function makeRes() {
 // multer stand-in: takes the file from the request's FormData into the in-memory store.
 const upload = (kind, { maxMb = 10, exts = null } = {}) => ({
   single: (field) => async (req, _res, next) => {
+    req.body = {};
+    for (const [k, v] of req.formData?.entries() || []) if (typeof v === 'string') req.body[k] = v;
     const f = req.formData?.get(field);
     if (f && typeof f !== 'string') {
       if (exts && !exts.includes(ext(f.name))) fail(400, `File type not allowed. Use ${exts.join(', ')}`);

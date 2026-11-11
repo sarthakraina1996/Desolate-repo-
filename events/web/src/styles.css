@@ -2,15 +2,18 @@
    Limestone, white and ink with petrol for actions; flat surfaces, 8 px spacing, 6-8 px radii.
    The same tokens are used by the iOS (Theme.swift) and Android (Theme.kt) apps. */
 :root {
-  --canvas: #f5f4f0;
+  /* BrainADZ Live identity, from the company booklet: white and cool grey surfaces with a
+     faint hexagon network, navy wordmark, red for actions and section headings. */
+  --canvas: #f4f5f7;
   --surface: #ffffff;
-  --ink: #20262b;
-  --ink-2: #54615f;
-  --petrol: #1f5154;
-  --petrol-hover: #173e41;
-  --selected: #e8efed;
-  --rule: #d9deda;
-  --control: #7a8580;
+  --ink: #231f20;
+  --ink-2: #5a5f6b;
+  --accent: #c82026;
+  --accent-hover: #a3191f;
+  --navy: #233e85;
+  --selected: #fbe9ea;
+  --rule: #e1e3e8;
+  --control: #7c818c;
   --ok: #2e6046;
   --ok-bg: #e8f2eb;
   --pending: #765018;
@@ -18,8 +21,10 @@
   --error: #963d34;
   --error-bg: #faede9;
   --radius: 6px;
-  --radius-lg: 8px;
-  --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --radius-lg: 10px;
+  --font: 'Jost', 'Futura', 'Century Gothic', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* The booklet's background: thin grey lines joining small dots in a hexagon network. */
+  --network: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='208' viewBox='0 0 240 208'%3E%3Cg fill='none' stroke='%23d5d8de' stroke-width='1'%3E%3Cpath d='M60 0 120 34.6 120 104 60 138.6 0 104 0 34.6Z'/%3E%3Cpath d='M180 69.3 240 104 240 173.2 180 208 120 173.2 120 104Z'/%3E%3C/g%3E%3Cg fill='%23c9cdd5'%3E%3Ccircle cx='60' cy='0' r='3'/%3E%3Ccircle cx='120' cy='34.6' r='3'/%3E%3Ccircle cx='0' cy='104' r='3'/%3E%3Ccircle cx='120' cy='104' r='3'/%3E%3Ccircle cx='240' cy='173.2' r='3'/%3E%3Ccircle cx='180' cy='208' r='3'/%3E%3C/g%3E%3C/svg%3E");
 }
 * {
   box-sizing: border-box;
@@ -58,11 +63,11 @@ h3 {
   font-weight: 600;
 }
 a {
-  color: var(--petrol);
+  color: var(--accent);
   text-underline-offset: 3px;
 }
 a:hover {
-  color: var(--petrol-hover);
+  color: var(--accent-hover);
 }
 button,
 input,
@@ -72,7 +77,7 @@ textarea {
   color: inherit;
 }
 :focus-visible {
-  outline: 3px solid var(--petrol);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -184,14 +189,14 @@ textarea {
   color: var(--ink);
 }
 .btn.primary {
-  background: var(--petrol);
-  border-color: var(--petrol);
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
   font-weight: 600;
 }
 .btn.primary:hover {
-  background: var(--petrol-hover);
-  border-color: var(--petrol-hover);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
   color: #fff;
 }
 .btn.danger {
@@ -201,7 +206,7 @@ textarea {
 .btn.plain {
   border-color: transparent;
   background: transparent;
-  color: var(--petrol);
+  color: var(--accent);
   padding-inline: 8px;
 }
 .btn.plain:hover {
@@ -283,7 +288,7 @@ textarea.input {
   width: 20px;
   height: 20px;
   margin-top: 2px;
-  accent-color: var(--petrol);
+  accent-color: var(--accent);
   flex: none;
 }
 .choices {
@@ -315,7 +320,7 @@ textarea.input {
   width: 20px;
   height: 20px;
   margin-top: 2px;
-  accent-color: var(--petrol);
+  accent-color: var(--accent);
   flex: none;
 }
 .search {
@@ -539,7 +544,7 @@ td.actions {
 }
 .bars .bar {
   height: 12px;
-  background: var(--petrol);
+  background: var(--accent);
   border-radius: 2px;
   min-width: 2px;
 }
@@ -565,7 +570,7 @@ td.actions {
 .tab[aria-selected='true'],
 .tab.active {
   color: var(--ink);
-  border-bottom-color: var(--petrol);
+  border-bottom-color: var(--accent);
 }
 .chips {
   display: flex;
@@ -583,8 +588,8 @@ td.actions {
 }
 .chip[aria-pressed='true'] {
   background: var(--selected);
-  border-color: var(--petrol);
-  color: var(--petrol);
+  border-color: var(--accent);
+  color: var(--accent);
   font-weight: 600;
 }
 .toolbar {
@@ -639,9 +644,9 @@ td.actions {
 }
 .nav-item.active {
   background: var(--selected);
-  border-left-color: var(--petrol);
+  border-left-color: var(--accent);
   font-weight: 600;
-  color: var(--petrol);
+  color: var(--accent);
 }
 .nav-item .count {
   margin-left: auto;
@@ -725,7 +730,7 @@ td.actions {
   }
   .tabbar a.active {
     background: var(--selected);
-    color: var(--petrol);
+    color: var(--accent);
     font-weight: 600;
   }
 }
@@ -764,7 +769,7 @@ td.actions {
 }
 .site-nav a.active {
   background: var(--selected);
-  color: var(--petrol);
+  color: var(--accent);
 }
 .site-main {
   padding-top: 32px;
@@ -856,7 +861,7 @@ details.faq p {
 .pass .type {
   display: inline-block;
   background: var(--selected);
-  color: var(--petrol);
+  color: var(--accent);
   font-weight: 600;
   padding: 4px 14px;
   border-radius: var(--radius);
@@ -891,7 +896,8 @@ details.faq p {
   font-size: 18px;
 }
 
-/* Hall plan (one grid cell = 100 SVG units) */
+/* Hall plan, drawn to scale in metres (40 SVG units per metre). Strokes keep their screen
+   width whatever the hall size; text sizes are set on each element from the hall size. */
 .plan {
   background: var(--surface);
   border: 1px solid var(--rule);
@@ -902,24 +908,45 @@ details.faq p {
   width: 100%;
   height: auto;
   display: block;
+  touch-action: pan-y;
+}
+.plan svg.editing {
+  touch-action: none;
+}
+.plan rect,
+.plan circle,
+.plan path {
+  vector-effect: non-scaling-stroke;
 }
 .plan .booth {
   cursor: pointer;
 }
+.plan .editing .booth {
+  cursor: grab;
+}
+.plan .editing .booth.dragging {
+  cursor: grabbing;
+}
 .plan .booth rect {
   fill: var(--surface);
   stroke: var(--ink);
-  stroke-width: 4;
+  stroke-width: 1.5px;
+}
+.plan .has-drawing .booth rect {
+  fill-opacity: 0.8;
 }
 .plan .booth text {
-  font-size: 30px;
   font-weight: 600;
   fill: var(--ink);
   pointer-events: none;
 }
+.plan .booth text.dims {
+  font-weight: 500;
+  fill: var(--accent);
+}
 .plan .booth.free rect {
   stroke: var(--control);
-  stroke-dasharray: 10 8;
+  stroke-dasharray: 6 4;
 }
 .plan .booth.free text {
   fill: var(--ink-2);
@@ -933,15 +960,27 @@ details.faq p {
   stroke: var(--control);
 }
 .plan .booth.sel rect {
-  fill: var(--petrol);
-  stroke: var(--petrol);
+  fill: var(--accent);
+  stroke: var(--accent);
+  fill-opacity: 1;
 }
 .plan .booth.sel text {
   fill: #fff;
 }
-.plan .booth:focus-visible rect {
-  stroke: var(--petrol);
-  stroke-width: 10;
+.plan .booth.sel text.dims {
+  fill: var(--accent);
+}
+.plan .booth .handle {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2px;
+  cursor: nwse-resize;
+  fill-opacity: 1;
+  stroke-dasharray: none;
+}
+.plan .booth:focus-visible rect:first-child {
+  stroke: var(--navy);
+  stroke-width: 3px;
 }
 .plan .booth:focus-visible {
   outline: none;
@@ -949,24 +988,21 @@ details.faq p {
 .plan .wall {
   fill: none;
   stroke: var(--control);
-  stroke-width: 6;
+  stroke-width: 2.5px;
 }
 .plan .amenity {
-  font-size: 22px;
   fill: var(--ink-2);
 }
 .plan .gate {
-  font-size: 26px;
   font-weight: 600;
   fill: var(--ink);
 }
 .plan .here circle {
-  fill: var(--error);
+  fill: var(--accent);
 }
 .plan .here text {
-  font-size: 28px;
   font-weight: 600;
-  fill: var(--error);
+  fill: var(--accent);
 }
 
 /* Dialog */
@@ -1204,4 +1240,69 @@ details.faq p {
     scroll-behavior: auto !important;
     transition: none !important;
   }
+}
+
+/* ---------- BrainADZ Live brand ---------- */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand img {
+  height: 34px;
+  width: auto;
+  display: block;
+}
+.side .brand img {
+  height: 40px;
+}
+.brand-word {
+  font-weight: 600;
+  color: var(--navy);
+  font-size: 15px;
+  line-height: 1.1;
+}
+/* Public pages sit on the booklet's network background. */
+.on-network {
+  background: var(--canvas) var(--network) repeat;
+  background-size: 360px auto;
+  min-height: 100vh;
+}
+.hero h1 {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.hero .eyebrow {
+  color: var(--navy);
+  font-weight: 600;
+}
+/* Section headings: red with a short red underline, as in the booklet. */
+.section h2 {
+  color: var(--accent);
+  display: inline-block;
+  padding-bottom: 4px;
+  border-bottom: 3px solid var(--accent);
+}
+.site-foot {
+  background: linear-gradient(90deg, #a3191f, var(--accent) 55%, #e2412c);
+  color: #fff;
+}
+.site-foot .in {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding-block: 14px;
+  font-weight: 500;
+}
+.site-foot a {
+  color: #fff;
+}
+.signed-in {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.site-head .in > .btn:last-child {
+  margin-left: auto;
 }
