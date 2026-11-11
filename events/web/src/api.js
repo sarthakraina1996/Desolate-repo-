@@ -30,3 +30,6 @@ export const get = (p) => api(p);
 export const post = (p, body = {}) => api(p, { method: 'POST', body });
 export const put = (p, body = {}) => api(p, { method: 'PUT', body });
 export const del = (p) => api(p, { method: 'DELETE' });
+
+// Goes to a checkout or return address. The in-browser demo moves inside the page instead.
+export const goTo = (url) => (window.__navigate ? window.__navigate(url) : window.location.assign(url));

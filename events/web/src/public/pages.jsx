@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CalendarDays, Map as MapIcon, Search, Ticket, UserRound } from 'lucide-react';
-import { del, get, post, put } from '../api.js';
+import { del, get, goTo, post, put } from '../api.js';
 import { useMe } from '../App.jsx';
 import { Field, Loaded, Loading, Notice, Status, useAction, useLoad } from '../ui.jsx';
 import { AgendaList, HallPlan, PassCard } from '../components.jsx';
@@ -674,7 +674,7 @@ export function RegistrationState({ state, onCancel, returnPath }) {
   const pay = () =>
     act(async () => {
       const out = await post(`/public/orders/${state.order.token}/checkout`, { returnPath });
-      window.location.assign(out.url);
+      goTo(out.url);
     });
   if (state.step === 'pass')
     return (

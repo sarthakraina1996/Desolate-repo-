@@ -4,7 +4,7 @@
 import { createContext, useContext, useRef, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Coins, FileText, Home, IdCard, ScanLine, ShieldCheck, Store, Users, Wifi } from 'lucide-react';
-import { api as call, del, get, post, put } from '../api.js';
+import { api as call, del, get, goTo, post, put } from '../api.js';
 import { useMe } from '../App.jsx';
 import { Empty, Field, FormDialog, Loaded, Notice, Status, useAction, useFormDialog, useLoad } from '../ui.jsx';
 import { QrCamera } from '../camera.jsx';
@@ -357,8 +357,7 @@ function Booth() {
   const act = useAction();
   const [invoice, setInvoice] = useState(null);
   const [shop, setShop] = useState(false);
-  const pay = (o, amountPaise) =>
-    act(async () => window.location.assign((await post(`${api}/orders/${o.id}/checkout`, { amountPaise })).url));
+  const pay = (o, amountPaise) => act(async () => goTo((await post(`${api}/orders/${o.id}/checkout`, { amountPaise })).url));
   return (
     <div className="stack">
       <Head />

@@ -19,9 +19,21 @@ const read = (k, fallback) => {
     return fallback;
   }
 };
-const write = (k, v) => localStorage.setItem(`${KEY}:${k}`, JSON.stringify(v));
+const write = (k, v) => {
+  try {
+    localStorage.setItem(`${KEY}:${k}`, JSON.stringify(v));
+  } catch {
+    // Storage can be blocked (private window); the scanner then works for this visit only.
+  }
+};
 // Clears everything this device cached. Runs on sign-out of the gate and when it is revoked.
-const purge = () => ['device', 'bundle', 'queue', 'history'].forEach((k) => localStorage.removeItem(`${KEY}:${k}`));
+const purge = () => {
+  try {
+    ['device', 'bundle', 'queue', 'history'].forEach((k) => localStorage.removeItem(`${KEY}:${k}`));
+  } catch {
+    // Nothing was stored.
+  }
+};
 
 // Checks the eligibility set against the device key before trusting it.
 async function verifyBundle(key, payload, signature) {

@@ -30,7 +30,11 @@ export default function Display() {
           setData(stamped);
           setOffline(false);
           setError(null);
-          localStorage.setItem(key, JSON.stringify(stamped));
+          try {
+            localStorage.setItem(key, JSON.stringify(stamped));
+          } catch {
+            // Without storage the display simply has no offline copy.
+          }
         })
         .catch((e) => (e.status === 404 ? setError(e.message) : setOffline(true)));
     load();
