@@ -1,42 +1,52 @@
 // Pieces shared by the public site, the consoles and the displays: the pass card, the 2D hall
 // plan with its accessible list view, and the agenda list.
 import { useRef, useState } from 'react';
-import { Bookmark, BookmarkCheck } from 'lucide-react';
-import { Qr, Status, Tabs, useImage } from './ui.jsx';
-import { dateRange, weekday } from './format.js';
+import { Bookmark, BookmarkCheck, ZoomIn, ZoomOut } from 'lucide-react';
+import { Qr, Status, useImage } from './ui.jsx';
+import { dateRange, nowHM, todayISO, weekday } from './format.js';
 
-// The pass as shown to its holder: quiet, high-contrast QR with the gate and area beside it.
+// The pass as shown to its holder, laid out like a printed ticket: event band, holder and
+// access, then a tear-off stub with a large, quiet QR code.
 export function PassCard({ pass }) {
+  const e = pass.event;
   return (
-    <div className="pass">
-      <span className="type">{pass.passClass.name}</span>
-      <div className="name">{pass.holderName}</div>
-      {pass.holderCompany && <div className="muted">{pass.holderCompany}</div>}
-      {pass.qr ? (
-        <Qr text={pass.qr} alt={`QR code for ${pass.holderName}'s pass`} />
-      ) : (
-        <p className="notice error" style={{ margin: '16px 0' }}>
-          This pass is no longer valid.
-        </p>
-      )}
-      <div className="where">
-        <div>
-          <div className="small muted">Enter at</div>
-          <div className="v">{pass.gates.join(', ') || 'Any gate'}</div>
+    <article className="ticket" aria-label={`${pass.passClass.name} pass for ${pass.holderName}`}>
+      <header className="ticket-top">
+        <div className="row between top">
+          <div className="grow">
+            <div className="ticket-event">{e.name}</div>
+            <div className="ticket-when">
+              {dateRange(pass.validFrom, pass.validTo)} · {e.openTime}–{e.closeTime}
+            </div>
+            {e.venueName && <div className="ticket-when">{e.venueName}</div>}
+          </div>
+          <span className="ticket-class">{pass.passClass.name}</span>
         </div>
-        <div>
-          <div className="small muted">Valid for</div>
-          <div className="v">{pass.zones.join(', ')}</div>
-        </div>
+      </header>
+      <div className="ticket-holder">
+        <div className="ticket-name">{pass.holderName}</div>
+        {pass.holderCompany && <div className="muted">{pass.holderCompany}</div>}
+        <dl className="ticket-meta">
+          <div>
+            <dt>Enter at</dt>
+            <dd>{pass.gates.join(', ') || 'Any gate'}</dd>
+          </div>
+          <div>
+            <dt>Access</dt>
+            <dd>{pass.zones.join(', ') || 'Show floor'}</dd>
+          </div>
+        </dl>
       </div>
-      <p className="muted small" style={{ marginTop: 12 }}>
-        {dateRange(pass.validFrom, pass.validTo)} · {pass.event.openTime}–{pass.event.closeTime}
-        {pass.ref ? ` · Ref ${pass.ref}` : ''}
-      </p>
-      <p className="muted" style={{ marginTop: 4 }}>
-        {pass.instructions}
-      </p>
-    </div>
+      <div className="ticket-stub">
+        {pass.qr ? (
+          <Qr text={pass.qr} size={200} alt={`QR code for ${pass.holderName}'s pass`} />
+        ) : (
+          <p className="notice error">This pass is no longer valid.</p>
+        )}
+        {pass.ref && <div className="ticket-ref">{pass.ref}</div>}
+        {pass.instructions && <p className="ticket-note">{pass.instructions}</p>}
+      </div>
+    </article>
   );
 }
 
@@ -50,7 +60,19 @@ const snap = (v) => Math.round(v / SNAP) * SNAP;
 // sel). The list view carries the same information as text.
 // With `onChange`, the plan is editable: drag a stall to move it, drag its corner to resize,
 // or use the arrow keys (Shift + arrows resize). Changes snap to 0.5 m.
-export function HallPlan({ halls, selected, onSelect, tone, here, label, startView = 'map', zoneId: controlled, onZone, onChange }) {
+export function HallPlan({
+  halls,
+  selected,
+  onSelect,
+  tone,
+  here,
+  label,
+  startView = 'map',
+  zoneId: controlled,
+  onZone,
+  onChange,
+  zoomable,
+}) {
   const drawable = halls.filter((h) => h.cols > 0);
   const [own, setOwn] = useState(
     () => here?.zoneId ?? drawable.find((h) => h.booths.some((b) => b.id === selected))?.id ?? drawable[0]?.id,
@@ -58,6 +80,7 @@ export function HallPlan({ halls, selected, onSelect, tone, here, label, startVi
   const zoneId = controlled ?? own;
   const setZone = (id) => (onZone ? onZone(id) : setOwn(id));
   const [view, setView] = useState(startView);
+  const [zoom, setZoom] = useState(1);
   const [drag, setDrag] = useState(null); // { id, mode, start, orig, rect }
   const svgRef = useRef(null);
   const hall = drawable.find((h) => h.id === zoneId) || drawable[0];
@@ -123,120 +146,141 @@ export function HallPlan({ halls, selected, onSelect, tone, here, label, startVi
     <div className="plan">
       <div className="row between wrap" style={{ marginBottom: 12 }}>
         {drawable.length > 1 ? (
-          <Tabs tabs={drawable.map((h) => ({ value: h.id, label: h.name }))} value={hall.id} onChange={setZone} />
+          <div className="seg" role="group" aria-label="Hall">
+            {drawable.map((h) => (
+              <button key={h.id} aria-pressed={h.id === hall.id} onClick={() => setZone(h.id)}>
+                {h.name}
+              </button>
+            ))}
+          </div>
         ) : (
           <h3>{hall.name}</h3>
         )}
-        <div className="chips" role="group" aria-label="View">
-          <button className="chip" aria-pressed={view === 'map'} onClick={() => setView('map')}>
+        <div className="seg" role="group" aria-label="View">
+          <button aria-pressed={view === 'map'} onClick={() => setView('map')}>
             Map
           </button>
-          <button className="chip" aria-pressed={view === 'list'} onClick={() => setView('list')}>
+          <button aria-pressed={view === 'list'} onClick={() => setView('list')}>
             List
           </button>
         </div>
       </div>
       {view === 'map' ? (
-        <svg
-          ref={svgRef}
-          className={`${image ? 'has-drawing' : ''} ${editing ? 'editing' : ''}`}
-          viewBox={`${-pad} ${-pad} ${W + pad * 2} ${H + pad * 3.2}`}
-          role="group"
-          aria-label={`Plan of ${hall.name}, ${hall.cols} by ${hall.rows} metres`}
-          onPointerMove={moveDrag}
-          onPointerUp={endDrag}
-          onPointerCancel={() => setDrag(null)}
-        >
-          {image && <image href={image} x="0" y="0" width={W} height={H} preserveAspectRatio="none" />}
-          <rect className="wall" x="0" y="0" width={W} height={H} rx={U * 0.2} />
-          {hall.booths.map((b) => {
-            const r = rectOf(b);
-            const fs = Math.max(U * 0.35, Math.min(Math.min(r.w, r.h) * S * 0.34, U * 0.9));
-            return (
-              <g
-                key={b.id}
-                className={`booth ${toneOf(b)} ${drag?.id === b.id ? 'dragging' : ''}`}
-                role="button"
-                tabIndex={0}
-                aria-label={`${boothLabel(b)}, ${r.w} by ${r.h} metres`}
-                aria-pressed={b.id === selected}
-                onPointerDown={(e) => startDrag(e, b, 'move')}
-                onClick={() => !editing && onSelect?.(b)}
-                onKeyDown={(e) => {
-                  if (keyEdit(e, b)) return;
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onSelect?.(b);
-                  }
-                }}
-              >
-                <rect x={r.x * S + 2} y={r.y * S + 2} width={r.w * S - 4} height={r.h * S - 4} rx={U * 0.1} />
-                <text x={(r.x + r.w / 2) * S} y={(r.y + r.h / 2) * S + fs * 0.35} textAnchor="middle" style={{ fontSize: fs }}>
-                  {b.code}
-                </text>
-                {editing && b.id === selected && (
-                  <>
-                    <text
-                      x={(r.x + r.w / 2) * S}
-                      y={(r.y + r.h) * S + U * 0.7}
-                      textAnchor="middle"
-                      className="dims"
-                      style={{ fontSize: U * 0.5 }}
-                    >
-                      {r.w} × {r.h} m
-                    </text>
-                    <rect
-                      className="handle"
-                      x={(r.x + r.w) * S - U * 0.45}
-                      y={(r.y + r.h) * S - U * 0.45}
-                      width={U * 0.6}
-                      height={U * 0.6}
-                      onPointerDown={(e) => startDrag(e, b, 'resize')}
-                    >
-                      <title>Drag to resize</title>
-                    </rect>
-                  </>
-                )}
-              </g>
-            );
-          })}
-          {hall.amenities.map((a) => (
-            <text
-              key={a.id}
-              className="amenity"
-              x={a.x * S}
-              y={a.y * S}
-              textAnchor={a.x > hall.cols / 2 ? 'end' : 'start'}
-              style={{ fontSize: U * 0.55 }}
-            >
-              {a.label}
-            </text>
-          ))}
-          {hall.gates
-            .filter((g) => g.x != null)
-            .map((g) => (
-              <g key={g.id}>
-                <rect x={g.x * S - U * 1.8} y={H - U * 0.15} width={U * 3.6} height={U * 0.3} fill="var(--surface)" />
-                <path
-                  d={`M ${g.x * S} ${H + U * 1.1} v ${-U * 0.9} m ${-U * 0.3} ${U * 0.3} l ${U * 0.3} ${-U * 0.3} l ${U * 0.3} ${U * 0.3}`}
-                  fill="none"
-                  stroke="var(--ink)"
-                  strokeWidth={U * 0.1}
-                />
-                <text className="gate" x={g.x * S} y={H + U * 1.9} textAnchor="middle" style={{ fontSize: U * 0.65 }}>
-                  {g.name} entry
-                </text>
-              </g>
-            ))}
-          {here && here.zoneId === hall.id && (
-            <g className="here">
-              <circle cx={here.x * S} cy={here.y * S} r={U * 0.4} />
-              <text x={here.x * S + U * 0.65} y={here.y * S + U * 0.25} style={{ fontSize: U * 0.7 }}>
-                You are here
-              </text>
-            </g>
+        <div className="plan-view">
+          {zoomable && (
+            <div className="zoom" role="group" aria-label="Zoom">
+              <button onClick={() => setZoom(Math.min(3.25, zoom + 0.75))} disabled={zoom >= 3.25} aria-label="Zoom in">
+                <ZoomIn className="icon" />
+              </button>
+              <button onClick={() => setZoom(Math.max(1, zoom - 0.75))} disabled={zoom <= 1} aria-label="Zoom out">
+                <ZoomOut className="icon" />
+              </button>
+            </div>
           )}
-        </svg>
+          <div className="plan-scroll">
+            <svg
+              style={{ width: `${zoom * 100}%` }}
+              ref={svgRef}
+              className={`${image ? 'has-drawing' : ''} ${editing ? 'editing' : ''}`}
+              viewBox={`${-pad} ${-pad} ${W + pad * 2} ${H + pad * 3.2}`}
+              role="group"
+              aria-label={`Plan of ${hall.name}, ${hall.cols} by ${hall.rows} metres`}
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
+              onPointerCancel={() => setDrag(null)}
+            >
+              {image && <image href={image} x="0" y="0" width={W} height={H} preserveAspectRatio="none" />}
+              <rect className="wall" x="0" y="0" width={W} height={H} rx={U * 0.2} />
+              {hall.booths.map((b) => {
+                const r = rectOf(b);
+                const fs = Math.max(U * 0.35, Math.min(Math.min(r.w, r.h) * S * 0.34, U * 0.9));
+                return (
+                  <g
+                    key={b.id}
+                    className={`booth ${toneOf(b)} ${drag?.id === b.id ? 'dragging' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${boothLabel(b)}, ${r.w} by ${r.h} metres`}
+                    aria-pressed={b.id === selected}
+                    onPointerDown={(e) => startDrag(e, b, 'move')}
+                    onClick={() => !editing && onSelect?.(b)}
+                    onKeyDown={(e) => {
+                      if (keyEdit(e, b)) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelect?.(b);
+                      }
+                    }}
+                  >
+                    <rect x={r.x * S + 2} y={r.y * S + 2} width={r.w * S - 4} height={r.h * S - 4} rx={U * 0.1} />
+                    <text x={(r.x + r.w / 2) * S} y={(r.y + r.h / 2) * S + fs * 0.35} textAnchor="middle" style={{ fontSize: fs }}>
+                      {b.code}
+                    </text>
+                    {editing && b.id === selected && (
+                      <>
+                        <text
+                          x={(r.x + r.w / 2) * S}
+                          y={(r.y + r.h) * S + U * 0.7}
+                          textAnchor="middle"
+                          className="dims"
+                          style={{ fontSize: U * 0.5 }}
+                        >
+                          {r.w} × {r.h} m
+                        </text>
+                        <rect
+                          className="handle"
+                          x={(r.x + r.w) * S - U * 0.45}
+                          y={(r.y + r.h) * S - U * 0.45}
+                          width={U * 0.6}
+                          height={U * 0.6}
+                          onPointerDown={(e) => startDrag(e, b, 'resize')}
+                        >
+                          <title>Drag to resize</title>
+                        </rect>
+                      </>
+                    )}
+                  </g>
+                );
+              })}
+              {hall.amenities.map((a) => (
+                <text
+                  key={a.id}
+                  className="amenity"
+                  x={a.x * S}
+                  y={a.y * S}
+                  textAnchor={a.x > hall.cols / 2 ? 'end' : 'start'}
+                  style={{ fontSize: U * 0.55 }}
+                >
+                  {a.label}
+                </text>
+              ))}
+              {hall.gates
+                .filter((g) => g.x != null)
+                .map((g) => (
+                  <g key={g.id}>
+                    <rect x={g.x * S - U * 1.8} y={H - U * 0.15} width={U * 3.6} height={U * 0.3} fill="var(--surface)" />
+                    <path
+                      d={`M ${g.x * S} ${H + U * 1.1} v ${-U * 0.9} m ${-U * 0.3} ${U * 0.3} l ${U * 0.3} ${-U * 0.3} l ${U * 0.3} ${U * 0.3}`}
+                      fill="none"
+                      stroke="var(--ink)"
+                      strokeWidth={U * 0.1}
+                    />
+                    <text className="gate" x={g.x * S} y={H + U * 1.9} textAnchor="middle" style={{ fontSize: U * 0.65 }}>
+                      {g.name} entry
+                    </text>
+                  </g>
+                ))}
+              {here && here.zoneId === hall.id && (
+                <g className="here">
+                  <circle cx={here.x * S} cy={here.y * S} r={U * 0.4} />
+                  <text x={here.x * S + U * 0.65} y={here.y * S + U * 0.25} style={{ fontSize: U * 0.7 }}>
+                    You are here
+                  </text>
+                </g>
+              )}
+            </svg>
+          </div>
+        </div>
       ) : (
         <div className="list" role="list" aria-label={`Stalls in ${hall.name}`}>
           {hall.booths.map((b) => (
@@ -270,29 +314,45 @@ export function HallPlan({ halls, selected, onSelect, tone, here, label, startVi
   );
 }
 
-// Sessions grouped by day, with rooms, tracks and (when signed in) bookmarks.
+// Colours for agenda tracks, in the order the organiser created them.
+const TRACK_COLOURS = ['#233e85', '#c82026', '#0f766e', '#b45309', '#6d28d9', '#0369a1'];
+export const trackColour = (agenda, id) => {
+  const i = agenda.tracks.findIndex((t) => t.id === id);
+  return i < 0 ? 'var(--control)' : TRACK_COLOURS[i % TRACK_COLOURS.length];
+};
+
+// Sessions grouped by day, with rooms, tracks, an "on now" mark and (when signed in) bookmarks.
 export function AgendaList({ agenda, days, bookmarks, onToggle, track, compact }) {
   const sessions = agenda.sessions.filter(
     (s) => s.status === 'scheduled' && (!track || s.trackId === track) && (!days || days.includes(s.day)),
   );
-  const byDay = Object.groupBy ? Object.groupBy(sessions, (s) => s.day) : sessions.reduce((a, s) => ((a[s.day] ||= []).push(s), a), {});
+  const byDay = sessions.reduce((a, s) => ((a[s.day] ||= []).push(s), a), {});
   if (!sessions.length) return <p className="empty">No sessions to show.</p>;
+  const today = todayISO();
+  const now = nowHM();
   return (
     <div className="stack">
       {Object.entries(byDay).map(([d, list]) => (
         <section key={d} aria-label={weekday(d)}>
-          {!compact && <h3 style={{ marginBottom: 8 }}>{weekday(d)}</h3>}
-          <div className="panel list">
+          {!compact && (!days || days.length > 1) && <h3 style={{ marginBottom: 8 }}>{weekday(d)}</h3>}
+          <div className="group">
             {list.map((s) => {
               const marked = bookmarks?.includes(s.id);
+              const live = d === today && s.startTime <= now && now < s.endTime;
               return (
-                <div key={s.id} style={{ alignItems: 'flex-start' }}>
-                  <div style={{ width: 96, flex: 'none' }} className="num">
+                <div key={s.id} className="session" style={{ '--track': trackColour(agenda, s.trackId) }}>
+                  <div className="session-time num">
                     <strong>{s.startTime}</strong>
-                    <span className="muted">–{s.endTime}</span>
+                    <span>{s.endTime}</span>
                   </div>
                   <div className="grow">
-                    <div style={{ fontWeight: 600 }}>{s.title}</div>
+                    {(live || s.full) && (
+                      <div className="row" style={{ gap: 6, marginBottom: 2 }}>
+                        {live && <span className="live-tag">On now</span>}
+                        {s.full && <Status tone="pending">Full</Status>}
+                      </div>
+                    )}
+                    <div className="session-title">{s.title}</div>
                     <div className="muted small">{[s.room, s.track].filter(Boolean).join(' · ')}</div>
                     {s.speakers.length > 0 && (
                       <div className="small">{s.speakers.map((p) => (p.title ? `${p.name}, ${p.title}` : p.name)).join('; ')}</div>
@@ -303,10 +363,9 @@ export function AgendaList({ agenda, days, bookmarks, onToggle, track, compact }
                       </p>
                     )}
                   </div>
-                  {s.full && <Status tone="pending">Full</Status>}
                   {onToggle && (
                     <button
-                      className="btn plain"
+                      className={`icon-btn ${marked ? 'on' : ''}`}
                       onClick={() => onToggle(s, !marked)}
                       aria-pressed={marked}
                       aria-label={`${marked ? 'Remove bookmark for' : 'Bookmark'} ${s.title}`}

@@ -3,34 +3,76 @@ import SwiftUI
 import UserNotifications
 
 // MARK: Pass
-// The pass as its holder shows it: quiet, high-contrast QR with the gate and area beside it.
+// The pass laid out like a printed ticket: event band, holder and access, then a tear-off stub
+// with a large, quiet QR code. Same design as the web app.
 struct PassCard: View {
     let pass: Pass
     var body: some View {
-        Panel {
-            VStack(spacing: 12) {
-                Text(pass.passClass.name).font(.body.weight(.semibold)).foregroundColor(.petrol)
-                    .padding(.horizontal, 14).padding(.vertical, 4)
-                    .background(Color.selectedFill, in: RoundedRectangle(cornerRadius: 6))
-                VStack(spacing: 2) {
-                    Text(pass.holderName).font(.title.weight(.semibold)).multilineTextAlignment(.center)
-                    if let company = pass.holderCompany { Text(company).foregroundColor(.ink2) }
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pass.event.name).font(.headline.weight(.bold))
+                    Text("\(Fmt.dateRange(pass.validFrom, pass.validTo)) · \(pass.event.openTime)–\(pass.event.closeTime)").font(.subheadline).opacity(0.82)
+                    if let venue = pass.event.venueName { Text(venue).font(.subheadline).opacity(0.82) }
                 }
+                Spacer(minLength: 0)
+                Text(pass.passClass.name).font(.footnote.weight(.semibold))
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Color.petrol, in: Capsule())
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 20).padding(.vertical, 18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.navy)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(pass.holderName).font(.title2.weight(.bold))
+                if let company = pass.holderCompany { Text(company).foregroundColor(.ink2) }
+                HStack(alignment: .top, spacing: 12) {
+                    ticketField("Enter at", pass.gates.isEmpty ? "Any gate" : pass.gates.joined(separator: ", "))
+                    ticketField("Access", pass.zones.isEmpty ? "Show floor" : pass.zones.joined(separator: ", "))
+                }
+                .padding(.top, 12)
+            }
+            .padding(.horizontal, 20).padding(.top, 18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Perforation().frame(height: 36)
+            VStack(spacing: 8) {
                 if let qr = pass.qr {
-                    QrImage(text: qr, label: "QR code for \(pass.holderName)'s pass").frame(width: 232, height: 232)
+                    QrImage(text: qr, label: "QR code for \(pass.holderName)'s pass").frame(width: 210, height: 210)
                 } else {
                     Notice(text: "This pass is no longer valid.", tone: .error)
                 }
-                HStack(spacing: 8) {
-                    KeyValue(key: "Enter at", value: pass.gates.isEmpty ? "Any gate" : pass.gates.joined(separator: ", "))
-                    KeyValue(key: "Valid for", value: pass.zones.joined(separator: ", "))
-                }
-                Text("\(Fmt.dateRange(pass.validFrom, pass.validTo)) · \(pass.event.openTime)–\(pass.event.closeTime)\(pass.ref.map { " · Ref \($0)" } ?? "")")
-                    .font(.subheadline).foregroundColor(.ink2).multilineTextAlignment(.center)
-                Text(pass.instructions).foregroundColor(.ink2).multilineTextAlignment(.center)
+                if let ref = pass.ref { Text(ref).font(.callout.weight(.semibold)).kerning(2).foregroundColor(.ink2) }
+                Text(pass.instructions).font(.subheadline).foregroundColor(.ink2).multilineTextAlignment(.center).padding(.top, 4)
             }
-            .padding(20)
+            .padding(.horizontal, 20).padding(.bottom, 20)
         }
+        .background(Color.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.1), radius: 12, y: 6)
+    }
+    private func ticketField(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.subheadline).foregroundColor(.ink2)
+            Text(value).font(.body.weight(.semibold))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+// Dashed tear line with a half-circle notch cut from each side.
+struct Perforation: View {
+    var body: some View {
+        GeometryReader { g in
+            let y = g.size.height / 2
+            ZStack {
+                Path { p in p.move(to: CGPoint(x: 18, y: y)); p.addLine(to: CGPoint(x: g.size.width - 18, y: y)) }
+                    .stroke(Color.rule, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                Circle().fill(Color.canvas).frame(width: 24, height: 24).position(x: 0, y: y)
+                Circle().fill(Color.canvas).frame(width: 24, height: 24).position(x: g.size.width, y: y)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -113,24 +155,53 @@ struct PassScreen: View {
 }
 
 // MARK: Explore
-struct ExhibitorCard: View {
+struct ExhibitorRow: View {
+    let ex: Exhibitor
+    var body: some View {
+        ListRow {
+            Monogram(name: ex.name)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(ex.name).bold()
+                Text(ex.industry ?? ex.categories.joined(separator: ", ")).font(.subheadline).foregroundColor(.ink2)
+            }
+            Spacer(minLength: 0)
+            if let code = ex.boothCode {
+                Text(code).font(.footnote.weight(.semibold)).foregroundColor(.navy)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Color(hex: 0xEEF1F9), in: RoundedRectangle(cornerRadius: 6))
+            }
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundColor(Color(hex: 0xA3A8B3))
+        }
+    }
+}
+
+// Exhibitor details in a bottom sheet.
+struct ExhibitorSheet: View {
     let ex: Exhibitor
     var onShowOnPlan: (() -> Void)?
     @Environment(\.openURL) var openURL
     var body: some View {
-        Panel {
-            VStack(alignment: .leading, spacing: 8) {
-                SectionTitle(text: ex.name)
-                Text(ex.hall.map { "\($0) · Booth \(ex.boothCode ?? "")" } ?? "Booth to be announced").foregroundColor(.ink2)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Monogram(name: ex.name, size: 56)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ex.name).font(.title3.weight(.semibold))
+                        Text(ex.boothCode.map { "Stall \($0)\(ex.hall.map { " · \($0)" } ?? "")" } ?? "Stall to be announced").foregroundColor(.ink2)
+                    }
+                }
                 if let text = ex.description { Text(text) }
                 if !ex.categories.isEmpty { Text(ex.categories.joined(separator: " · ")).font(.subheadline).foregroundColor(.ink2) }
-                if let show = onShowOnPlan, ex.boothId != nil { Button("Show on plan", action: show).buttonStyle(SecondaryButtonStyle()) }
+                if let show = onShowOnPlan { Button("Show on floor plan", action: show).buttonStyle(PrimaryButtonStyle()) }
                 ForEach((ex.website.map { [WebLink(label: "Website", url: $0)] } ?? []) + ex.catalogueLinks, id: \.self) { link in
                     if let url = URL(string: link.url) { Button(link.label) { openURL(url) }.buttonStyle(SecondaryButtonStyle()) }
                 }
             }
-            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20).padding(.top, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -138,34 +209,33 @@ struct ExploreScreen: View {
     let guide: Guide
     @EnvironmentObject var repo: Repo
     @State var query = ""
-    @State var showMap = true
+    @State var category: String?
+    @State var view = "list"
     @State var hallId: Int?
     @State var boothId: Int?
-    @State var open: Int?
+    @State var open: Exhibitor?
     var body: some View {
         let halls = guide.halls.filter { $0.cols > 0 }
         let hall = halls.first { $0.id == hallId } ?? halls.first
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let categories = Array(Set(guide.exhibitors.flatMap { $0.categories })).sorted()
         let matches = guide.exhibitors.filter { e in
-            q.isEmpty || ([e.name, e.boothCode ?? "", e.industry ?? ""] + e.categories).contains { $0.lowercased().contains(q) }
+            (category == nil || e.categories.contains(category!)) &&
+                (q.isEmpty || ([e.name, e.boothCode ?? "", e.industry ?? ""] + e.categories).contains { $0.lowercased().contains(q) })
         }
+        .sorted { $0.name.lowercased() < $1.name.lowercased() }
         Screen {
-            ScreenTitle(title: "Explore", eyebrow: guide.event.name)
-            LabeledField(label: "Search exhibitors", text: $query, hint: "Company, booth or product")
-                .onChange(of: query) { value in if !value.isEmpty { showMap = false } }
-            HStack(spacing: 8) {
-                Chip(text: "Map", selected: showMap) { showMap = true }
-                Chip(text: "List", selected: !showMap) { showMap = false }
-            }
-            if showMap, let hall = hall {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) { ForEach(halls) { h in Chip(text: h.name, selected: h.id == hall.id) { hallId = h.id; boothId = nil } } }
+            ScreenTitle(title: "Explore")
+            Segmented(options: [("Exhibitors", "list"), ("Floor plan", "map")], value: $view)
+            if view == "map", let hall = hall {
+                if halls.count > 1 {
+                    Segmented(options: halls.map { ($0.name, $0.id) }, value: Binding(get: { hall.id }, set: { hallId = $0; boothId = nil }))
                 }
                 Panel { HallPlan(hall: hall, selected: boothId) { b in boothId = b.exhibitorId != nil ? b.id : nil }.padding(12) }
                 if let ex = guide.exhibitors.first(where: { $0.boothId == boothId && boothId != nil }) {
-                    ExhibitorCard(ex: ex)
+                    Panel { Button { open = ex } label: { ExhibitorRow(ex: ex) }.buttonStyle(.plain) }
                 } else {
-                    Text("Tap a booth to see who is there. Dashed booths are not allocated.").foregroundColor(.ink2)
+                    Text("Tap a stall to see who is there. Dashed stalls are free.").font(.subheadline).foregroundColor(.ink2)
                 }
                 if !hall.amenities.isEmpty {
                     Panel {
@@ -176,88 +246,126 @@ struct ExploreScreen: View {
                     }
                 }
             } else {
-                Text("\(matches.count) of \(guide.exhibitors.count) exhibitors").font(.subheadline).foregroundColor(.ink2)
-                Panel {
-                    ForEach(matches) { e in
-                        Button { open = open == e.id ? nil : e.id } label: {
-                            ListRow {
-                                Text(e.boothCode ?? "—").bold().frame(width: 48, alignment: .leading)
-                                VStack(alignment: .leading) {
-                                    Text(e.name).bold()
-                                    Text([e.hall, e.industry].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).foregroundColor(.ink2)
-                                }
-                            }
+                LabeledField(label: "Search exhibitors", text: $query, hint: "Company, stall or product")
+                if !categories.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            Chip(text: "All", selected: category == nil) { category = nil }
+                            ForEach(categories, id: \.self) { c in Chip(text: c, selected: category == c) { category = category == c ? nil : c } }
                         }
-                        .buttonStyle(.plain)
-                        if open == e.id {
-                            ExhibitorCard(ex: e) {
-                                hallId = halls.first { h in h.booths.contains { $0.id == e.boothId } }?.id
-                                boothId = e.boothId; showMap = true; query = ""
-                            }
-                            .padding(12)
-                        }
-                        Rule()
                     }
-                    if matches.isEmpty { Text("No exhibitors match. Try a different search.").foregroundColor(.ink2).padding(24) }
+                }
+                Text(matches.count == guide.exhibitors.count ? "\(matches.count) exhibitors" : "\(matches.count) of \(guide.exhibitors.count) exhibitors")
+                    .font(.subheadline).foregroundColor(.ink2)
+                if matches.isEmpty {
+                    Text("No exhibitors match. Try a different search.").foregroundColor(.ink2)
+                } else {
+                    Panel {
+                        ForEach(Array(matches.enumerated()), id: \.element.id) { i, e in
+                            if i > 0 { Rule() }
+                            Button { open = e } label: { ExhibitorRow(ex: e) }.buttonStyle(.plain)
+                        }
+                    }
                 }
             }
             if !repo.online { Text("Offline. Showing the guide saved \(Fmt.clock(guide.savedAt)).").font(.subheadline).foregroundColor(.pendingText) }
+        }
+        .sheet(item: $open) { ex in
+            ExhibitorSheet(ex: ex, onShowOnPlan: view == "map" || ex.boothId == nil ? nil : {
+                hallId = halls.first { h in h.booths.contains { $0.id == ex.boothId } }?.id
+                boothId = ex.boothId; view = "map"; open = nil
+            })
         }
     }
 }
 
 // MARK: Agenda
+struct SessionRow: View {
+    let s: AgendaSession
+    let colour: Color
+    let live: Bool
+    let marked: Bool
+    var onToggle: (() -> Void)?
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading) {
+                Text(s.startTime).bold().monospacedDigit()
+                Text(s.endTime).font(.subheadline).foregroundColor(.ink2).monospacedDigit()
+            }
+            .frame(width: 52, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                if live {
+                    Text("On now").font(.caption.weight(.bold)).foregroundColor(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 1).background(Color.petrol, in: Capsule())
+                }
+                Text(s.title).bold()
+                Text([s.room, s.track].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).foregroundColor(.ink2)
+                if !s.speakers.isEmpty {
+                    Text(s.speakers.map { p in p.title.map { "\(p.name), \($0)" } ?? p.name }.joined(separator: "; ")).font(.subheadline)
+                }
+                if s.full { StatusChip(text: "Full", tone: .pending) }
+            }
+            Spacer(minLength: 0)
+            if let toggle = onToggle {
+                Button(action: toggle) {
+                    Image(systemName: marked ? "bookmark.fill" : "bookmark").foregroundColor(marked ? .petrol : .control).frame(width: 44, height: 44)
+                }
+                .accessibilityLabel(marked ? "Remove bookmark for \(s.title)" : "Bookmark \(s.title)")
+            }
+        }
+        .padding(.leading, 14).padding(.trailing, 8).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .leading) { TrackBar().fill(colour).frame(width: 4) }
+    }
+}
+// The coloured track bar at the left edge of a session row.
+struct TrackBar: Shape {
+    func path(in rect: CGRect) -> Path { Path(roundedRect: rect, cornerSize: CGSize(width: 2, height: 2)) }
+}
+
 struct AgendaScreen: View {
     let guide: Guide
     @EnvironmentObject var repo: Repo
+    @State var day = ""
     @State var track: Int?
     @State var mine = false
     @StateObject var action = ActionRunner()
     var body: some View {
-        let sessions = guide.agenda.sessions.filter { $0.status == "scheduled" && (track == nil || $0.trackId == track) && (!mine || repo.bookmarks.contains($0.id)) }
-        let days = Array(Set(sessions.map { $0.day })).sorted()
+        let days = Array(Set(guide.agenda.sessions.filter { $0.status == "scheduled" }.map { $0.day })).sorted()
+        let today = Fmt.today()
+        let now = Fmt.now()
+        let shown = days.contains(day) ? day : (days.contains(today) ? today : days.first ?? "")
+        let sessions = guide.agenda.sessions.filter {
+            $0.status == "scheduled" && $0.day == shown && (track == nil || $0.trackId == track) && (!mine || repo.bookmarks.contains($0.id))
+        }
         Screen {
-            ScreenTitle(title: "Agenda", eyebrow: guide.event.name)
+            ScreenTitle(title: "Agenda")
+            if days.count > 1 {
+                Segmented(options: days.map { (Fmt.shortDay($0), $0) }, value: Binding(get: { shown }, set: { day = $0 }))
+            }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Chip(text: "All", selected: track == nil && !mine) { track = nil; mine = false }
                     ForEach(guide.agenda.tracks) { t in Chip(text: t.name, selected: track == t.id) { track = t.id; mine = false } }
-                    if repo.signedIn { Chip(text: "My bookmarks", selected: mine) { mine.toggle(); track = nil } }
+                    if repo.signedIn { Chip(text: "Saved", selected: mine) { mine.toggle(); track = nil } }
                 }
             }
-            if !repo.signedIn { Text("Sign in from Profile to bookmark sessions.").font(.subheadline).foregroundColor(.ink2) }
-            ForEach(days, id: \.self) { d in
-                SectionTitle(text: Fmt.weekday(d))
+            if !repo.signedIn { Text("Sign in from Profile to save sessions to your plan.").font(.subheadline).foregroundColor(.ink2) }
+            if sessions.isEmpty {
+                Text(mine ? "You have not saved any sessions for this day." : "No sessions to show.").foregroundColor(.ink2)
+            } else {
                 Panel {
-                    ForEach(sessions.filter { $0.day == d }) { s in
-                        let marked = repo.bookmarks.contains(s.id)
-                        ListRow {
-                            VStack(alignment: .leading) {
-                                Text(s.startTime).bold().monospacedDigit()
-                                Text(s.endTime).font(.subheadline).foregroundColor(.ink2).monospacedDigit()
-                            }
-                            .frame(width: 56, alignment: .leading)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(s.title).bold()
-                                Text([s.room, s.track].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).foregroundColor(.ink2)
-                                if !s.speakers.isEmpty {
-                                    Text(s.speakers.map { p in p.title.map { "\(p.name), \($0)" } ?? p.name }.joined(separator: "; ")).font(.subheadline)
-                                }
-                                if s.full { StatusChip(text: "Full", tone: .pending) }
-                            }
-                            Spacer(minLength: 0)
-                            if repo.signedIn {
-                                Button { action.run { try await repo.toggleBookmark(s.id) } } label: {
-                                    Image(systemName: marked ? "bookmark.fill" : "bookmark").foregroundColor(.petrol).frame(width: 44, height: 44)
-                                }
-                                .accessibilityLabel(marked ? "Remove bookmark for \(s.title)" : "Bookmark \(s.title)")
-                            }
-                        }
-                        Rule()
+                    ForEach(Array(sessions.enumerated()), id: \.element.id) { i, s in
+                        if i > 0 { Rule() }
+                        SessionRow(
+                            s: s, colour: trackColour(guide.agenda.tracks, s.trackId),
+                            live: s.day == today && s.startTime <= now && now < s.endTime,
+                            marked: repo.bookmarks.contains(s.id),
+                            onToggle: repo.signedIn ? { action.run { try await repo.toggleBookmark(s.id) } } : nil
+                        )
                     }
                 }
             }
-            if sessions.isEmpty { Text(mine ? "You have not bookmarked any sessions yet." : "No sessions to show.").foregroundColor(.ink2) }
         }
         .messages(action)
     }

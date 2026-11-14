@@ -128,7 +128,8 @@ export function useAction() {
 }
 
 // ---------- dialog ----------
-export function Dialog({ title, onClose, children, footer, wide }) {
+// `sheet` slides up from the bottom on phones, like a native bottom sheet.
+export function Dialog({ title, onClose, children, footer, wide, sheet }) {
   const ref = useRef(null);
   useEffect(() => {
     const prev = document.activeElement;
@@ -141,8 +142,8 @@ export function Dialog({ title, onClose, children, footer, wide }) {
     };
   }, [onClose]);
   return (
-    <div className="backdrop no-print" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`dialog ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
+    <div className={`backdrop no-print ${sheet ? 'for-sheet' : ''}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`dialog ${wide ? 'wide' : ''} ${sheet ? 'sheet' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
         <div className="head">
           <h3>{title}</h3>
           <button className="btn plain" onClick={onClose} aria-label="Close">

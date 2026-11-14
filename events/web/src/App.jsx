@@ -10,6 +10,7 @@ import {
   AgendaPage,
   Directory,
   EventSite,
+  EventTickets,
   ExhibitApply,
   Home,
   Landing,
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="map" element={<MapPage />} />
             <Route path="agenda" element={<AgendaPage />} />
             <Route path="register" element={<Register />} />
+            <Route path="tickets" element={<EventTickets />} />
             <Route
               path="exhibit"
               element={

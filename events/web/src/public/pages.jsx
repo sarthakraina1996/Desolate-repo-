@@ -1,34 +1,131 @@
-// The public event site and the visitor journey: landing, directory, hall plan, agenda,
-// registration, the browser pass, hosted-checkout demo page, sign-in and "my passes".
+// The visitor app (home, explore, agenda, tickets) as it looks on a phone, with a top bar and
+// a four-tab bar; on wide screens the tabs move into the top bar. Also registration, the
+// browser pass, the hosted-checkout demo page, sign-in and "my tickets".
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { Link, NavLink, Navigate, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { CalendarDays, Map as MapIcon, Search, Ticket, UserRound } from 'lucide-react';
+import { Link, Navigate, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  Accessibility,
+  Bookmark,
+  CalendarDays,
+  ChevronRight,
+  CircleX,
+  Clock,
+  Compass,
+  CreditCard,
+  DoorOpen,
+  ExternalLink,
+  Hourglass,
+  House,
+  LogOut,
+  Map as MapIcon,
+  MapPin,
+  Megaphone,
+  Search,
+  Store,
+  Sun,
+  Ticket,
+} from 'lucide-react';
 import { del, get, goTo, post, put } from '../api.js';
 import logo from '../assets/brainadz-live.png';
 import { useMe } from '../App.jsx';
-import { Field, Loaded, Loading, Notice, Status, useAction, useImage, useLoad } from '../ui.jsx';
-import { AgendaList, HallPlan, PassCard } from '../components.jsx';
-import { dateRange, inr, ROLE_LABELS } from '../format.js';
+import { Dialog, Field, Loaded, Loading, Notice, useAction, useImage, useLoad } from '../ui.jsx';
+import { AgendaList, HallPlan, PassCard, trackColour } from '../components.jsx';
+import { dateRange, inr, nowHM, ROLE_LABELS, shortDay, todayISO } from '../format.js';
 
-// ---------- public frame ----------
-// The BrainADZ Live header used on every public page.
-export function SiteHeader({ home = '/', children }) {
+// ---------- app frame ----------
+const initialsOf = (u) =>
+  (u.name || u.email)
+    .split(/[\s@._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+
+// Top bar: the BrainADZ Live mark, the event's sections on wide screens, and the account button.
+function AppBar({ home, nav }) {
   const { me } = useMe();
   return (
-    <header className="site-head">
+    <header className="appbar">
       <div className="in">
         <Link to={home} className="brand" aria-label="BrainADZ Live home">
           <img src={logo} alt="BrainADZ Live" width="72" height="34" />
         </Link>
-        {children || <span className="grow" />}
-        <Link className="btn plain" to={me.user ? '/account' : '/signin'}>
-          {me.user ? 'My tickets' : 'Sign in'}
-        </Link>
+        {nav || <span className="grow" />}
+        {me.user ? (
+          <Link className="avatar" to="/account" aria-label={`My account, ${me.user.email}`}>
+            {initialsOf(me.user)}
+          </Link>
+        ) : (
+          <Link className="btn sm" to="/signin">
+            Sign in
+          </Link>
+        )}
       </div>
     </header>
   );
 }
-// Red band at the foot of public pages, like the booklet's contact strip.
+
+const TABS = [
+  ['home', 'Home', House, ''],
+  ['explore', 'Explore', Compass, '/exhibitors'],
+  ['agenda', 'Agenda', CalendarDays, '/agenda'],
+  ['tickets', 'Tickets', Ticket, '/tickets'],
+];
+const tabFor = (path) =>
+  path.startsWith('/account') || path.startsWith('/p/') || path.endsWith('/tickets')
+    ? 'tickets'
+    : /\/(exhibitors|map)$/.test(path)
+      ? 'explore'
+      : path.endsWith('/agenda')
+        ? 'agenda'
+        : 'home';
+
+// The visitor app frame. With an event, the four tabs (bottom bar on phones, top bar on wide
+// screens) lead to that event's home, explore, agenda and tickets.
+export function AppFrame({ slug, event, children }) {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  const active = tabFor(pathname);
+  const tabs = slug ? TABS.map(([key, label, Icon, path]) => ({ key, label, Icon, to: `/e/${slug}${path}` })) : null;
+  const here = (key) => (active === key ? { className: 'active', 'aria-current': 'page' } : {});
+  return (
+    <>
+      <div className="app">
+        <AppBar
+          home={slug ? `/e/${slug}` : '/'}
+          nav={
+            tabs && (
+              <nav className="app-nav" aria-label="Event">
+                {tabs.map((t) => (
+                  <Link key={t.key} to={t.to} {...here(t.key)}>
+                    {t.label}
+                  </Link>
+                ))}
+              </nav>
+            )
+          }
+        />
+        <main id="main" className="app-main">
+          {children}
+        </main>
+        <SiteFooter event={event} />
+      </div>
+      {tabs && (
+        <nav className="app-tabs no-print" aria-label="Event">
+          {tabs.map(({ key, label, Icon, to }) => (
+            <Link key={key} to={to} {...here(key)}>
+              <Icon className="icon" aria-hidden="true" />
+              {label}
+            </Link>
+          ))}
+        </nav>
+      )}
+    </>
+  );
+}
+// Red band at the foot of wide screens, like the booklet's contact strip.
 function SiteFooter({ event }) {
   return (
     <footer className="site-foot no-print">
@@ -48,24 +145,19 @@ function SiteFooter({ event }) {
     </footer>
   );
 }
-// A standalone public page: header, content on the network background, footer.
-export function PublicPage({ children, narrow = true }) {
+// A standalone page outside any event (the demo checkout, an expired ticket link).
+export function PublicPage({ children }) {
   return (
-    <div className="on-network">
-      <SiteHeader />
-      <main id="main" className={`site-main ${narrow ? 'narrow stack' : ''}`}>
-        {children}
-      </main>
-      <SiteFooter />
-    </div>
+    <AppFrame>
+      <div className="narrow stack">{children}</div>
+    </AppFrame>
   );
 }
 
-// ---------- event site frame ----------
+// ---------- event app ----------
 const EventCtx = createContext(null);
 const useEvent = () => useContext(EventCtx);
 
-// "/" goes to the published event, or lists them when there are several.
 // The first page: the sign-in page. Signed-in people go straight to their tickets or workspace.
 export function Home() {
   const { me } = useMe();
@@ -75,145 +167,199 @@ export function Home() {
 
 export function EventSite() {
   const { slug } = useParams();
-  const { me } = useMe();
   const load = useLoad(() => get(`/public/events/${slug}/guide`), [slug]);
-  const base = `/e/${slug}`;
   return (
     <Loaded load={load}>
       {(guide) => (
-        <EventCtx.Provider value={{ guide, base, slug }}>
-          <div className="on-network">
-            <SiteHeader home={base}>
-              <nav className="site-nav" aria-label="Event">
-                <NavLink to={base} end>
-                  Overview
-                </NavLink>
-                <NavLink to={`${base}/exhibitors`}>Exhibitors</NavLink>
-                <NavLink to={`${base}/map`}>Floor plan</NavLink>
-                <NavLink to={`${base}/agenda`}>Agenda</NavLink>
-              </nav>
-            </SiteHeader>
-            <main id="main" className="site-main">
-              <Outlet />
-            </main>
-            <SiteFooter event={guide.event} />
-          </div>
-          <nav className="tabbar site-tabbar" aria-label="Event">
-            <NavLink to={me.user ? '/account' : `${base}/register`}>
-              <Ticket className="icon" />
-              Tickets
-            </NavLink>
-            <NavLink to={`${base}/map`}>
-              <MapIcon className="icon" />
-              Explore
-            </NavLink>
-            <NavLink to={`${base}/agenda`}>
-              <CalendarDays className="icon" />
-              Agenda
-            </NavLink>
-            <NavLink to={base} end>
-              <UserRound className="icon" />
-              Event
-            </NavLink>
-          </nav>
+        <EventCtx.Provider value={{ guide, base: `/e/${slug}`, slug }}>
+          <AppFrame slug={slug} event={guide.event}>
+            <Outlet />
+          </AppFrame>
         </EventCtx.Provider>
       )}
     </Loaded>
   );
 }
 
-export function Landing() {
-  const { guide, base } = useEvent();
-  const e = guide.event;
+// "Starts in 12 days", "Open now · until 18:00" and so on, at the venue's local time.
+function eventStatus(e) {
+  const today = todayISO();
+  const now = nowHM();
+  if (today > e.endsOn) return 'This edition has ended';
+  if (today < e.startsOn) {
+    const days = Math.round((new Date(e.startsOn) - new Date(today)) / 86400000);
+    return days === 1 ? 'Starts tomorrow' : `Starts in ${days} days`;
+  }
+  if (now < e.openTime) return `Opens today at ${e.openTime}`;
+  if (now < e.closeTime) return `Open now · until ${e.closeTime}`;
+  return today < e.endsOn ? `Closed for today · opens ${e.openTime} tomorrow` : 'Closed · final day';
+}
+// The next sessions still to come.
+function upNext(agenda, n = 3) {
+  const today = todayISO();
+  const now = nowHM();
+  return agenda.sessions
+    .filter((s) => s.status === 'scheduled' && (s.day > today || (s.day === today && s.endTime > now)))
+    .sort((a, b) => (a.day + a.startTime).localeCompare(b.day + b.startTime))
+    .slice(0, n);
+}
+
+function Section({ title, action, children }) {
+  return (
+    <section className="block" aria-label={title}>
+      <div className="block-head">
+        <h2>{title}</h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+// One row of a grouped list: optional icon, title, a line of detail, optional chevron.
+function Row({ icon: Icon, title, detail, chevron, children }) {
   return (
     <>
-      <section className="hero">
-        <p className="eyebrow">
-          {dateRange(e.startsOn, e.endsOn)} · {e.city}
-        </p>
+      {Icon && (
+        <span className="row-icon">
+          <Icon aria-hidden="true" />
+        </span>
+      )}
+      <span className="grow">
+        <strong>{title}</strong>
+        {detail && <span className="detail">{detail}</span>}
+      </span>
+      {children}
+      {chevron && <ChevronRight className="icon chev" aria-hidden="true" />}
+    </>
+  );
+}
+
+export function Landing() {
+  const { guide, base } = useEvent();
+  const { me } = useMe();
+  const e = guide.event;
+  const photo = useImage(e.loginImage);
+  const next = upNext(guide.agenda);
+  const where = [e.venueName, e.city].filter(Boolean).join(', ');
+  const halls = guide.halls.filter((h) => h.cols > 0).length;
+  const NOTE_ICON = { schedule: CalendarDays, gate: DoorOpen };
+  return (
+    <div className="stack loose">
+      <section
+        className={`hero-card ${photo ? 'has-photo' : ''}`}
+        style={photo ? { backgroundImage: `linear-gradient(180deg, rgba(14,22,48,0.2), rgba(14,22,48,0.88)), url(${photo})` } : undefined}
+      >
+        <span className="hero-status">{eventStatus(e)}</span>
         <h1>{e.name}</h1>
-        <p className="lede">{e.tagline}</p>
-        <div className="row wrap" style={{ marginTop: 24 }}>
-          <Link className="btn primary big" to={`${base}/register`}>
-            Register
+        {e.tagline && <p className="hero-tagline">{e.tagline}</p>}
+        <div className="hero-facts">
+          <span>
+            <CalendarDays className="icon" aria-hidden="true" />
+            {dateRange(e.startsOn, e.endsOn)} · {e.openTime}–{e.closeTime}
+          </span>
+          {where && (
+            <span>
+              <MapPin className="icon" aria-hidden="true" />
+              {where}
+            </span>
+          )}
+        </div>
+        <div className="hero-actions">
+          <Link className="btn hero-primary" to={`${base}/register`}>
+            Get your pass
           </Link>
-          <Link className="btn plain" to={`${base}/register?find=1`}>
-            Find my ticket
+          <Link className="btn hero-ghost" to={`${base}/tickets`}>
+            {me.user ? 'My ticket' : 'Find my ticket'}
           </Link>
         </div>
       </section>
-      {guide.announcements.map((a) => (
-        <div key={a.id} style={{ marginBottom: 12 }}>
-          <Notice tone="pending">
-            <strong>{a.title}.</strong> {a.body}
-          </Notice>
-        </div>
-      ))}
-      <div className="facts">
-        <div>
-          <div className="eyebrow">Dates</div>
-          <div className="v">{dateRange(e.startsOn, e.endsOn)}</div>
-        </div>
-        <div>
-          <div className="eyebrow">Hours</div>
-          <div className="v">
-            {e.openTime}–{e.closeTime} daily
+
+      <nav className="quick" aria-label="Shortcuts">
+        <QuickLink to={`${base}/exhibitors`} icon={Store} label="Exhibitors" sub={`${guide.exhibitorCount} companies`} />
+        <QuickLink to={`${base}/map`} icon={MapIcon} label="Floor plan" sub={halls === 1 ? '1 hall' : `${halls} halls`} />
+        <QuickLink to={`${base}/agenda`} icon={CalendarDays} label="Agenda" sub={`${guide.sessionCount} sessions`} />
+        <QuickLink to={`${base}/tickets`} icon={Ticket} label="Ticket" sub={me.user ? 'Show at the gate' : 'Register or find'} />
+      </nav>
+
+      {guide.announcements.length > 0 && (
+        <Section title="Updates">
+          <div className="group">
+            {guide.announcements.map((a) => (
+              <div key={a.id} className="row-item">
+                <Row icon={NOTE_ICON[a.kind] || Megaphone} title={a.title} detail={a.body} />
+              </div>
+            ))}
           </div>
-        </div>
-        <div>
-          <div className="eyebrow">Venue</div>
-          <div className="v">{e.venueName}</div>
-          <div className="muted small">{e.venueAddress}</div>
-        </div>
-        <div>
-          <div className="eyebrow">On the floor</div>
-          <div className="v">
-            {guide.exhibitorCount} exhibitors · {guide.sessionCount} sessions
+        </Section>
+      )}
+
+      {next.length > 0 && (
+        <Section title="Up next" action={<Link to={`${base}/agenda`}>Full agenda</Link>}>
+          <div className="group">
+            {next.map((s) => (
+              <Link
+                key={s.id}
+                to={`${base}/agenda?day=${s.day}`}
+                className="session"
+                style={{ '--track': trackColour(guide.agenda, s.trackId) }}
+              >
+                <div className="session-time num">
+                  <strong>{s.startTime}</strong>
+                  <span>{shortDay(s.day)}</span>
+                </div>
+                <div className="grow">
+                  <div className="session-title">{s.title}</div>
+                  <div className="muted small">{[s.room, s.track].filter(Boolean).join(' · ')}</div>
+                </div>
+                <ChevronRight className="icon chev" aria-hidden="true" />
+              </Link>
+            ))}
           </div>
-        </div>
-      </div>
-      <section className="section">
-        <h2>About the event</h2>
-        <p style={{ marginTop: 8, maxWidth: '70ch' }}>{e.description}</p>
-        <p style={{ marginTop: 12 }}>
-          <Link to={`${base}/exhibitors`}>Browse exhibitors</Link> · <Link to={`${base}/map`}>See the floor plan</Link> ·{' '}
-          <Link to={`${base}/agenda`}>View the agenda</Link>
-        </p>
-      </section>
-      <section className="section">
-        <h2>Passes</h2>
-        <div className="panel list" style={{ marginTop: 12 }}>
+        </Section>
+      )}
+
+      {e.description && (
+        <Section title="About">
+          <p className="about">{e.description}</p>
+        </Section>
+      )}
+
+      <Section title="Passes">
+        <div className="group">
           {guide.passClasses.map((c) => (
-            <div key={c.code}>
-              <span className="grow">
-                <strong>{c.name}</strong>
-                <br />
-                <span className="muted small">{c.description}</span>
-              </span>
-              {c.soldOut ? (
-                <Status tone="pending">Fully booked</Status>
-              ) : (
-                <strong>{c.mode === 'invited' ? 'By invitation' : c.priceLabel}</strong>
-              )}
-            </div>
+            <Link key={c.code} className="row-item" to={`${base}/register?pass=${c.code}`}>
+              <Row title={c.name} detail={c.soldOut ? 'Fully booked' : c.description} chevron>
+                <span className="price">{c.mode === 'invited' ? 'Invite' : c.priceLabel}</span>
+              </Row>
+            </Link>
           ))}
         </div>
-        {guide.features.exhibitors && (
-          <p style={{ marginTop: 12 }}>
-            Want to exhibit? <Link to={`${base}/exhibit`}>Apply for a stand</Link>
-          </p>
-        )}
-      </section>
-      {guide.accessibility && (
-        <section className="section">
-          <h2>Accessibility</h2>
-          <p style={{ marginTop: 8, maxWidth: '70ch' }}>{guide.accessibility}</p>
-        </section>
-      )}
+      </Section>
+
+      <Section title="Plan your visit">
+        <div className="group">
+          <div className="row-item">
+            <Row icon={Clock} title={`${e.openTime}–${e.closeTime} daily`} detail={dateRange(e.startsOn, e.endsOn)} />
+          </div>
+          <div className="row-item">
+            <Row icon={MapPin} title={e.venueName} detail={e.venueAddress} />
+          </div>
+          {guide.accessibility && (
+            <div className="row-item">
+              <Row icon={Accessibility} title="Accessibility" detail={guide.accessibility} />
+            </div>
+          )}
+          {guide.features.exhibitors && (
+            <Link className="row-item" to={`${base}/exhibit`}>
+              <Row icon={Store} title="Exhibit with us" detail="Apply for a stand" chevron />
+            </Link>
+          )}
+        </div>
+      </Section>
+
       {guide.faqs.length > 0 && (
-        <section className="section">
-          <h2>Questions</h2>
-          <div style={{ marginTop: 8 }}>
+        <Section title="Questions">
+          <div className="group">
             {guide.faqs.map((f) => (
               <details key={f.q} className="faq">
                 <summary>{f.q}</summary>
@@ -221,49 +367,101 @@ export function Landing() {
               </details>
             ))}
           </div>
-        </section>
+        </Section>
       )}
+    </div>
+  );
+}
+function QuickLink({ to, icon: Icon, label, sub }) {
+  return (
+    <Link className="quick-link" to={to}>
+      <span className="quick-icon">
+        <Icon aria-hidden="true" />
+      </span>
+      <span>
+        <strong>{label}</strong>
+        <span className="detail">{sub}</span>
+      </span>
+    </Link>
+  );
+}
+
+// ---------- explore: exhibitors and floor plan ----------
+function ExploreHead() {
+  const { base } = useEvent();
+  const map = useLocation().pathname.endsWith('/map');
+  return (
+    <>
+      <h1 className="page-title">Explore</h1>
+      <div className="seg wide" role="group" aria-label="Explore">
+        <Link to={`${base}/exhibitors`} replace aria-current={map ? undefined : 'page'}>
+          Exhibitors
+        </Link>
+        <Link to={`${base}/map`} replace aria-current={map ? 'page' : undefined}>
+          Floor plan
+        </Link>
+      </div>
     </>
   );
 }
 
-function ExhibitorCard({ ex, onClose }) {
+// A company's initials on a tint of a colour picked from its name, in place of a logo.
+const MONO = ['#233e85', '#c82026', '#0f766e', '#b45309', '#6d28d9', '#0369a1', '#be185d', '#4d7c0f'];
+function Monogram({ name, big }) {
+  const words = name
+    .replace(/[^\p{L}\p{N} ]/gu, '')
+    .split(' ')
+    .filter(Boolean);
+  const text = (words.length > 1 ? words[0][0] + words[1][0] : name.slice(0, 2)).toUpperCase();
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return (
+    <span className={`monogram ${big ? 'big' : ''}`} style={{ '--c': MONO[h % MONO.length] }} aria-hidden="true">
+      {text}
+    </span>
+  );
+}
+
+function ExhibitorSheet({ ex, onClose, showMap = true }) {
   const { base } = useEvent();
   return (
-    <div className="panel">
-      <div className="head">
-        <div>
-          <h3>{ex.name}</h3>
-          <div className="muted">{ex.hall ? `${ex.hall} · Booth ${ex.boothCode}` : 'Booth to be announced'}</div>
+    <Dialog title={ex.name} onClose={onClose} sheet>
+      <div className="stack">
+        <div className="row">
+          <Monogram name={ex.name} big />
+          <div className="grow">
+            <strong>{ex.boothCode ? `Stall ${ex.boothCode}` : 'Stall to be announced'}</strong>
+            <div className="muted small">{[ex.hall, ex.industry].filter(Boolean).join(' · ')}</div>
+          </div>
         </div>
-        {onClose && (
-          <button className="btn sm" onClick={onClose}>
-            Close
-          </button>
+        {ex.description && <p>{ex.description}</p>}
+        {ex.categories.length > 0 && (
+          <div className="tags">
+            {ex.categories.map((c) => (
+              <span key={c} className="tag">
+                {c}
+              </span>
+            ))}
+          </div>
+        )}
+        {showMap && ex.boothId && (
+          <Link className="btn primary block" to={`${base}/map?booth=${ex.boothId}`}>
+            <MapIcon className="icon" aria-hidden="true" />
+            Show on floor plan
+          </Link>
+        )}
+        {(ex.website || ex.catalogueLinks.length > 0) && (
+          <div className="group">
+            {[...(ex.website ? [{ label: 'Website', url: ex.website }] : []), ...ex.catalogueLinks].map((l) => (
+              <a key={l.url} className="row-item" href={l.url} target="_blank" rel="noreferrer">
+                <span className="grow">{l.label}</span>
+                <ExternalLink className="icon chev" aria-hidden="true" />
+              </a>
+            ))}
+          </div>
         )}
       </div>
-      <div className="body stack tight">
-        <p>{ex.description}</p>
-        {ex.categories.length > 0 && <p className="muted small">{ex.categories.join(' · ')}</p>}
-        <div className="row wrap">
-          {ex.boothId && (
-            <Link className="btn sm" to={`${base}/map?booth=${ex.boothId}`}>
-              Show on plan
-            </Link>
-          )}
-          {ex.website && (
-            <a className="btn sm" href={ex.website} target="_blank" rel="noreferrer">
-              Website
-            </a>
-          )}
-          {ex.catalogueLinks.map((l) => (
-            <a key={l.url} className="btn sm" href={l.url} target="_blank" rel="noreferrer">
-              {l.label}
-            </a>
-          ))}
-        </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -273,63 +471,58 @@ export function Directory() {
   const [cat, setCat] = useState('');
   const [open, setOpen] = useState(null);
   const cats = useMemo(() => [...new Set(guide.exhibitors.flatMap((e) => e.categories))].sort(), [guide]);
-  const rows = guide.exhibitors.filter(
-    (e) =>
-      (!cat || e.categories.includes(cat)) &&
-      (!q || [e.name, e.boothCode, e.industry, ...e.categories].some((v) => v && v.toLowerCase().includes(q.toLowerCase()))),
-  );
+  const rows = guide.exhibitors
+    .filter(
+      (e) =>
+        (!cat || e.categories.includes(cat)) &&
+        (!q || [e.name, e.boothCode, e.industry, ...e.categories].some((v) => v && v.toLowerCase().includes(q.toLowerCase()))),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const ex = guide.exhibitors.find((e) => e.id === open);
   return (
     <div className="stack">
-      <h1>Exhibitors</h1>
+      <ExploreHead />
       <div className="search">
         <Search className="icon" aria-hidden="true" />
         <input
           className="input"
           type="search"
-          placeholder="Search by company, booth or product"
+          placeholder="Company, stall or product"
           aria-label="Search exhibitors"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
-      <div className="chips" role="group" aria-label="Product category">
-        <button className="chip" aria-pressed={!cat} onClick={() => setCat('')}>
-          All
-        </button>
-        {cats.map((c) => (
-          <button key={c} className="chip" aria-pressed={cat === c} onClick={() => setCat(cat === c ? '' : c)}>
-            {c}
+      {cats.length > 0 && (
+        <div className="chips scroll" role="group" aria-label="Product category">
+          <button className="chip" aria-pressed={!cat} onClick={() => setCat('')}>
+            All
           </button>
-        ))}
-      </div>
-      <p className="muted small" role="status">
-        {rows.length} of {guide.exhibitors.length} exhibitors
-      </p>
-      <div className="panel list">
-        {rows.map((e) => (
-          <div key={e.id} style={{ display: 'block' }}>
-            <button
-              className="list-row"
-              style={{ display: 'flex', gap: 12, padding: 0, border: 0 }}
-              onClick={() => setOpen(open === e.id ? null : e.id)}
-              aria-expanded={open === e.id}
-            >
-              <strong style={{ width: 52 }}>{e.boothCode || '—'}</strong>
-              <span className="grow">
-                <strong>{e.name}</strong>
-                <br />
-                <span className="muted small">{[e.hall, e.industry].filter(Boolean).join(' · ')}</span>
-              </span>
+          {cats.map((c) => (
+            <button key={c} className="chip" aria-pressed={cat === c} onClick={() => setCat(cat === c ? '' : c)}>
+              {c}
             </button>
-            {open === e.id && (
-              <div style={{ marginTop: 12 }}>
-                <ExhibitorCard ex={e} />
-              </div>
-            )}
-          </div>
-        ))}
-        {!rows.length && <p className="empty">No exhibitors match. Try a different search.</p>}
-      </div>
+          ))}
+        </div>
+      )}
+      <p className="muted small" role="status">
+        {rows.length === guide.exhibitors.length ? `${rows.length} exhibitors` : `${rows.length} of ${guide.exhibitors.length} exhibitors`}
+      </p>
+      {rows.length ? (
+        <div className="group">
+          {rows.map((e) => (
+            <button key={e.id} className="row-item" onClick={() => setOpen(e.id)}>
+              <Monogram name={e.name} />
+              <Row title={e.name} detail={e.industry || e.categories.join(', ')} chevron>
+                {e.boothCode && <span className="stall-code">{e.boothCode}</span>}
+              </Row>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="empty">No exhibitors match. Try a different search.</p>
+      )}
+      {ex && <ExhibitorSheet ex={ex} onClose={() => setOpen(null)} />}
     </div>
   );
 }
@@ -337,58 +530,156 @@ export function Directory() {
 export function MapPage() {
   const { guide } = useEvent();
   const [params, setParams] = useSearchParams();
+  const [sheet, setSheet] = useState(false);
   const selected = Number(params.get('booth')) || null;
-  const ex = guide.exhibitors.find((e) => e.boothId === selected);
+  const ex = selected ? guide.exhibitors.find((e) => e.boothId === selected) : null;
   return (
     <div className="stack">
-      <h1>Floor plan</h1>
+      <ExploreHead />
       <HallPlan
+        zoomable
         halls={guide.halls}
         selected={selected}
-        onSelect={(b) => setParams(b.exhibitorId ? { booth: b.id } : {}, { replace: true })}
+        onSelect={(b) => {
+          setParams(b.exhibitorId ? { booth: b.id } : {}, { replace: true });
+          setSheet(Boolean(b.exhibitorId));
+        }}
       />
       {ex ? (
-        <ExhibitorCard ex={ex} onClose={() => setParams({}, { replace: true })} />
+        <div className="group">
+          <button className="row-item" onClick={() => setSheet(true)}>
+            <Monogram name={ex.name} />
+            <Row title={ex.name} detail={`Stall ${ex.boothCode}${ex.hall ? ` · ${ex.hall}` : ''}`} chevron />
+          </button>
+        </div>
       ) : (
-        <p className="muted">Choose a booth to see who is there. Use List for a text version of the plan.</p>
+        <p className="muted small">Tap a stall to see who is there. Zoom in for a closer look.</p>
       )}
+      {ex && sheet && <ExhibitorSheet ex={ex} showMap={false} onClose={() => setSheet(false)} />}
     </div>
   );
 }
 
 export function AgendaPage() {
-  const { guide } = useEvent();
+  const { guide, base } = useEvent();
   const { me } = useMe();
+  const [params, setParams] = useSearchParams();
   const [track, setTrack] = useState(null);
   const [mine, setMine] = useState(false);
+  const days = useMemo(() => [...new Set(guide.agenda.sessions.filter((s) => s.status === 'scheduled').map((s) => s.day))].sort(), [guide]);
+  const today = todayISO();
+  const asked = params.get('day');
+  const day = days.includes(asked) ? asked : days.includes(today) ? today : days[0];
   const marks = useLoad(() => (me.user ? get('/me/bookmarks') : Promise.resolve([])), [me.user?.id]);
   const act = useAction();
   const toggle = (s, on) => act(() => (on ? put(`/me/bookmarks/${s.id}`) : del(`/me/bookmarks/${s.id}`)).then(marks.reload));
   const agenda = mine ? { ...guide.agenda, sessions: guide.agenda.sessions.filter((s) => marks.data?.includes(s.id)) } : guide.agenda;
   return (
     <div className="stack">
-      <h1>Agenda</h1>
-      <div className="chips" role="group" aria-label="Track">
+      <h1 className="page-title">Agenda</h1>
+      {days.length > 1 && (
+        <div className="seg wide" role="group" aria-label="Day">
+          {days.map((d) => (
+            <button key={d} aria-pressed={d === day} onClick={() => setParams({ day: d }, { replace: true })}>
+              {shortDay(d)}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="chips scroll" role="group" aria-label="Track">
         <button className="chip" aria-pressed={!track && !mine} onClick={() => (setTrack(null), setMine(false))}>
-          All sessions
+          All
         </button>
         {guide.agenda.tracks.map((t) => (
           <button key={t.id} className="chip" aria-pressed={track === t.id} onClick={() => (setTrack(t.id), setMine(false))}>
+            <span className="dot" style={{ background: trackColour(guide.agenda, t.id) }} aria-hidden="true" />
             {t.name}
           </button>
         ))}
         {me.user && (
           <button className="chip" aria-pressed={mine} onClick={() => (setMine(!mine), setTrack(null))}>
-            My bookmarks
+            <Bookmark className="icon" aria-hidden="true" />
+            Saved
           </button>
         )}
       </div>
       {!me.user && (
         <p className="muted small">
-          <Link to="/signin">Sign in</Link> to bookmark sessions.
+          <Link to={`/signin?next=${base}/agenda`}>Sign in</Link> to save sessions to your plan.
         </p>
       )}
-      <AgendaList agenda={agenda} track={track} bookmarks={marks.data || []} onToggle={me.user ? toggle : null} />
+      <AgendaList agenda={agenda} days={day ? [day] : []} track={track} bookmarks={marks.data || []} onToggle={me.user ? toggle : null} />
+    </div>
+  );
+}
+
+// ---------- tickets ----------
+// The visitor's tickets: badges and registrations, optionally for one event only.
+function MyTickets({ slug, empty }) {
+  const load = useLoad(() => get('/me/passes'));
+  const act = useAction();
+  return (
+    <Loaded load={load}>
+      {(d) => {
+        const badges = d.badges.filter((b) => !slug || b.event.slug === slug);
+        const regs = d.registrations.filter((r) => !slug || r.event.slug === slug);
+        if (!badges.length && !regs.length) return empty;
+        return (
+          <div className="stack loose">
+            {badges.map((b) => (
+              <PassCard key={`b${b.id}`} pass={b} />
+            ))}
+            {regs.map((r) => (
+              <section key={r.id} aria-label={`${r.passClass.name}, ${r.event.name}`}>
+                <RegistrationState
+                  state={r}
+                  returnPath={slug ? `/e/${slug}/tickets` : '/account'}
+                  onCancel={() => act(() => post(`/me/registrations/${r.id}/cancel`).then(load.reload), 'Registration cancelled')}
+                />
+              </section>
+            ))}
+          </div>
+        );
+      }}
+    </Loaded>
+  );
+}
+function NoTickets({ base, eventName, signedIn }) {
+  return (
+    <div className="empty-state">
+      <span className="empty-icon">
+        <Ticket aria-hidden="true" />
+      </span>
+      <h2>{signedIn ? 'No ticket yet' : 'Your ticket lives here'}</h2>
+      <p className="muted">
+        {signedIn
+          ? `Register for ${eventName} and your ticket appears here, ready to show at the gate.`
+          : `Register for ${eventName}, or sign in with the email you registered with. Show your ticket at the gate to get in.`}
+      </p>
+      <div className="stack tight">
+        <Link className="btn primary big block" to={`${base}/register`}>
+          Get your pass
+        </Link>
+        {!signedIn && (
+          <Link className="btn big block" to={`/signin?next=${base}/tickets`}>
+            Sign in
+          </Link>
+        )}
+        <Link className="btn plain" to={`${base}/register?find=1`}>
+          Lost your ticket link?
+        </Link>
+      </div>
+    </div>
+  );
+}
+export function EventTickets() {
+  const { guide, base, slug } = useEvent();
+  const { me } = useMe();
+  const none = <NoTickets base={base} eventName={guide.event.name} signedIn={Boolean(me.user)} />;
+  return (
+    <div className="narrow stack">
+      <h1 className="page-title">Tickets</h1>
+      {me.user ? <MyTickets slug={slug} empty={none} /> : none}
     </div>
   );
 }
@@ -403,7 +694,7 @@ export function Register() {
   const [params] = useSearchParams();
   const open = guide.passClasses.filter((c) => !c.soldOut);
   const [form, setForm] = useState({
-    passClass: open[0]?.code || '',
+    passClass: (open.find((c) => c.code === params.get('pass')) || open[0])?.code || '',
     name: '',
     email: '',
     phone: '',
@@ -469,8 +760,7 @@ export function Register() {
   if (step === 'code')
     return (
       <form className="narrow stack" onSubmit={verify}>
-        <p className="eyebrow">{guide.event.name}</p>
-        <h1>Check your email</h1>
+        <h1 className="page-title">Check your email</h1>
         <p>
           We sent a 6-digit code to <strong>{pending.email}</strong>. Enter it to confirm the address is yours.
         </p>
@@ -510,10 +800,7 @@ export function Register() {
     );
   return (
     <form className="narrow stack" onSubmit={submit} noValidate>
-      <div>
-        <p className="eyebrow">{guide.event.name}</p>
-        <h1>Register</h1>
-      </div>
+      <h1 className="page-title">Get your pass</h1>
       <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className="label" style={{ marginBottom: 4 }}>
           Pass type
@@ -664,7 +951,7 @@ function FindPass({ slug, onBack }) {
           .catch((er) => setError(er.message))
       )}
     >
-      <h1>Find my ticket</h1>
+      <h1 className="page-title">Find my ticket</h1>
       {sent ? (
         <>
           <Notice tone="ok">If {email} is registered, a new ticket link is on its way. Earlier links stop working.</Notice>
@@ -704,7 +991,24 @@ function FindPass({ slug, onBack }) {
 }
 
 // ---------- registration state: pass, payment, review ----------
-// One view for wherever a registration stands. Used by the pass link and "my passes".
+// A status card for a registration that has no ticket yet.
+function StateCard({ tone, icon: Icon, title, sub, children }) {
+  return (
+    <div className={`state-card ${tone}`}>
+      <div className="state-head">
+        <span className="state-icon">
+          <Icon aria-hidden="true" />
+        </span>
+        <div className="grow">
+          <strong>{title}</strong>
+          {sub && <div className="muted small">{sub}</div>}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+// One view for wherever a registration stands. Used by the pass link and "my tickets".
 export function RegistrationState({ state, onCancel, returnPath }) {
   const act = useAction();
   const pay = () =>
@@ -712,11 +1016,16 @@ export function RegistrationState({ state, onCancel, returnPath }) {
       const out = await post(`/public/orders/${state.order.token}/checkout`, { returnPath });
       goTo(out.url);
     });
+  const sub = [state.event?.name, state.passClass.name].filter(Boolean).join(' · ');
   if (state.step === 'pass')
     return (
       <div className="stack">
+        {state.pass.firstAdmittedAt && <Notice tone="ok">Admitted. Keep this ticket for re-entry.</Notice>}
         <PassCard pass={state.pass} />
-        {state.pass.firstAdmittedAt && <Notice tone="ok">Admitted. Keep this pass for re-entry.</Notice>}
+        <p className="tip no-print">
+          <Sun className="icon" aria-hidden="true" />
+          Turn your screen brightness up at the gate.
+        </p>
         <div className="row between wrap no-print">
           <button className="btn" onClick={() => window.print()}>
             Print
@@ -734,52 +1043,50 @@ export function RegistrationState({ state, onCancel, returnPath }) {
     );
   if (state.step === 'payment')
     return (
-      <div className="stack">
-        <Notice tone="pending">
-          <strong>Payment needed.</strong> Your {state.passClass.name} place is held. Your pass is issued as soon as payment is confirmed.
+      <StateCard tone="pending" icon={CreditCard} title="Payment needed" sub={sub}>
+        <p>
+          Your place is held. Your ticket is issued as soon as payment is confirmed.
           {state.paymentStatus === 'failed' && ' The last payment attempt did not go through.'}
-        </Notice>
-        <div className="panel">
-          <div className="body totals">
-            {state.order.items.map((i) => (
-              <div key={i.description}>
-                <span>{i.description}</span>
-                <span className="num">{inr(i.amountPaise)}</span>
-              </div>
-            ))}
-            <div>
-              <span>GST</span>
-              <span className="num">{inr(state.order.gstPaise)}</span>
+        </p>
+        <div className="totals">
+          {state.order.items.map((i) => (
+            <div key={i.description}>
+              <span>{i.description}</span>
+              <span className="num">{inr(i.amountPaise)}</span>
             </div>
-            <div className="strong">
-              <span>Total</span>
-              <span className="num">{inr(state.order.balancePaise)}</span>
-            </div>
+          ))}
+          <div>
+            <span>GST</span>
+            <span className="num">{inr(state.order.gstPaise)}</span>
+          </div>
+          <div className="strong">
+            <span>Total</span>
+            <span className="num">{inr(state.order.balancePaise)}</span>
           </div>
         </div>
         <button className="btn primary big block" onClick={pay}>
           Pay {inr(state.order.balancePaise)}
         </button>
-        <p className="muted small">You pay on a secure hosted checkout page by UPI or card. Order {state.order.number}.</p>
-      </div>
+        <p className="muted small">UPI or card, on a secure hosted checkout page. Order {state.order.number}.</p>
+      </StateCard>
     );
   if (state.step === 'review')
     return (
-      <Notice tone="pending">
-        <strong>Awaiting review.</strong> The organiser reviews {state.passClass.name} registrations and will email {state.email} with a
-        decision. Reference {state.ref}.
-      </Notice>
-    );
-  if (state.step === 'rejected')
-    return (
-      <Notice tone="error">
-        <strong>Not approved.</strong> {state.reviewNote || 'The organiser could not approve this registration.'} Reference {state.ref}.
-      </Notice>
+      <StateCard tone="pending" icon={Hourglass} title="Awaiting review" sub={sub}>
+        <p>
+          The organiser reviews {state.passClass.name} registrations and will email {state.email} with a decision. Reference {state.ref}.
+        </p>
+      </StateCard>
     );
   return (
-    <Notice tone="error">
-      <strong>Cancelled.</strong> This registration ({state.ref}) was cancelled and its pass no longer works.
-    </Notice>
+    <StateCard tone="error" icon={CircleX} title={state.step === 'rejected' ? 'Not approved' : 'Cancelled'} sub={sub}>
+      <p>
+        {state.step === 'rejected'
+          ? state.reviewNote || 'The organiser could not approve this registration.'
+          : 'This registration was cancelled and its pass no longer works.'}{' '}
+        Reference {state.ref}.
+      </p>
+    </StateCard>
   );
 }
 
@@ -791,46 +1098,43 @@ export function PassPage() {
   const act = useAction();
   if (load.error)
     return (
-      <PublicPage narrow={false}>
+      <PublicPage>
         <FindPassFallback message={load.error.message} />
       </PublicPage>
     );
   if (!load.data) return <Loading />;
   const s = load.data;
   return (
-    <PublicPage>
-      <div>
-        <p className="eyebrow">
-          <Link to={`/e/${s.event.slug}`}>{s.event.name}</Link>
-        </p>
-        <h1>{s.step === 'pass' ? 'My ticket' : 'My registration'}</h1>
-      </div>
-      {me.user && (
-        <Notice tone="ok">
-          You are signed in as <strong>{me.user.email}</strong>. Your tickets are always under <Link to="/account">My tickets</Link>. On
-          your phone, open this website and sign in with the same email to see them.
-        </Notice>
-      )}
-      <RegistrationState
-        state={s}
-        returnPath={`/p/${token}`}
-        onCancel={() => act(() => post(`/public/pass/${token}/cancel`).then(load.reload), 'Registration cancelled')}
-      />
-      {s.step === 'pass' && (
+    <AppFrame slug={s.event.slug}>
+      <div className="narrow stack">
+        <h1 className="page-title">{s.step === 'pass' ? 'Your ticket' : 'Your registration'}</h1>
+        <RegistrationState
+          state={s}
+          returnPath={`/p/${token}`}
+          onCancel={() => act(() => post(`/public/pass/${token}/cancel`).then(load.reload), 'Registration cancelled')}
+        />
         <p className="muted small no-print">
-          With the BrainADZ Events app installed, this link opens your ticket in the app, where it also works offline.
+          {me.user ? (
+            <>
+              Signed in as {me.user.email}. All your tickets are under <Link to="/account">My tickets</Link>, on any phone you sign in on.
+            </>
+          ) : (
+            <>
+              <Link to={`/signin?next=/p/${token}`}>Sign in</Link> with the same email to see this ticket on any phone.
+            </>
+          )}
         </p>
-      )}
-    </PublicPage>
+      </div>
+    </AppFrame>
   );
 }
 function FindPassFallback({ message }) {
   const events = useLoad(() => get('/public/events'));
   return (
-    <div className="narrow stack">
+    <>
       <Notice tone="error">{message}</Notice>
       {events.data?.[0] && <FindPass slug={events.data[0].slug} />}
-    </div>
+    </>
   );
 }
 
@@ -1092,77 +1396,61 @@ export function SignIn() {
 export function Account() {
   const { me, signOut } = useMe();
   const nav = useNavigate();
-  const load = useLoad(() => get('/me/passes'));
-  const act = useAction();
+  const events = useLoad(() => get('/public/events'));
+  const event = events.data ? featuredEvent(events.data) : null;
+  const work = [
+    ...me.organiser.map((o) => ({
+      key: `o${o.eventId}`,
+      to: `/org/${o.eventId}`,
+      title: o.name,
+      detail: `Organiser console · ${ROLE_LABELS[o.role]}`,
+    })),
+    ...me.exhibitor.map((x) => ({
+      key: `x${x.exhibitorId}`,
+      to: `/x/${x.exhibitorId}`,
+      title: x.companyName,
+      detail: `Exhibitor workspace · ${x.eventName}`,
+    })),
+    ...(me.gate.length ? [{ key: 'gate', to: '/gate', title: 'Gate scanner', detail: me.gate[0].name }] : []),
+  ];
   return (
-    <PublicPage>
-      <div className="row between">
-        <div>
-          <p className="eyebrow">{me.user.email}</p>
-          <h1>My tickets</h1>
+    <AppFrame slug={event?.slug} event={event}>
+      <div className="narrow stack loose">
+        <div className="profile">
+          <span className="avatar big" aria-hidden="true">
+            {initialsOf(me.user)}
+          </span>
+          <div className="grow">
+            <h1 className="page-title">My tickets</h1>
+            <div className="muted small">{me.user.email}</div>
+          </div>
         </div>
-        <button className="btn" onClick={() => signOut().then(() => nav('/'))}>
+        {work.length > 0 && (
+          <Section title="Workspaces">
+            <div className="group">
+              {work.map((w) => (
+                <Link key={w.key} className="row-item" to={w.to}>
+                  <Row title={w.title} detail={w.detail} chevron />
+                </Link>
+              ))}
+            </div>
+          </Section>
+        )}
+        <MyTickets
+          empty={
+            event ? (
+              <NoTickets base={`/e/${event.slug}`} eventName={event.name} signedIn />
+            ) : (
+              <p className="empty">You have no tickets yet.</p>
+            )
+          }
+        />
+        <button className="btn block" onClick={() => signOut().then(() => nav('/'))}>
+          <LogOut className="icon" aria-hidden="true" />
           Sign out
         </button>
       </div>
-      {(me.organiser.length > 0 || me.exhibitor.length > 0 || me.gate.length > 0) && (
-        <div className="panel list">
-          {me.organiser.map((o) => (
-            <Link key={o.eventId} className="list-row" to={`/org/${o.eventId}`}>
-              <span className="grow">
-                <strong>{o.name}</strong>
-                <br />
-                <span className="muted small">Organiser console · {ROLE_LABELS[o.role]}</span>
-              </span>
-            </Link>
-          ))}
-          {me.exhibitor.map((x) => (
-            <Link key={x.exhibitorId} className="list-row" to={`/x/${x.exhibitorId}`}>
-              <span className="grow">
-                <strong>{x.companyName}</strong>
-                <br />
-                <span className="muted small">Exhibitor workspace · {x.eventName}</span>
-              </span>
-            </Link>
-          ))}
-          {me.gate.length > 0 && (
-            <Link className="list-row" to="/gate">
-              <span className="grow">
-                <strong>Gate scanner</strong>
-                <br />
-                <span className="muted small">{me.gate[0].name}</span>
-              </span>
-            </Link>
-          )}
-        </div>
-      )}
-      <Loaded load={load}>
-        {(d) => (
-          <>
-            {d.badges.map((b) => (
-              <PassCard key={b.id} pass={b} />
-            ))}
-            {d.registrations.map((r) => (
-              <section key={r.id} className="stack tight" aria-label={`${r.passClass.name}, ${r.event.name}`}>
-                <p className="eyebrow">
-                  {r.event.name} · {r.passClass.name}
-                </p>
-                <RegistrationState
-                  state={r}
-                  returnPath="/account"
-                  onCancel={() => act(() => post(`/me/registrations/${r.id}/cancel`).then(load.reload), 'Registration cancelled')}
-                />
-              </section>
-            ))}
-            {!d.badges.length && !d.registrations.length && (
-              <p className="empty">
-                You have no tickets yet. <Link to="/">Find an event</Link>
-              </p>
-            )}
-          </>
-        )}
-      </Loaded>
-    </PublicPage>
+    </AppFrame>
   );
 }
 
@@ -1215,8 +1503,8 @@ export function ExhibitApply() {
   return (
     <form className="narrow stack" onSubmit={(e) => (e.preventDefault(), send(true))}>
       <div>
-        <p className="eyebrow">{guide.event.name}</p>
-        <h1>Apply to exhibit</h1>
+        <h1 className="page-title">Apply to exhibit</h1>
+        <p className="muted">{guide.event.name}</p>
       </div>
       <p className="muted">
         The organiser reviews each application. Once approved you get a booth, an order and a setup checklist in your exhibitor workspace.

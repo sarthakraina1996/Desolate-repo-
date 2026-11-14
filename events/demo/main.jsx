@@ -16,13 +16,16 @@ import App from '../web/src/App.jsx';
 
 const note = document.getElementById('demo-note');
 Object.assign(note.style, {
-  padding: '6px 16px',
+  padding: '4px 12px',
   background: '#233e85',
   color: '#fff',
-  font: '13px/1.4 system-ui',
+  font: '12px/1.5 system-ui',
   textAlign: 'center',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 });
-const base = 'Demo with fictional data, kept in this browser only. Reloading starts over.';
+const base = 'Demo · fictional data · resets when reloaded';
 function say(text) {
   note.textContent = text;
   clearTimeout(say.t);

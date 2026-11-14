@@ -53,6 +53,10 @@ enum Fmt {
     static func day(_ s: String?) -> String { s.flatMap(ymd).map { format($0, "d MMM yyyy") } ?? (s ?? "") }
     static func weekday(_ s: String) -> String { ymd(s).map { format($0, "EEEE, d MMMM") } ?? s }
     static func clock(_ iso: String?) -> String { iso.map { format(ScanRules.date($0), "HH:mm") } ?? "" }
+    // "Thu 13" for day pickers; today's date and the time now at the venue.
+    static func shortDay(_ s: String) -> String { ymd(s).map { format($0, "EEE d") } ?? s }
+    static func today() -> String { format(Date(), "yyyy-MM-dd") }
+    static func now() -> String { format(Date(), "HH:mm") }
     static func dateRange(_ from: String, _ to: String) -> String {
         guard from != to, let a = ymd(from) else { return day(from) }
         return "\(format(a, "d"))–\(day(to))"
@@ -185,11 +189,11 @@ struct Chip: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(text).font(.subheadline.weight(selected ? .semibold : .regular))
-                .foregroundColor(selected ? .petrol : .ink)
+            Text(text).font(.subheadline.weight(.medium))
+                .foregroundColor(selected ? .white : .ink)
                 .padding(.horizontal, 14).frame(minHeight: 36)
-                .background(selected ? Color.selectedFill : Color.surface, in: Capsule())
-                .overlay(Capsule().stroke(selected ? Color.petrol : Color.control, lineWidth: 1))
+                .background(selected ? Color.ink : Color.surface, in: Capsule())
+                .overlay(Capsule().stroke(selected ? Color.ink : Color.rule, lineWidth: 1))
                 .frame(minHeight: 44)
         }
         .buttonStyle(.plain)
@@ -197,15 +201,65 @@ struct Chip: View {
     }
 }
 
-// A flat white surface with a quiet border; rows are separated by rules.
+// Segmented control: one choice of a few, on a grey track (same look as the web app).
+struct Segmented<T: Hashable>: View {
+    let options: [(String, T)]
+    @Binding var value: T
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options.indices, id: \.self) { i in
+                let option = options[i]
+                let on = option.1 == value
+                Button { value = option.1 } label: {
+                    Text(option.0).font(.subheadline.weight(on ? .semibold : .medium)).lineLimit(1)
+                        .foregroundColor(on ? .ink : .ink2)
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .background(on ? Color.surface : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+                        .shadow(color: on ? .black.opacity(0.12) : .clear, radius: 1.5, y: 1)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(Color(hex: 0xE8EAEE), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// A company's initials on a tint of a colour picked from its name (same pick as the web app).
+private let monoColours: [UInt32] = [0x233E85, 0xC82026, 0x0F766E, 0xB45309, 0x6D28D9, 0x0369A1, 0xBE185D, 0x4D7C0F]
+struct Monogram: View {
+    let name: String
+    var size: CGFloat = 40
+    var body: some View {
+        let words = name.filter { $0.isLetter || $0.isNumber || $0 == " " }.split(separator: " ")
+        let text = (words.count > 1 ? "\(words[0].prefix(1))\(words[1].prefix(1))" : String(name.prefix(2))).uppercased()
+        var h: UInt32 = 0
+        for u in name.unicodeScalars { h = h &* 31 &+ u.value }
+        let c = Color(hex: monoColours[Int(h % UInt32(monoColours.count))])
+        return Text(text).font(.system(size: size * 0.37, weight: .bold)).foregroundColor(c)
+            .frame(width: size, height: size)
+            .background(c.opacity(0.12), in: RoundedRectangle(cornerRadius: size / 4))
+            .accessibilityHidden(true)
+    }
+}
+
+// Agenda track colours, in the order the organiser created the tracks (same as the web app).
+private let trackColours: [UInt32] = [0x233E85, 0xC82026, 0x0F766E, 0xB45309, 0x6D28D9, 0x0369A1]
+func trackColour(_ tracks: [Track], _ id: Int?) -> Color {
+    guard let i = tracks.firstIndex(where: { $0.id == id }) else { return .control }
+    return Color(hex: trackColours[i % trackColours.count])
+}
+
+// A white surface with a quiet border and rounded corners; rows are separated by rules.
 struct Panel<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         VStack(spacing: 0) { content }
             .frame(maxWidth: .infinity)
-            .background(Color.surface, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.rule, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.rule, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 struct Rule: View { var body: some View { Rectangle().fill(Color.rule).frame(height: 1) } }
@@ -223,15 +277,15 @@ struct ListRow<Content: View>: View {
 
 struct Eyebrow: View {
     let text: String
-    var body: some View { Text(text.uppercased()).font(.footnote.weight(.medium)).kerning(1).foregroundColor(.ink2) }
+    var body: some View { Text(text).font(.subheadline).foregroundColor(.ink2) }
 }
 struct ScreenTitle: View {
     let title: String
     var eyebrow: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.largeTitle.weight(.bold)).accessibilityAddTraits(.isHeader)
             if let eyebrow = eyebrow { Eyebrow(text: eyebrow) }
-            Text(title).font(.largeTitle.weight(.semibold)).accessibilityAddTraits(.isHeader)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

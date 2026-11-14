@@ -49,6 +49,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -119,11 +124,13 @@ fun EventsTheme(content: @Composable () -> Unit) = MaterialTheme(
 
 // ---------- formatting ----------
 private val IN = Locale("en", "IN")
-private val IST = ZoneId.of("Asia/Kolkata")
+val IST: ZoneId = ZoneId.of("Asia/Kolkata")
 fun inr(paise: Long): String = NumberFormat.getCurrencyInstance(IN).apply { maximumFractionDigits = if (paise % 100 == 0L) 0 else 2 }.format(paise / 100.0)
 fun day(ymd: String): String = runCatching { LocalDate.parse(ymd).format(DateTimeFormatter.ofPattern("d MMM yyyy", IN)) }.getOrDefault(ymd)
 fun weekday(ymd: String): String = runCatching { LocalDate.parse(ymd).format(DateTimeFormatter.ofPattern("EEEE, d MMMM", IN)) }.getOrDefault(ymd)
 fun clock(iso: String?): String = iso?.let { runCatching { DateTimeFormatter.ofPattern("HH:mm").format(Instant.parse(it).atZone(IST)) }.getOrNull() } ?: ""
+// "Thu 13" for day pickers.
+fun shortDay(ymd: String): String = runCatching { LocalDate.parse(ymd).format(DateTimeFormatter.ofPattern("EEE d", IN)) }.getOrDefault(ymd)
 fun dateRange(from: String, to: String): String = if (from == to) day(from) else "${runCatching { LocalDate.parse(from).dayOfMonth.toString() }.getOrDefault(from)}–${day(to)}"
 
 // ---------- messages ----------
@@ -244,14 +251,54 @@ fun LabeledField(
 fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
     FilterChip(
         selected, onClick, { Text(text) },
-        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = C.Selected, selectedLabelColor = C.Petrol, containerColor = C.Surface),
+        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = C.Ink, selectedLabelColor = Color.White, containerColor = C.Surface),
+        border = FilterChipDefaults.filterChipBorder(true, selected, borderColor = C.Rule, selectedBorderColor = C.Ink),
+        shape = RoundedCornerShape(50),
     )
 }
+
+// iOS-style segmented control: one choice of a few, on a grey track.
+@Composable
+fun <T> Segmented(options: List<Pair<String, T>>, value: T, modifier: Modifier = Modifier, onChange: (T) -> Unit) {
+    val pill = RoundedCornerShape(8.dp)
+    Row(modifier.fillMaxWidth().background(Color(0xFFE8EAEE), RoundedCornerShape(10.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        options.forEach { (label, v) ->
+            val on = v == value
+            Box(
+                Modifier.weight(1f).heightIn(min = 36.dp)
+                    .then(if (on) Modifier.shadow(1.dp, pill).background(C.Surface, pill) else Modifier)
+                    .clip(pill).selectable(on, role = Role.Tab) { onChange(v) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, color = if (on) C.Ink else C.Ink2, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+            }
+        }
+    }
+}
+
+// A company's initials on a tint of a colour picked from its name (same pick as the web app).
+private val MONO = listOf(0xFF233E85, 0xFFC82026, 0xFF0F766E, 0xFFB45309, 0xFF6D28D9, 0xFF0369A1, 0xFFBE185D, 0xFF4D7C0F).map { Color(it) }
+@Composable
+fun Monogram(name: String, size: Dp = 40.dp) {
+    val words = name.filter { it.isLetterOrDigit() || it == ' ' }.split(' ').filter { it.isNotBlank() }
+    val text = (if (words.size > 1) "${words[0][0]}${words[1][0]}" else name.take(2)).uppercase()
+    var h = 0L
+    name.forEach { h = (h * 31 + it.code) and 0xFFFFFFFFL }
+    val c = MONO[(h % MONO.size).toInt()]
+    Box(Modifier.size(size).background(c.copy(alpha = 0.12f), RoundedCornerShape(size / 4)), contentAlignment = Alignment.Center) {
+        Text(text, color = c, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.37f).sp)
+    }
+}
+
+// Agenda track colours, in the order the organiser created the tracks (same as the web app).
+private val TRACKS = listOf(0xFF233E85, 0xFFC82026, 0xFF0F766E, 0xFFB45309, 0xFF6D28D9, 0xFF0369A1).map { Color(it) }
+fun trackColour(tracks: List<com.brainadz.events.data.Track>, id: Int?): Color =
+    tracks.indexOfFirst { it.id == id }.let { if (it < 0) C.Control else TRACKS[it % TRACKS.size] }
 
 // A flat white surface with a quiet border.
 @Composable
 fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().background(C.Surface, RoundedCornerShape(8.dp)).border(1.dp, C.Rule, RoundedCornerShape(8.dp)), content = content)
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.Surface).border(1.dp, C.Rule, RoundedCornerShape(14.dp)), content = content)
 }
 @Composable
 fun Divider() = Box(Modifier.fillMaxWidth().background(C.Rule).size(1.dp))
@@ -266,12 +313,12 @@ fun ListRow(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, conten
 }
 
 @Composable
-fun Eyebrow(text: String) = Text(text.uppercase(), color = C.Ink2, style = MaterialTheme.typography.labelMedium)
+fun Eyebrow(text: String) = Text(text, color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
 @Composable
 fun ScreenTitle(title: String, eyebrow: String? = null) {
     Column {
+        Text(title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
         eyebrow?.let { Eyebrow(it) }
-        Text(title, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
     }
 }
 @Composable

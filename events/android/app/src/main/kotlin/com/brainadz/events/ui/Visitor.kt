@@ -41,6 +41,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import java.time.format.DateTimeFormatter
+import java.time.LocalTime
+import java.time.LocalDate
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -61,27 +78,48 @@ import kotlinx.coroutines.tasks.await
 val screenPad = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
 
 // ---------- Pass ----------
-// The pass as its holder shows it: quiet, high-contrast QR with the gate and area beside it.
+// The pass laid out like a printed ticket: event band, holder and access, then a tear-off stub
+// with a large, quiet QR code. Same design as the web app.
 @Composable
 fun PassCard(pass: Pass) {
-    Panel {
-        Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(pass.passClass.name, Modifier.background(C.Selected, RoundedCornerShape(6.dp)).padding(horizontal = 14.dp, vertical = 4.dp), color = C.Petrol, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.size(12.dp))
-            Text(pass.holderName, style = MaterialTheme.typography.headlineLarge, textAlign = TextAlign.Center)
-            pass.holderCompany?.let { Text(it, color = C.Ink2) }
-            Spacer(Modifier.size(12.dp))
-            if (pass.qr != null) QrImage(pass.qr, "QR code for ${pass.holderName}'s pass", Modifier.width(232.dp))
-            else Notice("This pass is no longer valid.", StatusTone.ERROR)
-            Spacer(Modifier.size(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                KeyValue("Enter at", pass.gates.joinToString().ifEmpty { "Any gate" }, Modifier.weight(1f))
-                KeyValue("Valid for", pass.zones.joinToString(), Modifier.weight(1f))
+    val shape = RoundedCornerShape(18.dp)
+    Column(Modifier.fillMaxWidth().shadow(6.dp, shape, ambientColor = C.Ink.copy(alpha = 0.1f), spotColor = C.Ink.copy(alpha = 0.14f)).clip(shape).background(C.Surface)) {
+        Row(Modifier.fillMaxWidth().background(C.Navy).padding(horizontal = 20.dp, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(pass.event.name, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text("${dateRange(pass.validFrom, pass.validTo)} · ${pass.event.openTime}–${pass.event.closeTime}", color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.bodyMedium)
+                pass.event.venueName?.let { Text(it, color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.bodyMedium) }
             }
-            Spacer(Modifier.size(12.dp))
-            Text("${dateRange(pass.validFrom, pass.validTo)} · ${pass.event.openTime}–${pass.event.closeTime}${pass.ref?.let { " · Ref $it" } ?: ""}", color = C.Ink2, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-            Text(pass.instructions, color = C.Ink2, textAlign = TextAlign.Center)
+            Text(pass.passClass.name, Modifier.background(C.Petrol, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
         }
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp)) {
+            Text(pass.holderName, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            pass.holderCompany?.let { Text(it, color = C.Ink2) }
+            Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TicketField("Enter at", pass.gates.joinToString().ifEmpty { "Any gate" }, Modifier.weight(1f))
+                TicketField("Access", pass.zones.joinToString().ifEmpty { "Show floor" }, Modifier.weight(1f))
+            }
+        }
+        // Perforation: dashed line with a half-circle notch cut from each side.
+        Canvas(Modifier.fillMaxWidth().height(36.dp)) {
+            val y = size.height / 2
+            drawLine(C.Rule, Offset(18.dp.toPx(), y), Offset(size.width - 18.dp.toPx(), y), strokeWidth = 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 9f)))
+            drawCircle(C.Canvas, 12.dp.toPx(), Offset(0f, y))
+            drawCircle(C.Canvas, 12.dp.toPx(), Offset(size.width, y))
+        }
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (pass.qr != null) QrImage(pass.qr, "QR code for ${pass.holderName}'s pass", Modifier.width(210.dp))
+            else Notice("This pass is no longer valid.", StatusTone.ERROR)
+            pass.ref?.let { Text(it, Modifier.padding(top = 8.dp), color = C.Ink2, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp) }
+            Text(pass.instructions, Modifier.padding(top = 12.dp), color = C.Ink2, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+        }
+    }
+}
+@Composable
+private fun TicketField(label: String, value: String, modifier: Modifier) {
+    Column(modifier) {
+        Text(label, color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
+        Text(value, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -147,15 +185,36 @@ fun PassScreen(onRegister: () -> Unit, onSignIn: () -> Unit) {
 
 // ---------- Explore ----------
 @Composable
-fun ExhibitorCard(ex: Exhibitor, onShowOnPlan: (() -> Unit)? = null) {
+fun ExhibitorRow(e: Exhibitor, onClick: () -> Unit) {
+    ListRow(onClick = onClick) {
+        Monogram(e.name)
+        Column(Modifier.weight(1f)) {
+            Text(e.name, fontWeight = FontWeight.SemiBold)
+            Text(e.industry ?: e.categories.joinToString(), color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
+        }
+        e.boothCode?.let {
+            Text(it, Modifier.background(Color(0xFFEEF1F9), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp), color = C.Navy, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
+        }
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Color(0xFFA3A8B3))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExhibitorSheet(ex: Exhibitor, onDismiss: () -> Unit, onShowOnPlan: (() -> Unit)?) {
     val context = LocalContext.current
-    Panel {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionTitle(ex.name)
-            Text(if (ex.hall != null) "${ex.hall} · Booth ${ex.boothCode}" else "Booth to be announced", color = C.Ink2)
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = C.Surface) {
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Monogram(ex.name, 56.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(ex.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(ex.boothCode?.let { "Stall $it${ex.hall?.let { h -> " · $h" } ?: ""}" } ?: "Stall to be announced", color = C.Ink2)
+                }
+            }
             ex.description?.let { Text(it) }
             if (ex.categories.isNotEmpty()) Text(ex.categories.joinToString(" · "), color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
-            if (onShowOnPlan != null && ex.boothId != null) SecondaryButton("Show on plan", onClick = onShowOnPlan)
+            if (onShowOnPlan != null) PrimaryButton("Show on floor plan", onClick = onShowOnPlan)
             (listOfNotNull(ex.website?.let { "Website" to it }) + ex.catalogueLinks.map { it.label to it.url }).forEach { (label, url) ->
                 SecondaryButton(label) { runCatching { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) } }
             }
@@ -166,91 +225,99 @@ fun ExhibitorCard(ex: Exhibitor, onShowOnPlan: (() -> Unit)? = null) {
 @Composable
 fun ExploreScreen(guide: Guide) {
     var query by remember { mutableStateOf("") }
-    var view by remember { mutableStateOf("map") }
+    var cat by remember { mutableStateOf<String?>(null) }
+    var view by remember { mutableStateOf("list") }
     val halls = guide.halls.filter { it.cols > 0 }
     var hallId by remember { mutableStateOf(halls.firstOrNull()?.id) }
     var boothId by remember { mutableStateOf<Int?>(null) }
-    var open by remember { mutableStateOf<Int?>(null) }
+    var open by remember { mutableStateOf<Exhibitor?>(null) }
     val hall = halls.find { it.id == hallId }
-    val matches = guide.exhibitors.filter { e -> query.isBlank() || listOfNotNull(e.name, e.boothCode, e.industry).plus(e.categories).any { it.contains(query.trim(), ignoreCase = true) } }
+    val cats = remember(guide) { guide.exhibitors.flatMap { it.categories }.distinct().sorted() }
+    val matches = guide.exhibitors
+        .filter { e -> (cat == null || cat in e.categories) && (query.isBlank() || listOfNotNull(e.name, e.boothCode, e.industry).plus(e.categories).any { it.contains(query.trim(), ignoreCase = true) }) }
+        .sortedBy { it.name.lowercase() }
     Column(screenPad.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ScreenTitle("Explore", guide.event?.name)
-        LabeledField("Search exhibitors", query, { query = it; if (it.isNotBlank()) view = "list" }, hint = "Company, booth or product")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip("Map", view == "map") { view = "map" }
-            Chip("List", view == "list") { view = "list" }
-        }
+        ScreenTitle("Explore")
+        Segmented(listOf("Exhibitors" to "list", "Floor plan" to "map"), view) { view = it }
         if (view == "map" && hall != null) {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                halls.forEach { Chip(it.name, it.id == hall.id) { hallId = it.id; boothId = null } }
-            }
+            if (halls.size > 1) Segmented(halls.map { it.name to it.id }, hall.id) { hallId = it; boothId = null }
             Panel { HallPlan(hall, boothId, Modifier.padding(12.dp)) { id -> boothId = id.takeIf { hall.booths.find { b -> b.id == id }?.exhibitorId != null } } }
-            val ex = guide.exhibitors.find { it.boothId == boothId }
-            if (ex != null) ExhibitorCard(ex) else Text("Tap a booth to see who is there. Dashed booths are not allocated.", color = C.Ink2)
-            val amenities = hall.amenities
-            if (amenities.isNotEmpty()) Panel { amenities.forEachIndexed { i, a -> if (i > 0) Divider(); ListRow { Text(a.label, Modifier.weight(1f)); if (a.accessible) StatusChip("Step-free", StatusTone.OK) } } }
+            val ex = boothId?.let { id -> guide.exhibitors.find { it.boothId == id } }
+            if (ex != null) Panel { ExhibitorRow(ex) { open = ex } }
+            else Text("Tap a stall to see who is there. Dashed stalls are free.", color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
+            if (hall.amenities.isNotEmpty()) Panel { hall.amenities.forEachIndexed { i, a -> if (i > 0) Divider(); ListRow { Text(a.label, Modifier.weight(1f)); if (a.accessible) StatusChip("Step-free", StatusTone.OK) } } }
         } else {
-            Text("${matches.size} of ${guide.exhibitors.size} exhibitors", color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
-            Panel {
-                matches.forEachIndexed { i, e ->
-                    if (i > 0) Divider()
-                    ListRow(onClick = { open = if (open == e.id) null else e.id }) {
-                        Text(e.boothCode ?: "—", Modifier.width(48.dp), fontWeight = FontWeight.SemiBold)
-                        Column(Modifier.weight(1f)) {
-                            Text(e.name, fontWeight = FontWeight.SemiBold)
-                            Text(listOfNotNull(e.hall, e.industry).joinToString(" · "), color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                    if (open == e.id) Column(Modifier.padding(12.dp)) {
-                        ExhibitorCard(e) { halls.find { h -> h.booths.any { it.id == e.boothId } }?.let { hallId = it.id }; boothId = e.boothId; view = "map"; query = "" }
-                    }
-                }
-                if (matches.isEmpty()) Text("No exhibitors match. Try a different search.", Modifier.padding(24.dp), color = C.Ink2)
+            LabeledField("Search exhibitors", query, { query = it }, hint = "Company, stall or product")
+            if (cats.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("All", cat == null) { cat = null }
+                cats.forEach { c -> Chip(c, cat == c) { cat = if (cat == c) null else c } }
             }
+            Text(if (matches.size == guide.exhibitors.size) "${matches.size} exhibitors" else "${matches.size} of ${guide.exhibitors.size} exhibitors", color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
+            if (matches.isEmpty()) Text("No exhibitors match. Try a different search.", color = C.Ink2)
+            else Panel { matches.forEachIndexed { i, e -> if (i > 0) Divider(); ExhibitorRow(e) { open = e } } }
         }
         if (!Repo.online) Text("Offline. Showing the guide saved ${clock(guide.savedAt)}.", color = C.Pending, style = MaterialTheme.typography.bodyMedium)
+    }
+    open?.let { ex ->
+        ExhibitorSheet(ex, onDismiss = { open = null }, onShowOnPlan = ex.boothId?.let { id ->
+            { halls.find { h -> h.booths.any { it.id == id } }?.let { hallId = it.id }; boothId = id; view = "map"; open = null }
+        }.takeIf { view != "map" })
     }
 }
 
 // ---------- Agenda ----------
 @Composable
-fun SessionRow(s: AgendaSession, marked: Boolean, onToggle: (() -> Unit)?) {
-    ListRow {
-        Column(Modifier.width(64.dp)) {
-            Text(s.startTime, fontWeight = FontWeight.SemiBold)
-            Text(s.endTime, color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
-        }
-        Column(Modifier.weight(1f)) {
-            Text(s.title, fontWeight = FontWeight.SemiBold)
-            Text(listOfNotNull(s.room, s.track).joinToString(" · "), color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
-            if (s.speakers.isNotEmpty()) Text(s.speakers.joinToString("; ") { p -> p.title?.let { "${p.name}, $it" } ?: p.name }, style = MaterialTheme.typography.bodyMedium)
-            if (s.full) StatusChip("Full", StatusTone.PENDING)
-        }
-        if (onToggle != null) IconButton(onToggle) {
-            Icon(if (marked) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, if (marked) "Remove bookmark for ${s.title}" else "Bookmark ${s.title}", tint = C.Petrol)
+fun SessionRow(s: AgendaSession, colour: Color, live: Boolean, marked: Boolean, onToggle: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        Box(Modifier.width(4.dp).fillMaxHeight().background(colour, RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)))
+        Row(Modifier.weight(1f).padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.width(52.dp)) {
+                Text(s.startTime, fontWeight = FontWeight.SemiBold)
+                Text(s.endTime, color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (live) Text("On now", Modifier.background(C.Petrol, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 1.dp), color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                Text(s.title, fontWeight = FontWeight.SemiBold)
+                Text(listOfNotNull(s.room, s.track).joinToString(" · "), color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
+                if (s.speakers.isNotEmpty()) Text(s.speakers.joinToString("; ") { p -> p.title?.let { "${p.name}, $it" } ?: p.name }, style = MaterialTheme.typography.bodyMedium)
+                if (s.full) StatusChip("Full", StatusTone.PENDING)
+            }
+            if (onToggle != null) IconButton(onToggle) {
+                Icon(if (marked) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder, if (marked) "Remove bookmark for ${s.title}" else "Bookmark ${s.title}", tint = if (marked) C.Petrol else C.Control)
+            }
         }
     }
 }
 
 @Composable
 fun AgendaScreen(guide: Guide) {
+    val days = remember(guide) { guide.agenda.sessions.filter { it.status == "scheduled" }.map { it.day }.distinct().sorted() }
+    val today = LocalDate.now(IST).toString()
+    val now = LocalTime.now(IST).format(DateTimeFormatter.ofPattern("HH:mm"))
+    var day by remember(guide) { mutableStateOf(if (today in days) today else days.firstOrNull() ?: "") }
     var track by remember { mutableStateOf<Int?>(null) }
     var mine by remember { mutableStateOf(false) }
     val action = rememberAction()
-    val sessions = guide.agenda.sessions.filter { it.status == "scheduled" && (track == null || it.trackId == track) && (!mine || it.id in Repo.bookmarks) }
+    val sessions = guide.agenda.sessions.filter { it.status == "scheduled" && it.day == day && (track == null || it.trackId == track) && (!mine || it.id in Repo.bookmarks) }
     Column(screenPad.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ScreenTitle("Agenda", guide.event?.name)
+        ScreenTitle("Agenda")
+        if (days.size > 1) Segmented(days.map { shortDay(it) to it }, day) { day = it }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Chip("All", track == null && !mine) { track = null; mine = false }
             guide.agenda.tracks.forEach { t -> Chip(t.name, track == t.id) { track = t.id; mine = false } }
-            if (Repo.signedIn) Chip("My bookmarks", mine) { mine = !mine; track = null }
+            if (Repo.signedIn) Chip("Saved", mine) { mine = !mine; track = null }
         }
-        if (!Repo.signedIn) Text("Sign in from Profile to bookmark sessions.", color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
-        sessions.groupBy { it.day }.forEach { (d, list) ->
-            SectionTitle(weekday(d))
-            Panel { list.forEachIndexed { i, s -> if (i > 0) Divider(); SessionRow(s, s.id in Repo.bookmarks, if (Repo.signedIn) ({ action.run { Repo.toggleBookmark(s.id) } }) else null) } }
+        if (!Repo.signedIn) Text("Sign in from Profile to save sessions to your plan.", color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
+        if (sessions.isEmpty()) Text(if (mine) "You have not saved any sessions for this day." else "No sessions to show.", color = C.Ink2)
+        else Panel {
+            sessions.forEachIndexed { i, s ->
+                if (i > 0) Divider()
+                SessionRow(
+                    s, trackColour(guide.agenda.tracks, s.trackId), s.day == today && s.startTime <= now && now < s.endTime,
+                    s.id in Repo.bookmarks, if (Repo.signedIn) ({ action.run { Repo.toggleBookmark(s.id) } }) else null,
+                )
+            }
         }
-        if (sessions.isEmpty()) Text(if (mine) "You have not bookmarked any sessions yet." else "No sessions to show.", color = C.Ink2)
     }
 }
 

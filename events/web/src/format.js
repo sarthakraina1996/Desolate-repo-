@@ -9,6 +9,11 @@ const asDate = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T12:00:00+0
 export const day = (v) => (v ? fmt({ day: 'numeric', month: 'short', year: 'numeric' }).format(asDate(v)) : '');
 export const weekday = (v) => fmt({ weekday: 'long', day: 'numeric', month: 'long' }).format(asDate(v));
 export const clock = (v) => (v ? fmt({ hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(v)) : '');
+// "Thu 12" for day pickers; today's date and the time now at the venue, for "on now" labels.
+export const shortDay = (v) => fmt({ weekday: 'short', day: 'numeric' }).format(asDate(v));
+export const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
+export const nowHM = () =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
 export const dayTime = (v) => (v ? `${day(v)}, ${clock(v)}` : '');
 export function dateRange(from, to) {
   if (!from) return '';

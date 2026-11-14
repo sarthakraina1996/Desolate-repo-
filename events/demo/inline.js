@@ -12,6 +12,8 @@ html = html.replace(
   /<script type="module"[^>]*src="([^"]+)"[^>]*><\/script>/g,
   (_, src) => `<script type="module">${read(src).replace(/<\/script/gi, '<\\/script')}</script>`,
 );
+// The charset must come first: the stylesheet alone is larger than the 1 KB browsers scan for it.
+html = `<meta charset="utf-8" />${html.replace(/<meta charset[^>]*>\s*/i, '')}`;
 if (/(src|href)="\.?\/?assets\//.test(html)) throw new Error('An asset was not inlined');
 const out = path.join(dist, 'brainadz-events.html');
 fs.writeFileSync(out, html.trim());
