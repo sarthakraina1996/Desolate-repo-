@@ -24,6 +24,8 @@ struct EventInfo: Codable {
     let edition: String?, tagline: String?, description: String?
     let venueName: String?, venueAddress: String?, city: String?
     let timezone: String, startsOn: String, endsOn: String, openTime: String, closeTime: String
+    // Background photo of the sign-in screen, set per exhibition by the organiser.
+    let loginImage: String?
 }
 struct Faq: Codable, Hashable { let q: String; let a: String }
 struct PassClass: Codable, Identifiable {

@@ -166,15 +166,18 @@ export default function publicRoutes(ctx) {
   });
 
   // ---------- floor drawings ----------
-  // A hall's floor drawing. Public once the event is published; organiser staff can see drafts.
-  r.get('/public/plan-image/:id', (req, res) => {
-    const up = db.get("SELECT * FROM uploads WHERE id = ? AND kind = 'plan'", Number(req.params.id) || 0);
+  // An event image: a hall's floor drawing or the sign-in background. Public once the event is
+  // published; organiser staff can see a draft's images.
+  const sendImage = (req, res) => {
+    const up = db.get("SELECT * FROM uploads WHERE id = ? AND kind IN ('plan','branding')", Number(req.params.id) || 0);
     const event = up && db.get('SELECT * FROM events WHERE id = ?', up.event_id);
     if (!event || (event.status !== 'published' && !hasOrgPerm(db, req, event, 'event.view'))) fail(404, 'Not found');
     res.setHeader('Content-Type', up.mime || 'image/jpeg');
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    res.send(fs.readFileSync(path.join(ctx.uploadsDir, 'plans', path.basename(up.stored_name))));
-  });
+    res.send(fs.readFileSync(path.join(ctx.uploadsDir, up.kind === 'plan' ? 'plans' : 'branding', path.basename(up.stored_name))));
+  };
+  r.get('/public/image/:id', sendImage);
+  r.get('/public/plan-image/:id', sendImage);
 
   // ---------- venue displays ----------
   r.get('/public/display/:slug/:kiosk', (req, res) => {

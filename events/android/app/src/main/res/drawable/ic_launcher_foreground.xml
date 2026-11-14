@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The BrainADZ Live wordmark, inset into the safe zone of the adaptive icon. -->
-<inset xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/ic_launcher_logo"
-    android:inset="24%" />
+<!-- App icon: a clean white "B" with a small "live" dot, on BrainADZ red. Drawn inside the
+     adaptive icon's safe zone so every launcher shape crops it cleanly. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path
+        android:pathData="M39,31 V77 M39,31 H53 A11,11 0 0 1 53,53 H39 M39,53 H55 A12,12 0 0 1 55,77 H39"
+        android:strokeColor="#FFFFFF" android:strokeWidth="6.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" />
+    <path android:fillColor="#FFFFFF" android:pathData="M77,33m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+</vector>

@@ -354,6 +354,18 @@ struct ProfileScreen: View {
 
 // MARK: Sign in
 struct SignInScreen: View {
+    let onDone: () -> Void
+    var body: some View {
+        Screen {
+            ScreenTitle(title: "Sign in", eyebrow: "BrainADZ Events")
+            SignInFields(onDone: onDone)
+        }
+    }
+}
+
+// Email-code or password sign-in, plus the ticket-link and server-address options. Used on the
+// welcome screen and the sign-in sheet.
+struct SignInFields: View {
     @EnvironmentObject var repo: Repo
     let onDone: () -> Void
     @State var email = ""
@@ -366,8 +378,7 @@ struct SignInScreen: View {
     @State var findPass = false
     @StateObject var action = ActionRunner()
     var body: some View {
-        Screen {
-            ScreenTitle(title: "Sign in", eyebrow: "BrainADZ Events")
+        VStack(alignment: .leading, spacing: 16) {
             LabeledField(label: "Email", text: $email, keyboard: .emailAddress)
                 .onChange(of: email) { _ in sent = false }
             if usePassword { LabeledField(label: "Password", text: $secret, secure: true) }

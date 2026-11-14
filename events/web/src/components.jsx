@@ -1,8 +1,8 @@
 // Pieces shared by the public site, the consoles and the displays: the pass card, the 2D hall
 // plan with its accessible list view, and the agenda list.
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Bookmark, BookmarkCheck } from 'lucide-react';
-import { Qr, Status, Tabs } from './ui.jsx';
+import { Qr, Status, Tabs, useImage } from './ui.jsx';
 import { dateRange, weekday } from './format.js';
 
 // The pass as shown to its holder: quiet, high-contrast QR with the gate and area beside it.
@@ -45,28 +45,6 @@ const S = 40;
 const SNAP = 0.5;
 const snap = (v) => Math.round(v / SNAP) * SNAP;
 
-// Loads a floor drawing through fetch so it works for drafts (with the sign-in) and in the
-// in-browser demo, and hands back an object URL for the SVG.
-function usePlanImage(src) {
-  const [url, setUrl] = useState(null);
-  useEffect(() => {
-    if (!src) return setUrl(null);
-    let live = true;
-    let made = null;
-    fetch(src)
-      .then((r) => (r.ok ? r.blob() : null))
-      .then((b) => {
-        if (b && live) setUrl((made = URL.createObjectURL(b)));
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-      if (made) URL.revokeObjectURL(made);
-    };
-  }, [src]);
-  return url;
-}
-
 // 2D plan of one hall, drawn to scale over the hall's floor drawing when one was uploaded.
 // Stalls are keyboard-focusable buttons; `tone(booth)` picks the style (free, held, blocked,
 // sel). The list view carries the same information as text.
@@ -83,7 +61,7 @@ export function HallPlan({ halls, selected, onSelect, tone, here, label, startVi
   const [drag, setDrag] = useState(null); // { id, mode, start, orig, rect }
   const svgRef = useRef(null);
   const hall = drawable.find((h) => h.id === zoneId) || drawable[0];
-  const image = usePlanImage(hall?.image);
+  const image = useImage(hall?.image);
   if (!hall) return <p className="empty">No hall plan has been set up yet.</p>;
   const editing = Boolean(onChange);
   const boothLabel = label || ((b) => (b.exhibitor ? `Stall ${b.code}, ${b.exhibitor}` : `Stall ${b.code}`));

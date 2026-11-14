@@ -53,6 +53,7 @@ Visitors have no password. They sign in with a one-time email code, for example 
 
 ### What to look at
 
+- **First page:** everyone starts on the sign-in page, shown over the exhibition's own photo. Change it per exhibition in the organiser console under **Settings → Event → Sign-in page background**; without one, the BrainADZ Live navy and red background is used. The Android and iPhone apps open on the same sign-in screen.
 - **Visitor:** Register on the public site → enter the code → pass with QR. Try *Conference delegate* for the payment step (the hosted checkout page is the local demo adapter, clearly labelled) and *Media* for the review step.
 - **Organiser** (`/org`): Live operations shows Gate 3 with 12 scans pending, 2 failed printer jobs, approvals waiting, a scan conflict and finance items to reconcile. Each links to the screen that resolves it.
 - **Floor plan** (`/org` → Floor plan → **Edit layout**): upload a hall's floor drawing (PNG or JPG), set the hall size in metres, drag stalls to move them, drag a stall's corner to resize it, or import the whole stall list from a spreadsheet saved as CSV (columns: code, hall, x, y, width, depth, type, price, blocked, note; **Download current list** gives a ready-made file to edit). Stall sizes are in metres and the area is worked out from width × depth. Stalls cannot overlap or go outside the hall; an import with a problem in any row changes nothing and lists the rows to fix.

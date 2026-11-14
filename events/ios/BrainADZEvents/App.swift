@@ -44,6 +44,8 @@ struct AppRoot: View {
     @State var tab = "pass"
     @State var chosen: Mode?
     @State var showSignIn = false
+    // Someone who chose to look around without signing in.
+    @State var browsing = false
     @State var showRegister = false
     @State var linkError: String?
 
@@ -112,6 +114,9 @@ struct AppRoot: View {
     var content: some View {
         if !repo.ready {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.canvas)
+        } else if !repo.signedIn && repo.linked == nil && !browsing {
+            // Not signed in and no saved ticket: the first screen is sign-in over the exhibition's photo.
+            WelcomeScreen(onDone: { tab = "pass" }, onRegister: { showRegister = true }, onBrowse: { browsing = true })
         } else {
             TabView(selection: $tab) {
                 workspaceTabs

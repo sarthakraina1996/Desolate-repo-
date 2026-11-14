@@ -70,7 +70,7 @@ export default function ExhShell() {
                           <br />
                           <span className="muted">{ROLE_LABELS[mine.role]}</span>
                         </span>
-                        <button className="btn sm" onClick={() => signOut().then(() => nav('/signin'))}>
+                        <button className="btn sm" onClick={() => signOut().then(() => nav('/', { replace: true }))}>
                           Sign out
                         </button>
                       </div>

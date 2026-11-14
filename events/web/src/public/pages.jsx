@@ -6,7 +6,7 @@ import { CalendarDays, Map as MapIcon, Search, Ticket, UserRound } from 'lucide-
 import { del, get, goTo, post, put } from '../api.js';
 import logo from '../assets/brainadz-live.png';
 import { useMe } from '../App.jsx';
-import { Field, Loaded, Loading, Notice, Status, useAction, useLoad } from '../ui.jsx';
+import { Field, Loaded, Loading, Notice, Status, useAction, useImage, useLoad } from '../ui.jsx';
 import { AgendaList, HallPlan, PassCard } from '../components.jsx';
 import { dateRange, inr, ROLE_LABELS } from '../format.js';
 
@@ -66,39 +66,11 @@ const EventCtx = createContext(null);
 const useEvent = () => useContext(EventCtx);
 
 // "/" goes to the published event, or lists them when there are several.
+// The first page: the sign-in page. Signed-in people go straight to their tickets or workspace.
 export function Home() {
-  const load = useLoad(() => get('/public/events'));
-  return (
-    <Loaded load={load}>
-      {(events) =>
-        events.length === 1 ? (
-          <Navigate to={`/e/${events[0].slug}`} replace />
-        ) : (
-          <PublicPage>
-            <h1>BrainADZ Events</h1>
-            <div className="panel list">
-              {events.map((e) => (
-                <Link key={e.slug} className="list-row" to={`/e/${e.slug}`}>
-                  <span className="grow">
-                    <strong>{e.name}</strong>
-                    <br />
-                    <span className="muted small">
-                      {dateRange(e.startsOn, e.endsOn)} · {e.city}
-                    </span>
-                  </span>
-                </Link>
-              ))}
-              {!events.length && (
-                <p className="empty">
-                  No events are open yet. <Link to="/signin">Sign in</Link>
-                </p>
-              )}
-            </div>
-          </PublicPage>
-        )
-      }
-    </Loaded>
-  );
+  const { me } = useMe();
+  if (me.user) return <Navigate to={homeFor(me)} replace />;
+  return <SignIn />;
 }
 
 export function EventSite() {
@@ -938,13 +910,35 @@ const DEMO = [
   ['karan@novadisplays.example', 'Booth staff, Nova Displays'],
 ];
 // Where a person lands after signing in, from the roles the server reports.
+// Where to go after signing in: the page someone was heading for, if this person may open it
+// (a visitor signing in on a device an organiser just used must not be sent to the console).
+const nextFor = (me, next) => {
+  const allowed =
+    next &&
+    next.startsWith('/') &&
+    !(next.startsWith('/org') && !me.organiser?.length) &&
+    !(next.startsWith('/x/') && !me.exhibitor?.length) &&
+    !(next.startsWith('/gate') && !me.gate?.length);
+  return allowed ? next : homeFor(me);
+};
 export const homeFor = (me) =>
   me.organiser?.length ? '/org' : me.exhibitor?.length ? `/x/${me.exhibitor[0].exhibitorId}` : me.gate?.length ? '/gate' : '/account';
 
+// The exhibition shown on the sign-in page: the one on now or next, else the latest.
+function featuredEvent(events) {
+  const today = new Date().toISOString().slice(0, 10);
+  return events.find((e) => e.endsOn >= today) || events[events.length - 1] || null;
+}
+
+// Sign-in page, full screen over the exhibition's own background photo. With no photo set
+// the BrainADZ Live navy and red background is used.
 export function SignIn() {
   const { me, config, refresh } = useMe();
   const nav = useNavigate();
   const [params] = useSearchParams();
+  const events = useLoad(() => get('/public/events'));
+  const event = events.data ? featuredEvent(events.data) : null;
+  const bg = useImage(event?.loginImage);
   const [email, setEmail] = useState('');
   const [mode, setMode] = useState('code'); // code | password
   const [sent, setSent] = useState(null);
@@ -953,10 +947,10 @@ export function SignIn() {
   const [busy, setBusy] = useState(false);
   const done = async () => {
     const m = await refresh();
-    nav(params.get('next') || homeFor(m), { replace: true });
+    nav(nextFor(m, params.get('next')), { replace: true });
   };
   useEffect(() => {
-    if (me.user) nav(params.get('next') || homeFor(me), { replace: true });
+    if (me.user) nav(nextFor(me, params.get('next')), { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const run = async (fn) => {
@@ -976,96 +970,121 @@ export function SignIn() {
     return run(() => post('/auth/code/verify', { email, code: secret }).then(done));
   };
   return (
-    <PublicPage>
-      <div>
-        <Link to="/" className="eyebrow">
-          BrainADZ Events
-        </Link>
-        <h1>Sign in</h1>
-      </div>
-      <form className="stack" onSubmit={submit}>
-        <Field label="Email">
-          <input
-            className="input"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => (setEmail(e.target.value), setSent(null))}
-            required
-          />
-        </Field>
-        {mode === 'password' && (
-          <Field label="Password">
-            <input
-              className="input"
-              type="password"
-              autoComplete="current-password"
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              required
-            />
-          </Field>
-        )}
-        {mode === 'code' && sent && (
-          <>
-            {sent.demoCode && (
-              <Notice tone="pending">
-                <span className="demo-tag">Demo</span> No email is sent by the local email adapter. Your code is{' '}
-                <strong>{sent.demoCode}</strong>.
-              </Notice>
-            )}
-            <Field label="6-digit code" hint={`Sent to ${email}`}>
+    <div className="login" style={bg ? { '--login-photo': `url("${bg}")` } : undefined}>
+      <div className="login-in">
+        <section className="login-event" aria-label="Exhibition">
+          {event ? (
+            <>
+              <p className="login-when">
+                {dateRange(event.startsOn, event.endsOn)} · {event.openTime}–{event.closeTime}
+              </p>
+              <h1>{event.name}</h1>
+              {event.tagline && <p className="login-tag">{event.tagline}</p>}
+              <p className="login-where">{[event.venueName, event.city].filter(Boolean).join(', ')}</p>
+            </>
+          ) : (
+            <h1>BrainADZ Events</h1>
+          )}
+        </section>
+        <main id="main" className="login-card">
+          <img className="login-logo" src={logo} alt="BrainADZ Live" width="150" height="70" />
+          <h2>Sign in</h2>
+          <p className="muted small">Visitors, exhibitors and event staff all sign in here.</p>
+          <form className="stack" onSubmit={submit}>
+            <Field label="Email">
               <input
                 className="input"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={secret}
-                onChange={(e) => setSecret(e.target.value.replace(/\D/g, ''))}
-                autoFocus
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => (setEmail(e.target.value), setSent(null))}
+                required
               />
             </Field>
-          </>
-        )}
-        {error && <Notice tone="error">{error}</Notice>}
-        <button className="btn primary big block" disabled={busy}>
-          {mode === 'password' ? 'Sign in' : sent ? 'Sign in' : 'Email me a code'}
-        </button>
-        <button
-          type="button"
-          className="btn plain"
-          onClick={() => (setMode(mode === 'code' ? 'password' : 'code'), setSecret(''), setSent(null), setError(null))}
-        >
-          {mode === 'code' ? 'Use a password instead' : 'Email me a code instead'}
-        </button>
-      </form>
-      {config.demo && (
-        <div className="panel">
-          <div className="head">
-            <h3>Demo accounts</h3>
-            <span className="demo-tag">Demo</span>
-          </div>
-          <div className="list">
-            {DEMO.map(([e, label]) => (
-              <button
-                key={e}
-                className="list-row"
-                onClick={() => run(() => post('/auth/login', { email: e, password: 'Events@2026' }).then(done))}
-              >
-                <span className="grow">
-                  <strong>{label}</strong>
-                  <br />
-                  <span className="muted small">{e}</span>
-                </span>
-              </button>
-            ))}
-            <div className="muted small">
-              Password for all: Events@2026. Visitors sign in with an email code, for example aarav.mehta@meridianretail.example.
+            {mode === 'password' && (
+              <Field label="Password">
+                <input
+                  className="input"
+                  type="password"
+                  autoComplete="current-password"
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
+                  required
+                />
+              </Field>
+            )}
+            {mode === 'code' && sent && (
+              <>
+                {sent.demoCode && (
+                  <Notice tone="pending">
+                    <span className="demo-tag">Demo</span> No email is sent in the demo. Your code is <strong>{sent.demoCode}</strong>.
+                  </Notice>
+                )}
+                <Field label="6-digit code" hint={`Sent to ${email}`}>
+                  <input
+                    className="input"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={secret}
+                    onChange={(e) => setSecret(e.target.value.replace(/\D/g, ''))}
+                    autoFocus
+                  />
+                </Field>
+              </>
+            )}
+            {error && <Notice tone="error">{error}</Notice>}
+            <button className="btn primary big block" disabled={busy}>
+              {mode === 'password' || sent ? 'Sign in' : 'Email me a sign-in code'}
+            </button>
+            <button
+              type="button"
+              className="btn plain"
+              onClick={() => (setMode(mode === 'code' ? 'password' : 'code'), setSecret(''), setSent(null), setError(null))}
+            >
+              {mode === 'code' ? 'Staff: sign in with a password' : 'Email me a code instead'}
+            </button>
+          </form>
+          {event && (
+            <div className="login-more">
+              <span className="muted small">New to {event.name}?</span>
+              <Link className="btn block" to={`/e/${event.slug}/register`}>
+                Register for a ticket
+              </Link>
+              <div className="row between wrap small">
+                <Link to={`/e/${event.slug}/register?find=1`}>Find my ticket</Link>
+                <Link to={`/e/${event.slug}`}>See the exhibitors and floor plan</Link>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
-    </PublicPage>
+          )}
+          {config.demo && (
+            <details className="login-demo">
+              <summary>
+                <span className="demo-tag">Demo</span> Try a demo account
+              </summary>
+              <div className="list">
+                {DEMO.map(([e, label]) => (
+                  <button
+                    key={e}
+                    className="list-row"
+                    onClick={() => run(() => post('/auth/login', { email: e, password: 'Events@2026' }).then(done))}
+                  >
+                    <span className="grow">
+                      <strong>{label}</strong>
+                      <br />
+                      <span className="muted small">{e}</span>
+                    </span>
+                  </button>
+                ))}
+                <div className="muted small">
+                  Password for all: Events@2026. Visitors sign in with an email code, for example aarav.mehta@meridianretail.example.
+                </div>
+              </div>
+            </details>
+          )}
+        </main>
+      </div>
+    </div>
   );
 }
 

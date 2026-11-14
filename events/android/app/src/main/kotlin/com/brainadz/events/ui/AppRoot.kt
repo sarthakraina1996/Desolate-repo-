@@ -8,6 +8,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.ConfirmationNumber
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ConfirmationNumber
@@ -42,7 +52,8 @@ import com.brainadz.events.data.Repo
 import kotlinx.coroutines.launch
 
 enum class Mode { VISITOR, EXHIBITOR, GATE }
-private data class Tab(val key: String, val label: String, val icon: ImageVector)
+// Each tab has an outlined icon, and the filled version of the same icon when selected.
+private data class Tab(val key: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
 @Composable
 fun AppRoot(link: String?, onLinkHandled: () -> Unit) {
@@ -51,6 +62,8 @@ fun AppRoot(link: String?, onLinkHandled: () -> Unit) {
     var tab by rememberSaveable { mutableStateOf("pass") }
     var overlay by rememberSaveable { mutableStateOf<String?>(null) } // "signin" or "register"
     var chosen by rememberSaveable { mutableStateOf<Mode?>(null) }
+    // Someone who chose to look around without signing in.
+    var browsing by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { Repo.start() }
     // Coming back to the app refreshes passes and uploads any queued scans.
@@ -79,14 +92,41 @@ fun AppRoot(link: String?, onLinkHandled: () -> Unit) {
         else -> Mode.VISITOR
     }
     val tabs = when (mode) {
-        Mode.VISITOR -> listOf(Tab("pass", "Tickets", Icons.Outlined.ConfirmationNumber), Tab("explore", "Explore", Icons.Outlined.Map), Tab("agenda", "Agenda", Icons.Outlined.CalendarMonth), Tab("profile", "Profile", Icons.Outlined.Person))
-        Mode.EXHIBITOR -> listOf(Tab("booth", "Booth", Icons.Outlined.Storefront), Tab("team", "Team", Icons.Outlined.Badge), Tab("leads", "Leads", Icons.Outlined.Groups), Tab("scan", "Scan", Icons.Outlined.QrCodeScanner), Tab("profile", "Profile", Icons.Outlined.Person))
-        Mode.GATE -> listOf(Tab("gate", "Scan", Icons.Outlined.QrCodeScanner), Tab("profile", "Profile", Icons.Outlined.Person))
+        Mode.VISITOR -> listOf(
+            Tab("pass", "Tickets", Icons.Outlined.ConfirmationNumber, Icons.Filled.ConfirmationNumber),
+            Tab("explore", "Explore", Icons.Outlined.Map, Icons.Filled.Map),
+            Tab("agenda", "Agenda", Icons.Outlined.CalendarMonth, Icons.Filled.CalendarMonth),
+            Tab("profile", "Profile", Icons.Outlined.Person, Icons.Filled.Person),
+        )
+        Mode.EXHIBITOR -> listOf(
+            Tab("booth", "Booth", Icons.Outlined.Storefront, Icons.Filled.Storefront),
+            Tab("team", "Team", Icons.Outlined.Badge, Icons.Filled.Badge),
+            Tab("leads", "Leads", Icons.Outlined.Groups, Icons.Filled.Groups),
+            Tab("scan", "Scan", Icons.Outlined.QrCodeScanner, Icons.Filled.QrCodeScanner),
+            Tab("profile", "Profile", Icons.Outlined.Person, Icons.Filled.Person),
+        )
+        Mode.GATE -> listOf(
+            Tab("gate", "Scan", Icons.Outlined.QrCodeScanner, Icons.Filled.QrCodeScanner),
+            Tab("profile", "Profile", Icons.Outlined.Person, Icons.Filled.Person),
+        )
     }
     val current = tabs.find { it.key == tab }?.key ?: tabs.first().key
     BackHandler(overlay != null) { overlay = null }
 
+    // Not signed in and no saved ticket: the first screen is sign-in, over the exhibition's photo.
+    val welcome = Repo.ready && !Repo.signedIn && Repo.linked == null && !browsing && overlay == null
     CompositionLocalProvider(LocalToast provides { message -> scope.launch { snackbar.showSnackbar(message) } }) {
+        if (welcome) {
+            Box(Modifier.fillMaxSize()) {
+                WelcomeScreen(
+                    onDone = { tab = "pass" },
+                    onRegister = { if (Repo.guide != null) overlay = "register" else scope.launch { snackbar.showSnackbar("Registration is not open yet.") } },
+                    onBrowse = { browsing = true },
+                )
+                SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+            }
+            return@CompositionLocalProvider
+        }
         Scaffold(
             containerColor = C.Canvas,
             snackbarHost = { SnackbarHost(snackbar) },
@@ -95,7 +135,7 @@ fun AppRoot(link: String?, onLinkHandled: () -> Unit) {
                     tabs.forEach { t ->
                         NavigationBarItem(
                             selected = t.key == current, onClick = { tab = t.key },
-                            icon = { Icon(t.icon, null) }, label = { Text(t.label) },
+                            icon = { Icon(if (t.key == current) t.selectedIcon else t.icon, null) }, label = { Text(t.label) },
                             colors = NavigationBarItemDefaults.colors(indicatorColor = C.Selected, selectedIconColor = C.Petrol, selectedTextColor = C.Petrol, unselectedIconColor = C.Ink, unselectedTextColor = C.Ink),
                         )
                     }

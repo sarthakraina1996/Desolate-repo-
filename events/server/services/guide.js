@@ -5,11 +5,14 @@ import { json } from '../db.js';
 import { eventSettings, hmIn, ymdIn } from '../core.js';
 import { formFields, publicPassClasses } from './registrations.js';
 
-// Address of an uploaded floor drawing, or null.
-export const planImageUrl = (uploadId) => (uploadId ? `/api/v1/public/plan-image/${uploadId}` : null);
+// Address of an uploaded event image (a floor drawing or the sign-in background), or null.
+export const imageUrl = (uploadId) => (uploadId ? `/api/v1/public/image/${uploadId}` : null);
+export const planImageUrl = imageUrl;
 
 export function eventSummary(event) {
   return {
+    // Background photo of the sign-in page, chosen per exhibition by the organiser.
+    loginImage: imageUrl(json(event.settings, {}).loginImage),
     id: event.id,
     slug: event.slug,
     name: event.name,

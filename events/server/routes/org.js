@@ -35,7 +35,7 @@ import {
   zonedToUtc,
 } from '../core.js';
 import { checkPasswordStrength, destroyUserSessions, findOrCreateUser, hashPassword } from '../auth.js';
-import { eventSummary, planImageUrl } from '../services/guide.js';
+import { eventSummary, imageUrl, planImageUrl } from '../services/guide.js';
 import {
   advance,
   cancelRegistration,
@@ -1100,6 +1100,42 @@ export default function orgRoutes(ctx) {
           })),
       })),
     );
+  });
+
+  // ---------- sign-in page background ----------
+  // The photo behind the sign-in page, set per exhibition (a venue or stand photo, a key visual).
+  r.post(
+    '/org/events/:eid/login-image',
+    ctx.upload('branding', { maxMb: 12, exts: ['.png', '.jpg', '.jpeg', '.webp'] }).single('file'),
+    (req, res) => {
+      const event = ev(req, 'event.manage');
+      if (!req.file) fail(400, 'Choose a photo (PNG or JPG)');
+      const uploadId = db.insert('uploads', {
+        event_id: event.id,
+        kind: 'branding',
+        filename: req.file.originalname.slice(0, 200),
+        stored_name: req.file.filename,
+        mime: req.file.mimetype,
+        size: req.file.size,
+        uploaded_by: req.user.id,
+        created_at: nowIso(),
+      });
+      db.update('events', event.id, {
+        settings: JSON.stringify({ ...json(event.settings, {}), loginImage: uploadId }),
+        updated_at: nowIso(),
+      });
+      touchGuide(db, event.id);
+      audit(db, req, 'event.login_image', { event, entity: 'event', entityId: event.id, detail: { file: req.file.originalname } });
+      res.status(201).json({ loginImage: imageUrl(uploadId) });
+    },
+  );
+  r.delete('/org/events/:eid/login-image', (req, res) => {
+    const event = ev(req, 'event.manage');
+    const { loginImage: _gone, ...rest } = json(event.settings, {});
+    db.update('events', event.id, { settings: JSON.stringify(rest), updated_at: nowIso() });
+    touchGuide(db, event.id);
+    audit(db, req, 'event.login_image_removed', { event, entity: 'event', entityId: event.id });
+    res.json({ ok: true });
   });
 
   // ---------- floor plan drawing and stall import ----------

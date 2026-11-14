@@ -7,6 +7,7 @@ import { Empty, Field, Loaded, Notice, Status, useAction, useLoad, useToast } fr
 import { HallPlan } from '../components.jsx';
 import { dayTime, inr, STATES } from '../format.js';
 import { PageTitle, useOrg } from './shared.jsx';
+import { shrinkImage } from '../images.js';
 import { ExhibitorDialog } from './OrgShell.jsx';
 
 const CSV_COLUMNS = ['code', 'hall', 'x', 'y', 'width', 'depth', 'type', 'price', 'blocked', 'note'];
@@ -68,32 +69,6 @@ function parseCsv(text) {
   return rows.slice(1).map((r) => Object.fromEntries(keys.map((k, i) => [k, r[i]?.trim()]).filter(([k]) => k)));
 }
 const csvCell = (v) => (/[",\n]/.test(String(v ?? '')) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? ''));
-
-// Shrinks a drawing to at most 2400 px on its long side, so uploads stay quick on venue Wi-Fi.
-function shrinkImage(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const k = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.naturalWidth * k);
-      canvas.height = Math.round(img.naturalHeight * k);
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(
-        (b) => (b ? resolve({ blob: b, ratio: img.naturalHeight / img.naturalWidth }) : reject(new Error('Could not read the image'))),
-        'image/jpeg',
-        0.88,
-      );
-    };
-    img.onerror = () => reject(new Error('That file is not an image this browser can open. Use PNG or JPG.'));
-    img.src = url;
-  });
-}
 
 export default function FloorPlan() {
   const { api, can, cfg, reloadConfig } = useOrg();
@@ -443,10 +418,6 @@ function HallSettings({ hall, zone, onSaved }) {
     const f = e.target.files[0];
     e.target.value = '';
     if (!f) return;
-    if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
-      toast('Save the PDF page as a PNG or JPG image first (most PDF readers have Export or Save as image), then upload that.', 'error');
-      return;
-    }
     setBusy(true);
     try {
       const { blob, ratio } = await shrinkImage(f);

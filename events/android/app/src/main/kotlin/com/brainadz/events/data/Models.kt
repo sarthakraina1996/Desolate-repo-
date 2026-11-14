@@ -27,6 +27,8 @@ import kotlinx.serialization.json.JsonArray
     val description: String? = null, val venueName: String? = null, val venueAddress: String? = null,
     val city: String? = null, val timezone: String = "Asia/Kolkata", val startsOn: String = "", val endsOn: String = "",
     val openTime: String = "", val closeTime: String = "",
+    // Background photo of the sign-in screen, set per exhibition by the organiser.
+    val loginImage: String? = null,
 )
 @Serializable data class Faq(val q: String, val a: String)
 @Serializable data class PassClass(

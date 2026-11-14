@@ -304,3 +304,25 @@ export function Tabs({ tabs, value, onChange }) {
     </div>
   );
 }
+
+// Loads an image from the API through fetch (so it works for signed-in drafts and in the
+// in-browser demo) and returns an object URL, or null until it has loaded.
+export function useImage(src) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    if (!src) return setUrl(null);
+    let live = true;
+    let made = null;
+    fetch(src)
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) => {
+        if (b && live) setUrl((made = URL.createObjectURL(b)));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [src]);
+  return url;
+}

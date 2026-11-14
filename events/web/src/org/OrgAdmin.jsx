@@ -1,8 +1,23 @@
 // Organiser console: agenda, finance, gates and printing, messages, reports and settings.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { del, get, post, put } from '../api.js';
-import { Dialog, Empty, Field, FormDialog, Loaded, Notice, Status, Tabs, useAction, useFormDialog, useLoad } from '../ui.jsx';
+import { api as call, del, get, post, put } from '../api.js';
+import { shrinkImage } from '../images.js';
+import {
+  Dialog,
+  Empty,
+  Field,
+  FormDialog,
+  Loaded,
+  Notice,
+  Status,
+  Tabs,
+  useAction,
+  useFormDialog,
+  useImage,
+  useLoad,
+  useToast,
+} from '../ui.jsx';
 import { ago, clock, count, day, dayTime, inr, ROLE_LABELS, weekday } from '../format.js';
 import { RESULTS } from '../../../shared/scanRules.js';
 import { PageTitle, scanTone, useOrg } from './shared.jsx';
@@ -1101,6 +1116,7 @@ export function SettingsPage() {
     <div className="stack">
       <PageTitle title="Settings" />
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
+      {tab === 'event' && <LoginBackground />}
       {tab === 'event' && <EventSettings />}
       {tab === 'passes' && (
         <>
@@ -1365,6 +1381,83 @@ export function SettingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// The photo behind the sign-in page for this exhibition.
+function LoginBackground() {
+  const { api, cfg, can, reloadConfig } = useOrg();
+  const act = useAction();
+  const toast = useToast();
+  const file = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const preview = useImage(cfg.event.loginImage);
+  const upload = async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    setBusy(true);
+    try {
+      const { blob, ratio } = await shrinkImage(f, 2400);
+      if (ratio > 1.2) toast('Tip: a landscape photo works best; the sign-in page crops it to fit each screen.');
+      const form = new FormData();
+      form.append('file', blob, f.name.replace(/\.[^.]+$/, '') + '.jpg');
+      await call(`${api}/login-image`, { method: 'POST', form });
+      toast('Sign-in background updated');
+      reloadConfig();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+    setBusy(false);
+  };
+  return (
+    <section className="panel" aria-label="Sign-in page background">
+      <div className="head">
+        <div>
+          <h3>Sign-in page background</h3>
+          <p className="muted small">
+            The first page everyone sees is the sign-in page, shown over this photo. Use a picture of this exhibition: the venue, last
+            year&apos;s show floor or the event&apos;s key visual. A wide landscape photo works best.
+          </p>
+        </div>
+      </div>
+      <div className="body row wrap top" style={{ gap: 16 }}>
+        <div
+          className="login-preview"
+          role="img"
+          aria-label={preview ? 'Current sign-in background' : 'Standard BrainADZ Live background'}
+          style={preview ? { backgroundImage: `url("${preview}")` } : undefined}
+        >
+          <span>{cfg.event.name}</span>
+        </div>
+        {can('event.manage') && (
+          <div className="stack tight">
+            <input
+              ref={file}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
+              onChange={upload}
+            />
+            <button type="button" className="btn primary" disabled={busy} onClick={() => file.current.click()}>
+              {busy ? 'Uploading…' : cfg.event.loginImage ? 'Change photo' : 'Upload photo'}
+            </button>
+            {cfg.event.loginImage && (
+              <button
+                type="button"
+                className="btn plain"
+                onClick={() => act(() => del(`${api}/login-image`).then(reloadConfig), 'Standard background restored')}
+              >
+                Use the standard background
+              </button>
+            )}
+            <p className="muted small">PNG or JPG. Large photos are resized before upload.</p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

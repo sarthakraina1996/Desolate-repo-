@@ -326,6 +326,16 @@ fun ProfileScreen(modes: List<Pair<Mode, String>>, mode: Mode, onMode: (Mode) ->
 // ---------- Sign in ----------
 @Composable
 fun SignInScreen(onDone: () -> Unit) {
+    Column(screenPad.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        ScreenTitle("Sign in", "BrainADZ Events")
+        SignInFields(onDone)
+    }
+}
+
+// Email-code or password sign-in, plus the ticket-link and server-address options. Used on the
+// welcome screen and the sign-in screen.
+@Composable
+fun SignInFields(onDone: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var secret by remember { mutableStateOf("") }
     var usePassword by remember { mutableStateOf(false) }
@@ -336,8 +346,7 @@ fun SignInScreen(onDone: () -> Unit) {
     var findEmail by remember { mutableStateOf(false) }
     val action = rememberAction()
     val toast = LocalToast.current
-    Column(screenPad.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ScreenTitle("Sign in", "BrainADZ Events")
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         LabeledField("Email", email, { email = it.trim(); sent = false }, keyboard = KeyboardType.Email)
         if (usePassword) LabeledField("Password", secret, { secret = it }, keyboard = KeyboardType.Password)
         if (!usePassword && sent) {
