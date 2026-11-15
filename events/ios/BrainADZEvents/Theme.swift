@@ -6,6 +6,11 @@ extension Color {
     init(hex: UInt32) {
         self.init(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }
+    // A "#rrggbb" colour from the organiser's design, or the fallback.
+    static func design(_ hex: String?, _ fallback: Color) -> Color {
+        guard let hex = hex, hex.count == 7, hex.hasPrefix("#"), let v = UInt32(hex.dropFirst(), radix: 16) else { return fallback }
+        return Color(hex: v)
+    }
     static let canvas = Color(hex: 0xF4F5F7)
     static let surface = Color(hex: 0xFFFFFF)
     static let ink = Color(hex: 0x231F20)

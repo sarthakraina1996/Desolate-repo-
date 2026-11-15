@@ -511,3 +511,28 @@ async function tokenOf(email) {
   });
   return (await r.json()).token;
 }
+
+test('design studio: the look and ticket design are validated, saved and sent to visitors', async () => {
+  const org = await as(t.base, 'organiser@futureworks.example');
+  const saved = await org.put(`/org/events/${E.id}/design`, {
+    theme: { primary: '#5b21b6', accent: 'red; background:url(x)', pattern: 'confetti', corners: 'round', font: 'comic' },
+    ticket: { layout: 'poster', band: '#5B21B6', headline: 'Admit one', art: 999, showRef: false },
+  });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  // Valid choices are kept; anything else falls back to the standard look. Artwork can only be set by upload.
+  assert.equal(saved.body.theme.primary, '#5b21b6');
+  assert.equal(saved.body.theme.accent, '#c82026');
+  assert.equal(saved.body.theme.font, 'jost');
+  assert.equal(saved.body.ticket.band, '#5b21b6');
+  assert.equal(saved.body.ticket.art, null);
+  // Visitors receive it with the event guide and with their ticket.
+  const guide = (await client(t.base).get(`/public/events/${E.slug}/guide`)).body;
+  assert.equal(guide.event.design.theme.pattern, 'confetti');
+  const { state } = await register('VISITOR', 'design.fan@example.org');
+  const pass = state.pass;
+  assert.equal(pass.event.design.ticket.layout, 'poster');
+  assert.equal(pass.event.design.ticket.showRef, false);
+  // Gate staff cannot change the design.
+  const gate = await as(t.base, 'gate1@futureworks.example');
+  assert.ok([403, 404].includes((await gate.put(`/org/events/${E.id}/design`, { theme: {} })).status));
+});

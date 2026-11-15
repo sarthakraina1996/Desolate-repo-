@@ -76,8 +76,16 @@ import kotlinx.serialization.json.JsonArray
 @Serializable data class ClassRef(val code: String = "", val name: String, val kind: String = "", val mode: String = "")
 @Serializable data class PassEvent(
     val slug: String, val name: String, val venueName: String? = null, val startsOn: String = "", val endsOn: String = "",
-    val openTime: String = "", val closeTime: String = "",
+    val openTime: String = "", val closeTime: String = "", val design: Design = Design(),
 )
+// The organiser's ticket design (Design studio): colours, extra lines and which details show.
+@Serializable data class TicketDesign(
+    val band: String = "#233e85", val bandText: String = "#ffffff", val accent: String = "#c82026",
+    val paper: String = "#ffffff", val ink: String = "#231f20", val headline: String = "", val footer: String = "",
+    val showVenue: Boolean = true, val showCompany: Boolean = true, val showGates: Boolean = true,
+    val showZones: Boolean = true, val showRef: Boolean = true, val showNote: Boolean = true,
+)
+@Serializable data class Design(val ticket: TicketDesign = TicketDesign())
 @Serializable data class Pass(
     val id: Int, val ref: String? = null, val qr: String? = null, val status: String = "active", val holderName: String,
     val holderCompany: String? = null, val passClass: ClassRef, val validFrom: String = "", val validTo: String = "",

@@ -129,6 +129,8 @@ fun inr(paise: Long): String = NumberFormat.getCurrencyInstance(IN).apply { maxi
 fun day(ymd: String): String = runCatching { LocalDate.parse(ymd).format(DateTimeFormatter.ofPattern("d MMM yyyy", IN)) }.getOrDefault(ymd)
 fun weekday(ymd: String): String = runCatching { LocalDate.parse(ymd).format(DateTimeFormatter.ofPattern("EEEE, d MMMM", IN)) }.getOrDefault(ymd)
 fun clock(iso: String?): String = iso?.let { runCatching { DateTimeFormatter.ofPattern("HH:mm").format(Instant.parse(it).atZone(IST)) }.getOrNull() } ?: ""
+// A "#rrggbb" colour from the organiser's design.
+fun hexColor(hex: String, fallback: Color): Color = runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(fallback)
 // "Thu 13" for day pickers.
 fun shortDay(ymd: String): String = runCatching { LocalDate.parse(ymd).format(DateTimeFormatter.ofPattern("EEE d", IN)) }.getOrDefault(ymd)
 fun dateRange(from: String, to: String): String = if (from == to) day(from) else "${runCatching { LocalDate.parse(from).dayOfMonth.toString() }.getOrDefault(from)}–${day(to)}"

@@ -8,28 +8,35 @@ import UserNotifications
 struct PassCard: View {
     let pass: Pass
     var body: some View {
-        VStack(spacing: 0) {
+        let k = pass.event.design?.ticket ?? TicketDesign()
+        let band = Color.design(k.band, .navy), onBand = Color.design(k.bandText, .white)
+        let accent = Color.design(k.accent, .petrol), paper = Color.design(k.paper, .surface), ink = Color.design(k.ink, .ink)
+        let ink2 = ink.opacity(0.62)
+        return VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
+                    if let headline = k.headline, !headline.isEmpty {
+                        Text(headline.uppercased()).font(.caption.weight(.bold)).kerning(2).opacity(0.85)
+                    }
                     Text(pass.event.name).font(.headline.weight(.bold))
                     Text("\(Fmt.dateRange(pass.validFrom, pass.validTo)) · \(pass.event.openTime)–\(pass.event.closeTime)").font(.subheadline).opacity(0.82)
-                    if let venue = pass.event.venueName { Text(venue).font(.subheadline).opacity(0.82) }
+                    if k.showVenue != false, let venue = pass.event.venueName { Text(venue).font(.subheadline).opacity(0.82) }
                 }
                 Spacer(minLength: 0)
                 Text(pass.passClass.name).font(.footnote.weight(.semibold))
                     .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Color.petrol, in: Capsule())
+                    .background(accent, in: Capsule())
             }
-            .foregroundColor(.white)
+            .foregroundColor(onBand)
             .padding(.horizontal, 20).padding(.vertical, 18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.navy)
+            .background(band)
             VStack(alignment: .leading, spacing: 2) {
-                Text(pass.holderName).font(.title2.weight(.bold))
-                if let company = pass.holderCompany { Text(company).foregroundColor(.ink2) }
+                Text(pass.holderName).font(.title2.weight(.bold)).foregroundColor(ink)
+                if k.showCompany != false, let company = pass.holderCompany { Text(company).foregroundColor(ink2) }
                 HStack(alignment: .top, spacing: 12) {
-                    ticketField("Enter at", pass.gates.isEmpty ? "Any gate" : pass.gates.joined(separator: ", "))
-                    ticketField("Access", pass.zones.isEmpty ? "Show floor" : pass.zones.joined(separator: ", "))
+                    if k.showGates != false { ticketField("Enter at", pass.gates.isEmpty ? "Any gate" : pass.gates.joined(separator: ", "), ink) }
+                    if k.showZones != false { ticketField("Access", pass.zones.isEmpty ? "Show floor" : pass.zones.joined(separator: ", "), ink) }
                 }
                 .padding(.top, 12)
             }
@@ -38,23 +45,29 @@ struct PassCard: View {
             Perforation().frame(height: 36)
             VStack(spacing: 8) {
                 if let qr = pass.qr {
-                    QrImage(text: qr, label: "QR code for \(pass.holderName)'s pass").frame(width: 210, height: 210)
+                    QrImage(text: qr, label: "QR code for \(pass.holderName)'s pass").frame(width: 204, height: 204)
+                        .padding(6).background(Color.white, in: RoundedRectangle(cornerRadius: 10))
                 } else {
                     Notice(text: "This pass is no longer valid.", tone: .error)
                 }
-                if let ref = pass.ref { Text(ref).font(.callout.weight(.semibold)).kerning(2).foregroundColor(.ink2) }
-                Text(pass.instructions).font(.subheadline).foregroundColor(.ink2).multilineTextAlignment(.center).padding(.top, 4)
+                if k.showRef != false, let ref = pass.ref { Text(ref).font(.callout.weight(.semibold)).kerning(2).foregroundColor(ink2) }
+                if k.showNote != false {
+                    Text(pass.instructions).font(.subheadline).foregroundColor(ink2).multilineTextAlignment(.center).padding(.top, 4)
+                }
+                if let footer = k.footer, !footer.isEmpty {
+                    Text(footer).font(.subheadline.weight(.semibold)).foregroundColor(accent).multilineTextAlignment(.center)
+                }
             }
             .padding(.horizontal, 20).padding(.bottom, 20)
         }
-        .background(Color.surface)
+        .background(paper)
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .shadow(color: .black.opacity(0.1), radius: 12, y: 6)
     }
-    private func ticketField(_ label: String, _ value: String) -> some View {
+    private func ticketField(_ label: String, _ value: String, _ ink: Color) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(label).font(.subheadline).foregroundColor(.ink2)
-            Text(value).font(.body.weight(.semibold))
+            Text(label).font(.subheadline).foregroundColor(ink.opacity(0.62))
+            Text(value).font(.body.weight(.semibold)).foregroundColor(ink)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)

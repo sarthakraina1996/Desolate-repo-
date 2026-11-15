@@ -4,38 +4,62 @@ import { useRef, useState } from 'react';
 import { Bookmark, BookmarkCheck, ZoomIn, ZoomOut } from 'lucide-react';
 import { Qr, Status, useImage } from './ui.jsx';
 import { dateRange, nowHM, todayISO, weekday } from './format.js';
+import { ticketVars } from './theme.js';
 
 // The pass as shown to its holder, laid out like a printed ticket: event band, holder and
-// access, then a tear-off stub with a large, quiet QR code.
-export function PassCard({ pass }) {
+// access, then a tear-off stub with a large QR code. The organiser's ticket design (colours,
+// pattern, layout, artwork, logo, which details show) comes with the pass; `design` overrides
+// it for the Design studio's live preview.
+export function PassCard({ pass, design }) {
   const e = pass.event;
+  const k = design || e.design?.ticket || {};
+  const art = useImage(k.art);
+  const logo = useImage(k.logo);
+  const full = art && k.artPlacement === 'full';
+  const on = (key) => k[key] !== false;
   return (
-    <article className="ticket" aria-label={`${pass.passClass.name} pass for ${pass.holderName}`}>
-      <header className="ticket-top">
+    <article
+      className={`ticket lay-${k.layout || 'classic'} ${k.notches === false ? 'no-notch' : ''} ${full ? 'art-full' : ''}`}
+      data-pattern={k.pattern || 'network'}
+      style={{ ...ticketVars(k.band ? k : null), ...(full ? { backgroundImage: `url(${art})` } : {}) }}
+      aria-label={`${pass.passClass.name} pass for ${pass.holderName}`}
+    >
+      <header
+        className={`ticket-top ${art && !full ? 'has-art' : ''}`}
+        style={art && !full ? { backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.62)), url(${art})` } : undefined}
+      >
+        {logo && <img className="ticket-logo" src={logo} alt="" />}
         <div className="row between top">
           <div className="grow">
+            {k.headline && <div className="ticket-headline">{k.headline}</div>}
             <div className="ticket-event">{e.name}</div>
             <div className="ticket-when">
               {dateRange(pass.validFrom, pass.validTo)} · {e.openTime}–{e.closeTime}
             </div>
-            {e.venueName && <div className="ticket-when">{e.venueName}</div>}
+            {on('showVenue') && e.venueName && <div className="ticket-when">{e.venueName}</div>}
           </div>
           <span className="ticket-class">{pass.passClass.name}</span>
         </div>
       </header>
       <div className="ticket-holder">
         <div className="ticket-name">{pass.holderName}</div>
-        {pass.holderCompany && <div className="muted">{pass.holderCompany}</div>}
-        <dl className="ticket-meta">
-          <div>
-            <dt>Enter at</dt>
-            <dd>{pass.gates.join(', ') || 'Any gate'}</dd>
-          </div>
-          <div>
-            <dt>Access</dt>
-            <dd>{pass.zones.join(', ') || 'Show floor'}</dd>
-          </div>
-        </dl>
+        {on('showCompany') && pass.holderCompany && <div className="ticket-sub">{pass.holderCompany}</div>}
+        {(on('showGates') || on('showZones')) && (
+          <dl className="ticket-meta">
+            {on('showGates') && (
+              <div>
+                <dt>Enter at</dt>
+                <dd>{pass.gates.join(', ') || 'Any gate'}</dd>
+              </div>
+            )}
+            {on('showZones') && (
+              <div>
+                <dt>Access</dt>
+                <dd>{pass.zones.join(', ') || 'Show floor'}</dd>
+              </div>
+            )}
+          </dl>
+        )}
       </div>
       <div className="ticket-stub">
         {pass.qr ? (
@@ -43,8 +67,9 @@ export function PassCard({ pass }) {
         ) : (
           <p className="notice error">This pass is no longer valid.</p>
         )}
-        {pass.ref && <div className="ticket-ref">{pass.ref}</div>}
-        {pass.instructions && <p className="ticket-note">{pass.instructions}</p>}
+        {on('showRef') && pass.ref && <div className="ticket-ref">{pass.ref}</div>}
+        {on('showNote') && pass.instructions && <p className="ticket-note">{pass.instructions}</p>}
+        {k.footer && <p className="ticket-foot">{k.footer}</p>}
       </div>
     </article>
   );

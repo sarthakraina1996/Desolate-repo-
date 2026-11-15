@@ -13,6 +13,7 @@ import {
   Megaphone,
   Radio,
   ScanLine,
+  Palette,
   Settings,
   Users,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ import { clock, count, dateRange, day, dayTime, inr, ROLE_LABELS, STATES } from 
 import { RESULTS } from '../../../shared/scanRules.js';
 import { AgendaAdmin, Comms, Finance, GateOps, Reports, SettingsPage } from './OrgAdmin.jsx';
 import FloorPlan from './FloorPlan.jsx';
+import DesignStudio from './Design.jsx';
 import { OrgCtx, PageTitle, scanTone, useOrg } from './shared.jsx';
 
 // Picks the event to open: the only one, or a list.
@@ -61,6 +63,7 @@ const NAV = [
   { to: 'agenda', label: 'Agenda', icon: CalendarDays, perm: 'event.view' },
   { to: 'finance', label: 'Finance', icon: Coins, perm: 'finance.view' },
   { to: 'gates', label: 'Gates & printing', icon: ScanLine, perm: 'gate.view' },
+  { to: 'design', label: 'Design studio', icon: Palette, perm: 'event.view' },
   { to: 'messages', label: 'Messages', icon: Megaphone, perm: 'event.view' },
   { to: 'reports', label: 'Reports', icon: BarChart3, perm: 'reports.view' },
   { to: 'settings', label: 'Settings', icon: Settings, perm: 'event.view' },
@@ -122,6 +125,7 @@ export default function OrgShell() {
                   <Route path="registrations" element={<Registrations />} />
                   <Route path="exhibitors" element={<Exhibitors />} />
                   <Route path="floor" element={<FloorPlan />} />
+                  <Route path="design" element={<DesignStudio />} />
                   <Route path="agenda" element={<AgendaAdmin />} />
                   <Route path="finance" element={<Finance />} />
                   <Route path="gates" element={<GateOps />} />

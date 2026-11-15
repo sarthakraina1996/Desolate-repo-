@@ -1,6 +1,7 @@
 // Visitor registration: free, paid, invited and approval-based passes.
 // Review state (status), money state (payment_status) and admission are kept independent;
 // a pass is issued only when the registration is confirmed AND nothing is owed.
+import { eventDesign } from './guide.js';
 import { json } from '../db.js';
 import {
   audit,
@@ -277,7 +278,7 @@ export function registrationState(ctx, event, reg) {
     pass: pass && step === 'pass' ? passView(db, event, pass) : null,
     order: order && step === 'payment' ? { ...orderView(db, order), token: orderToken(ctx, order) } : null,
     createdAt: reg.created_at,
-    event: { slug: event.slug, name: event.name },
+    event: { slug: event.slug, name: event.name, design: eventDesign(event) },
   };
 }
 

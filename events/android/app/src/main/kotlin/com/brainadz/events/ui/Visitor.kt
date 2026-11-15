@@ -83,21 +83,26 @@ val screenPad = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
 @Composable
 fun PassCard(pass: Pass) {
     val shape = RoundedCornerShape(18.dp)
-    Column(Modifier.fillMaxWidth().shadow(6.dp, shape, ambientColor = C.Ink.copy(alpha = 0.1f), spotColor = C.Ink.copy(alpha = 0.14f)).clip(shape).background(C.Surface)) {
-        Row(Modifier.fillMaxWidth().background(C.Navy).padding(horizontal = 20.dp, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    val k = pass.event.design.ticket
+    val band = hexColor(k.band, C.Navy); val onBand = hexColor(k.bandText, Color.White)
+    val accent = hexColor(k.accent, C.Petrol); val paper = hexColor(k.paper, C.Surface); val ink = hexColor(k.ink, C.Ink)
+    val ink2 = ink.copy(alpha = 0.62f)
+    Column(Modifier.fillMaxWidth().shadow(6.dp, shape, ambientColor = C.Ink.copy(alpha = 0.1f), spotColor = C.Ink.copy(alpha = 0.14f)).clip(shape).background(paper)) {
+        Row(Modifier.fillMaxWidth().background(band).padding(horizontal = 20.dp, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {
-                Text(pass.event.name, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text("${dateRange(pass.validFrom, pass.validTo)} · ${pass.event.openTime}–${pass.event.closeTime}", color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.bodyMedium)
-                pass.event.venueName?.let { Text(it, color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.bodyMedium) }
+                if (k.headline.isNotBlank()) Text(k.headline.uppercase(), color = onBand.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, letterSpacing = 2.sp, style = MaterialTheme.typography.labelMedium)
+                Text(pass.event.name, color = onBand, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text("${dateRange(pass.validFrom, pass.validTo)} · ${pass.event.openTime}–${pass.event.closeTime}", color = onBand.copy(alpha = 0.82f), style = MaterialTheme.typography.bodyMedium)
+                pass.event.venueName?.takeIf { k.showVenue }?.let { Text(it, color = onBand.copy(alpha = 0.82f), style = MaterialTheme.typography.bodyMedium) }
             }
-            Text(pass.passClass.name, Modifier.background(C.Petrol, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
+            Text(pass.passClass.name, Modifier.background(accent, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
         }
         Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp)) {
-            Text(pass.holderName, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            pass.holderCompany?.let { Text(it, color = C.Ink2) }
+            Text(pass.holderName, color = ink, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            pass.holderCompany?.takeIf { k.showCompany }?.let { Text(it, color = ink2) }
             Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TicketField("Enter at", pass.gates.joinToString().ifEmpty { "Any gate" }, Modifier.weight(1f))
-                TicketField("Access", pass.zones.joinToString().ifEmpty { "Show floor" }, Modifier.weight(1f))
+                if (k.showGates) TicketField("Enter at", pass.gates.joinToString().ifEmpty { "Any gate" }, ink, Modifier.weight(1f))
+                if (k.showZones) TicketField("Access", pass.zones.joinToString().ifEmpty { "Show floor" }, ink, Modifier.weight(1f))
             }
         }
         // Perforation: dashed line with a half-circle notch cut from each side.
@@ -108,18 +113,19 @@ fun PassCard(pass: Pass) {
             drawCircle(C.Canvas, 12.dp.toPx(), Offset(size.width, y))
         }
         Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (pass.qr != null) QrImage(pass.qr, "QR code for ${pass.holderName}'s pass", Modifier.width(210.dp))
+            if (pass.qr != null) QrImage(pass.qr, "QR code for ${pass.holderName}'s pass", Modifier.width(210.dp).background(Color.White, RoundedCornerShape(10.dp)).padding(6.dp))
             else Notice("This pass is no longer valid.", StatusTone.ERROR)
-            pass.ref?.let { Text(it, Modifier.padding(top = 8.dp), color = C.Ink2, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp) }
-            Text(pass.instructions, Modifier.padding(top = 12.dp), color = C.Ink2, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            pass.ref?.takeIf { k.showRef }?.let { Text(it, Modifier.padding(top = 8.dp), color = ink2, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp) }
+            if (k.showNote) Text(pass.instructions, Modifier.padding(top = 12.dp), color = ink2, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            if (k.footer.isNotBlank()) Text(k.footer, Modifier.padding(top = 10.dp), color = accent, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
         }
     }
 }
 @Composable
-private fun TicketField(label: String, value: String, modifier: Modifier) {
+private fun TicketField(label: String, value: String, ink: Color, modifier: Modifier) {
     Column(modifier) {
-        Text(label, color = C.Ink2, style = MaterialTheme.typography.bodyMedium)
-        Text(value, fontWeight = FontWeight.SemiBold)
+        Text(label, color = ink.copy(alpha = 0.62f), style = MaterialTheme.typography.bodyMedium)
+        Text(value, color = ink, fontWeight = FontWeight.SemiBold)
     }
 }
 

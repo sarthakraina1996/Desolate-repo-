@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { json, isUniqueViolation } from '../db.js';
 import { eventSettings, nowIso, randomToken, safeEqual } from '../core.js';
 import { parseQr, QR_PREFIX } from '../../shared/scanRules.js';
+import { eventDesign } from './guide.js';
 
 // Signature over a token id with the event's secret, shortened to keep the QR easy to scan.
 const signToken = (event, tokenId) => crypto.createHmac('sha256', event.qr_secret).update(tokenId).digest('base64url').slice(0, 22);
@@ -117,6 +118,7 @@ export function passView(db, event, pass) {
       openTime: event.open_time,
       closeTime: event.close_time,
       timezone: event.timezone,
+      design: eventDesign(event),
     },
   };
 }

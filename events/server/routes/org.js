@@ -35,7 +35,7 @@ import {
   zonedToUtc,
 } from '../core.js';
 import { checkPasswordStrength, destroyUserSessions, findOrCreateUser, hashPassword } from '../auth.js';
-import { eventSummary, imageUrl, planImageUrl } from '../services/guide.js';
+import { cleanDesign, eventDesign, eventSummary, imageUrl, planImageUrl } from '../services/guide.js';
 import {
   advance,
   cancelRegistration,
@@ -1129,6 +1129,58 @@ export default function orgRoutes(ctx) {
       res.status(201).json({ loginImage: imageUrl(uploadId) });
     },
   );
+  // ---------- design studio: app look and ticket ----------
+  // Saves the look of the visitor app and the ticket. Uploaded artwork is kept as it is.
+  r.put('/org/events/:eid/design', (req, res) => {
+    const event = ev(req, 'event.manage');
+    const settings = json(event.settings, {});
+    const before = cleanDesign(settings.design);
+    const next = cleanDesign({
+      theme: req.body.theme,
+      ticket: { ...req.body.ticket, art: before.ticket.art, logo: before.ticket.logo },
+    });
+    db.update('events', event.id, { settings: JSON.stringify({ ...settings, design: next }), updated_at: nowIso() });
+    touchGuide(db, event.id);
+    audit(db, req, 'event.design', { event, entity: 'event', entityId: event.id });
+    res.json(eventDesign(db.get('SELECT * FROM events WHERE id = ?', event.id)));
+  });
+  // Ticket artwork (a finished ticket design or key visual) and the logo printed on the ticket.
+  const designSlot = (req) => oneOf(req.params.slot, ['art', 'logo']) || fail(404, 'Unknown image');
+  const setDesignImage = (event, slot, uploadId) => {
+    const settings = json(event.settings, {});
+    const design = cleanDesign(settings.design);
+    design.ticket[slot] = uploadId;
+    db.update('events', event.id, { settings: JSON.stringify({ ...settings, design }), updated_at: nowIso() });
+    touchGuide(db, event.id);
+  };
+  r.post(
+    '/org/events/:eid/design-image/:slot',
+    ctx.upload('branding', { maxMb: 12, exts: ['.png', '.jpg', '.jpeg', '.webp'] }).single('file'),
+    (req, res) => {
+      const event = ev(req, 'event.manage');
+      const slot = designSlot(req);
+      if (!req.file) fail(400, 'Choose an image (PNG or JPG)');
+      const uploadId = db.insert('uploads', {
+        event_id: event.id,
+        kind: 'branding',
+        filename: req.file.originalname.slice(0, 200),
+        stored_name: req.file.filename,
+        mime: req.file.mimetype,
+        size: req.file.size,
+        uploaded_by: req.user.id,
+        created_at: nowIso(),
+      });
+      setDesignImage(event, slot, uploadId);
+      audit(db, req, 'event.design_image', { event, entity: 'event', entityId: event.id, detail: { slot, file: req.file.originalname } });
+      res.status(201).json({ url: imageUrl(uploadId) });
+    },
+  );
+  r.delete('/org/events/:eid/design-image/:slot', (req, res) => {
+    const event = ev(req, 'event.manage');
+    setDesignImage(event, designSlot(req), null);
+    res.json({ ok: true });
+  });
+
   r.delete('/org/events/:eid/login-image', (req, res) => {
     const event = ev(req, 'event.manage');
     const { loginImage: _gone, ...rest } = json(event.settings, {});

@@ -9,8 +9,62 @@ import { formFields, publicPassClasses } from './registrations.js';
 export const imageUrl = (uploadId) => (uploadId ? `/api/v1/public/image/${uploadId}` : null);
 export const planImageUrl = imageUrl;
 
+// ---------- look and ticket design ----------
+// The organiser's design for the visitor app and the ticket, with safe defaults (the BrainADZ
+// Live look). Everything is validated here so the apps can trust what they are sent.
+const HEX = /^#[0-9a-f]{6}$/i;
+const hex = (v, d) => (typeof v === 'string' && HEX.test(v) ? v.toLowerCase() : d);
+const pick = (v, list) => (list.includes(v) ? v : list[0]);
+const text = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+const flag = (v, d = true) => (typeof v === 'boolean' ? v : d);
+export const PATTERNS = ['network', 'dots', 'waves', 'confetti', 'rays', 'grid', 'none'];
+export function cleanDesign(input = {}) {
+  const t = input.theme || {};
+  const k = input.ticket || {};
+  return {
+    theme: {
+      primary: hex(t.primary, '#233e85'),
+      accent: hex(t.accent, '#c82026'),
+      canvas: hex(t.canvas, '#f4f5f7'),
+      pattern: pick(t.pattern, PATTERNS),
+      corners: pick(t.corners, ['soft', 'round', 'square']),
+      font: pick(t.font, ['jost', 'poppins', 'grotesk', 'elegant']),
+      tabs: pick(t.tabs, ['light', 'solid']),
+      motion: flag(t.motion),
+    },
+    ticket: {
+      layout: pick(k.layout, ['classic', 'poster', 'badge']),
+      band: hex(k.band, '#233e85'),
+      bandText: hex(k.bandText, '#ffffff'),
+      accent: hex(k.accent, '#c82026'),
+      paper: hex(k.paper, '#ffffff'),
+      ink: hex(k.ink, '#231f20'),
+      pattern: pick(k.pattern, PATTERNS),
+      corners: pick(k.corners, ['soft', 'round', 'square']),
+      artPlacement: pick(k.artPlacement, ['banner', 'full']),
+      notches: flag(k.notches),
+      showVenue: flag(k.showVenue),
+      showCompany: flag(k.showCompany),
+      showGates: flag(k.showGates),
+      showZones: flag(k.showZones),
+      showRef: flag(k.showRef),
+      showNote: flag(k.showNote),
+      headline: text(k.headline, 40),
+      footer: text(k.footer, 120),
+      art: Number.isInteger(k.art) ? k.art : null,
+      logo: Number.isInteger(k.logo) ? k.logo : null,
+    },
+  };
+}
+// The design as the apps receive it: upload ids become image addresses.
+export function eventDesign(event) {
+  const d = cleanDesign(json(event.settings, {}).design);
+  return { theme: d.theme, ticket: { ...d.ticket, art: imageUrl(d.ticket.art), logo: imageUrl(d.ticket.logo) } };
+}
+
 export function eventSummary(event) {
   return {
+    design: eventDesign(event),
     // Background photo of the sign-in page, chosen per exhibition by the organiser.
     loginImage: imageUrl(json(event.settings, {}).loginImage),
     id: event.id,

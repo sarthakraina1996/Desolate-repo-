@@ -162,6 +162,23 @@ Web pages: `/e/:slug` public site · `/p/:token` browser pass · `/signin` · `/
 
 The same scan rules run on the server and web (`shared/scanRules.js`), Android (`ScanRules.kt`) and iOS (`ScanRules.swift`).
 
+### Design studio (look and ticket per exhibition)
+
+Organiser console → **Design studio**. Two tabs, each with a live preview; nothing changes for
+visitors until **Save design**.
+
+- **App look**: start from a ready-made style (tech summit, festival, auto show, wedding, food,
+  gaming, education) or set the main colour, action colour, page background, header pattern,
+  corner style, lettering, tab bar colour and motion yourself.
+- **Ticket**: upload your own ticket artwork (as a top banner or behind the whole ticket) and a
+  logo, pick a layout (classic, poster, badge), colours, pattern, corners and notches, add a
+  small line above the event name and a line at the bottom, and choose which details show.
+
+The design is stored in the event's settings, checked on the server (`cleanDesign` in
+`server/services/guide.js`) and sent with the event guide and with every ticket. The web app
+applies all of it. The Android and iPhone apps apply the ticket colours, extra lines and
+shown details; ticket artwork, layouts and the app theme are web-only for now.
+
 ## Runbook
 
 **Before doors open**

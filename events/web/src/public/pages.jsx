@@ -5,6 +5,18 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Accessibility,
+  ArrowRight,
+  Check,
+  Crown,
+  GraduationCap,
+  IdCard,
+  Mail,
+  Mic,
+  Newspaper,
+  Printer,
+  ShieldCheck,
+  Smartphone,
+  UserRound,
   Bookmark,
   CalendarDays,
   ChevronRight,
@@ -31,6 +43,7 @@ import { useMe } from '../App.jsx';
 import { Dialog, Field, Loaded, Loading, Notice, useAction, useImage, useLoad } from '../ui.jsx';
 import { AgendaList, HallPlan, PassCard, trackColour } from '../components.jsx';
 import { dateRange, inr, nowHM, ROLE_LABELS, shortDay, todayISO } from '../format.js';
+import { themeVars } from '../theme.js';
 
 // ---------- app frame ----------
 const initialsOf = (u) =>
@@ -90,8 +103,15 @@ export function AppFrame({ slug, event, children }) {
   const active = tabFor(pathname);
   const tabs = slug ? TABS.map(([key, label, Icon, path]) => ({ key, label, Icon, to: `/e/${slug}${path}` })) : null;
   const here = (key) => (active === key ? { className: 'active', 'aria-current': 'page' } : {});
+  const theme = event?.design?.theme;
   return (
-    <>
+    <div
+      className="app-root"
+      style={themeVars(theme)}
+      data-pattern={theme?.pattern || 'network'}
+      data-tabs={theme?.tabs || 'light'}
+      data-motion={theme?.motion === false ? 'off' : 'on'}
+    >
       <div className="app">
         <AppBar
           home={slug ? `/e/${slug}` : '/'}
@@ -122,7 +142,7 @@ export function AppFrame({ slug, event, children }) {
           ))}
         </nav>
       )}
-    </>
+    </div>
   );
 }
 // Red band at the foot of wide screens, like the booklet's contact strip.
@@ -130,7 +150,7 @@ function SiteFooter({ event }) {
   return (
     <footer className="site-foot no-print">
       <div className="in">
-        {event ? (
+        {event?.startsOn ? (
           <>
             <span>{event.name}</span>
             <span>
@@ -685,6 +705,27 @@ export function EventTickets() {
 }
 
 // ---------- registration ----------
+const PASS_ICON = { visitor: Ticket, delegate: GraduationCap, vip: Crown, media: Newspaper, speaker: Mic, exhibitor: Store };
+// Where the visitor is on the way to a ticket.
+function Steps({ at }) {
+  return (
+    <ol className="steps" aria-label="Progress">
+      {['Your details', 'Confirm email', 'Ticket'].map((label, i) => (
+        <li key={label} className={i < at ? 'done' : i === at ? 'now' : ''} aria-current={i === at ? 'step' : undefined}>
+          <span className="n">{i < at ? <Check aria-hidden="true" /> : i + 1}</span>
+          {label}
+        </li>
+      ))}
+    </ol>
+  );
+}
+const FormHead = ({ icon: Icon, children }) => (
+  <h2 className="form-head">
+    <Icon aria-hidden="true" />
+    {children}
+  </h2>
+);
+
 // Single-column form with persistent labels, inline errors, a visible privacy notice and a
 // completion step that reflects pass, review or payment.
 export function Register() {
@@ -760,6 +801,10 @@ export function Register() {
   if (step === 'code')
     return (
       <form className="narrow stack" onSubmit={verify}>
+        <Steps at={1} />
+        <span className="empty-icon">
+          <Mail aria-hidden="true" />
+        </span>
         <h1 className="page-title">Check your email</h1>
         <p>
           We sent a 6-digit code to <strong>{pending.email}</strong>. Enter it to confirm the address is yours.
@@ -801,28 +846,35 @@ export function Register() {
   return (
     <form className="narrow stack" onSubmit={submit} noValidate>
       <h1 className="page-title">Get your pass</h1>
+      <Steps at={0} />
       <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="label" style={{ marginBottom: 4 }}>
-          Pass type
+        <legend style={{ padding: 0, marginBottom: 10 }}>
+          <FormHead icon={Ticket}>Choose your pass</FormHead>
         </legend>
         <div className="choices">
-          {guide.passClasses.map((c) => (
-            <label key={c.code} className="choice">
-              <input
-                type="radio"
-                name="passClass"
-                checked={form.passClass === c.code}
-                disabled={c.soldOut}
-                onChange={() => set('passClass', c.code)}
-              />
-              <span className="grow">
-                <strong>{c.name}</strong>
-                <br />
-                <span className="muted small">{c.soldOut ? 'Fully booked' : c.description}</span>
-              </span>
-              <span>{c.mode === 'invited' ? 'Invitation' : c.mode === 'approval' ? 'Reviewed' : c.priceLabel}</span>
-            </label>
-          ))}
+          {guide.passClasses.map((c) => {
+            const Icon = PASS_ICON[c.kind] || Ticket;
+            return (
+              <label key={c.code} className="choice">
+                <input
+                  type="radio"
+                  name="passClass"
+                  className="sr-only"
+                  checked={form.passClass === c.code}
+                  disabled={c.soldOut}
+                  onChange={() => set('passClass', c.code)}
+                />
+                <span className="quick-icon">
+                  <Icon aria-hidden="true" />
+                </span>
+                <span className="grow">
+                  <strong>{c.name}</strong>
+                  <span className="detail">{c.soldOut ? 'Fully booked' : c.description}</span>
+                </span>
+                <span className="price-tag">{c.mode === 'invited' ? 'Invitation' : c.mode === 'approval' ? 'Reviewed' : c.priceLabel}</span>
+              </label>
+            );
+          })}
         </div>
         <p className="small muted" style={{ marginTop: 8 }}>
           Exhibiting instead? <Link to={`${base}/exhibit`}>Apply for a stand</Link>. Speakers are registered by the organiser.
@@ -838,6 +890,7 @@ export function Register() {
           />
         </Field>
       )}
+      <FormHead icon={UserRound}>Your details</FormHead>
       <Field label="Full name" hint="As it should appear on your badge" error={errors.name}>
         <input className="input" autoComplete="name" value={form.name} onChange={(e) => set('name', e.target.value)} />
       </Field>
@@ -901,7 +954,7 @@ export function Register() {
       )}
       <div className="notice info">
         <div className="stack tight">
-          <strong>How we use your details</strong>
+          <FormHead icon={ShieldCheck}>How we use your details</FormHead>
           <span className="small">We use them to issue your pass and run the event. {guide.leadSharingNotice}</span>
           <label className="check">
             <input type="checkbox" checked={form.leadOptOut} onChange={(e) => set('leadOptOut', e.target.checked)} />
@@ -929,8 +982,10 @@ export function Register() {
       {error && <Notice tone="error">{error}</Notice>}
       <button className="btn primary big block" disabled={busy || !cls}>
         {busy ? 'Sending…' : cta}
+        {!busy && <ArrowRight className="icon" aria-hidden="true" />}
       </button>
       <button type="button" className="btn plain" onClick={() => setStep('find')}>
+        <Search className="icon" aria-hidden="true" />
         Already registered? Find my ticket
       </button>
     </form>
@@ -1028,7 +1083,8 @@ export function RegistrationState({ state, onCancel, returnPath }) {
         </p>
         <div className="row between wrap no-print">
           <button className="btn" onClick={() => window.print()}>
-            Print
+            <Printer className="icon" aria-hidden="true" />
+            Print ticket
           </button>
           {onCancel && (
             <button
@@ -1065,6 +1121,7 @@ export function RegistrationState({ state, onCancel, returnPath }) {
           </div>
         </div>
         <button className="btn primary big block" onClick={pay}>
+          <CreditCard className="icon" aria-hidden="true" />
           Pay {inr(state.order.balancePaise)}
         </button>
         <p className="muted small">UPI or card, on a secure hosted checkout page. Order {state.order.number}.</p>
@@ -1105,7 +1162,7 @@ export function PassPage() {
   if (!load.data) return <Loading />;
   const s = load.data;
   return (
-    <AppFrame slug={s.event.slug}>
+    <AppFrame slug={s.event.slug} event={s.event}>
       <div className="narrow stack">
         <h1 className="page-title">{s.step === 'pass' ? 'Your ticket' : 'Your registration'}</h1>
         <RegistrationState
@@ -1178,19 +1235,23 @@ export function Pay() {
                 </button>
               </>
             ) : (
-              <div className="stack tight">
-                <button className="btn primary big block" onClick={() => go('captured', 'upi')}>
-                  Pay by UPI (succeeds)
-                </button>
-                <button className="btn big block" onClick={() => go('captured', 'card')}>
-                  Pay by card (succeeds)
-                </button>
-                <button className="btn big block" onClick={() => go('failed', 'card')}>
-                  Simulate a failed payment
-                </button>
-                <button className="btn big block" onClick={() => go('pending', 'upi')}>
-                  Simulate a pending payment
-                </button>
+              <div className="stack">
+                <div className="group">
+                  <button className="row-item" onClick={() => go('captured', 'upi')}>
+                    <Row icon={Smartphone} title="Pay by UPI" detail="Any UPI app. Succeeds in this demo." chevron />
+                  </button>
+                  <button className="row-item" onClick={() => go('captured', 'card')}>
+                    <Row icon={CreditCard} title="Pay by card" detail="Credit or debit card. Succeeds in this demo." chevron />
+                  </button>
+                </div>
+                <div className="row wrap">
+                  <button className="btn sm" onClick={() => go('failed', 'card')}>
+                    Try a failed payment
+                  </button>
+                  <button className="btn sm" onClick={() => go('pending', 'upi')}>
+                    Try a pending payment
+                  </button>
+                </div>
                 <button className="btn plain" onClick={() => nav(back, { replace: true })}>
                   Cancel and go back
                 </button>

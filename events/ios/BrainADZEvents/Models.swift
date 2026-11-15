@@ -87,7 +87,15 @@ struct PassEvent: Codable {
     let slug: String, name: String
     let venueName: String?
     let startsOn: String, endsOn: String, openTime: String, closeTime: String
+    let design: Design?
 }
+// The organiser's ticket design (Design studio): colours, extra lines and which details show.
+struct TicketDesign: Codable {
+    var band: String?, bandText: String?, accent: String?, paper: String?, ink: String?
+    var headline: String?, footer: String?
+    var showVenue: Bool?, showCompany: Bool?, showGates: Bool?, showZones: Bool?, showRef: Bool?, showNote: Bool?
+}
+struct Design: Codable { let ticket: TicketDesign? }
 struct Pass: Codable, Identifiable {
     let id: Int
     let ref: String?, qr: String?
