@@ -2,7 +2,7 @@
 // exhibitors, floor plan). Configuration, finance and reporting live in OrgAdmin.jsx.
 import logo from '../assets/brainadz-live.png';
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   BarChart3,
   CalendarDays,
@@ -13,6 +13,7 @@ import {
   Megaphone,
   Radio,
   ScanLine,
+  Menu,
   Palette,
   Settings,
   Users,
@@ -73,6 +74,8 @@ export default function OrgShell() {
   const { eid } = useParams();
   const { me, signOut } = useMe();
   const nav = useNavigate();
+  const { pathname } = useLocation();
+  const [more, setMore] = useState(false);
   const mine = me.organiser.find((o) => String(o.eventId) === eid);
   const load = useLoad(() => get(`/org/events/${eid}`), [eid]);
   if (!mine) return <Navigate to="/org" replace />;
@@ -137,13 +140,37 @@ export default function OrgShell() {
               </main>
             </div>
             <nav className="tabbar no-print" aria-label="Console">
-              {items.slice(0, 5).map((n) => (
+              {items.slice(0, 4).map((n) => (
                 <NavLink key={n.to} to={n.to ? `${base}/${n.to}` : base} end={n.end}>
                   <n.icon className="icon" aria-hidden="true" />
                   {n.label.split(' ')[0]}
                 </NavLink>
               ))}
+              {items.length > 4 && (
+                <a
+                  href="#more"
+                  className={items.slice(4).some((n) => pathname.startsWith(`${base}/${n.to}`)) ? 'active' : ''}
+                  onClick={(e) => (e.preventDefault(), setMore(true))}
+                >
+                  <Menu className="icon" aria-hidden="true" />
+                  More
+                </a>
+              )}
             </nav>
+            {more && (
+              <Dialog title="More" onClose={() => setMore(false)} sheet>
+                <div className="group">
+                  {items.slice(4).map((n) => (
+                    <Link key={n.to} className="row-item" to={`${base}/${n.to}`} onClick={() => setMore(false)}>
+                      <span className="row-icon">
+                        <n.icon aria-hidden="true" />
+                      </span>
+                      <strong className="grow">{n.label}</strong>
+                    </Link>
+                  ))}
+                </div>
+              </Dialog>
+            )}
           </div>
         </OrgCtx.Provider>
       )}
