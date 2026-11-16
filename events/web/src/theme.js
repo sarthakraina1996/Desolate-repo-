@@ -8,7 +8,7 @@ export const PRESETS = [
     name: 'BrainADZ Live',
     primary: '#233e85',
     accent: '#c82026',
-    canvas: '#f4f5f7',
+    canvas: '#f9f7f4',
     pattern: 'network',
     corners: 'soft',
     font: 'jost',

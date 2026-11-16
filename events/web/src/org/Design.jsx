@@ -19,6 +19,7 @@ import {
 import { api as call, del, put } from '../api.js';
 import { shrinkImage } from '../images.js';
 import logo from '../assets/brainadz-live.png';
+import hallPhoto from '../assets/expo-hall.jpg';
 import { useAction, useImage, useToast } from '../ui.jsx';
 import { PassCard } from '../components.jsx';
 import { dateRange } from '../format.js';
@@ -137,12 +138,8 @@ function PhonePreview({ theme, event }) {
           </span>
         </div>
         <div className="pv-body">
-          <section
-            className={`hero-card ${photo ? 'has-photo' : ''}`}
-            style={
-              photo ? { backgroundImage: `linear-gradient(180deg, rgba(14,22,48,0.2), rgba(14,22,48,0.88)), url(${photo})` } : undefined
-            }
-          >
+          <section className="hero-card">
+            <div className="hero-photo" style={{ backgroundImage: `url("${photo || hallPhoto}")` }} aria-hidden="true" />
             <span className="hero-status">Open now · until {event.closeTime}</span>
             <h1>{event.name}</h1>
             <div className="hero-facts">

@@ -226,9 +226,9 @@ function upNext(agenda, n = 3) {
     .slice(0, n);
 }
 
-function Section({ title, action, children }) {
+function Section({ title, action, boxed, children }) {
   return (
-    <section className="block" aria-label={title}>
+    <section className={`block ${boxed ? 'boxed' : ''}`} aria-label={title}>
       <div className="block-head">
         <h2>{title}</h2>
         {action}
@@ -261,17 +261,16 @@ export function Landing() {
   const { me } = useMe();
   const e = guide.event;
   const photo = useImage(e.loginImage);
+  const status = eventStatus(e);
   const next = upNext(guide.agenda);
   const where = [e.venueName, e.city].filter(Boolean).join(', ');
   const halls = guide.halls.filter((h) => h.cols > 0).length;
   const NOTE_ICON = { schedule: CalendarDays, gate: DoorOpen };
   return (
     <div className="stack loose">
-      <section
-        className={`hero-card ${photo ? 'has-photo' : ''}`}
-        style={photo ? { backgroundImage: `linear-gradient(180deg, rgba(14,22,48,0.2), rgba(14,22,48,0.88)), url(${photo})` } : undefined}
-      >
-        <span className="hero-status">{eventStatus(e)}</span>
+      <section className="hero-card">
+        <div className="hero-photo" style={{ backgroundImage: `url("${photo || hallPhoto}")` }} aria-hidden="true" />
+        <span className={`hero-status ${status.startsWith('Open now') ? 'open' : ''}`}>{status}</span>
         <h1>{e.name}</h1>
         {e.tagline && <p className="hero-tagline">{e.tagline}</p>}
         <div className="hero-facts">
@@ -304,7 +303,7 @@ export function Landing() {
       </nav>
 
       {guide.announcements.length > 0 && (
-        <Section title="Updates">
+        <Section title="Updates" boxed>
           <div className="group">
             {guide.announcements.map((a) => (
               <div key={a.id} className="row-item">
@@ -400,10 +399,11 @@ function QuickLink({ to, icon: Icon, label, sub }) {
       <span className="quick-icon">
         <Icon aria-hidden="true" />
       </span>
-      <span>
+      <span className="grow">
         <strong>{label}</strong>
         <span className="detail">{sub}</span>
       </span>
+      <ChevronRight className="icon chev" aria-hidden="true" />
     </Link>
   );
 }

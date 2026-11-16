@@ -25,7 +25,7 @@ export function cleanDesign(input = {}) {
     theme: {
       primary: hex(t.primary, '#233e85'),
       accent: hex(t.accent, '#c82026'),
-      canvas: hex(t.canvas, '#f4f5f7'),
+      canvas: hex(t.canvas, '#f9f7f4'),
       pattern: pick(t.pattern, PATTERNS),
       corners: pick(t.corners, ['soft', 'round', 'square']),
       font: pick(t.font, ['jost', 'poppins', 'grotesk', 'elegant']),
