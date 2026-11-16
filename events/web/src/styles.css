@@ -1136,248 +1136,270 @@ td.actions {
   color: #fff;
 }
 /* ---------- sign-in page (the first page) ----------
-   Logo bar, a banner with the exhibition's name over its photo (--login-photo, set per event
-   by the organiser), then sign-in on the left and tickets on the right. */
+   Logo bar, then two cards: the exhibition as a ticket (its photo, a tear line, its name and
+   dates) and the sign-in card with the ticket links. */
 .login {
+  --deep: color-mix(in srgb, var(--navy) 50%, #060d24);
   min-height: 100vh;
-  background: var(--surface);
+  padding: 24px 40px 48px;
+  background: #f3f3f2;
   font-family: var(--font);
 }
 .login-top,
-.login-banner-in,
 .login-main {
-  max-width: 1240px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding-inline: 40px;
 }
 .login-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 72px;
+  padding: 8px 36px;
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.06);
 }
 .login-top img {
-  height: 50px;
+  height: 52px;
   width: auto;
 }
-.login-top a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink);
-  font-weight: 500;
-  text-decoration: none;
-}
-.login-top a:hover {
-  color: var(--accent-text);
-}
-.login-top .icon {
-  width: 18px;
-  height: 18px;
-}
-.login-banner {
-  --deep: color-mix(in srgb, var(--navy) 55%, #050b1f);
-  position: relative;
-  overflow: hidden;
-  color: #fff;
-  background: var(--deep);
-}
-/* The photo sits at the right and fades into the navy on its left edge. */
-.login-banner::after {
-  content: '';
-  position: absolute;
-  inset: 0 0 0 auto;
-  aspect-ratio: 896 / 330;
-  max-width: 68%;
-  background:
-    linear-gradient(90deg, var(--deep) 0%, color-mix(in srgb, var(--deep) 60%, transparent) 22%, transparent 48%),
-    var(--login-photo) center / cover no-repeat;
-}
-.login-banner.own-photo::after {
-  aspect-ratio: auto;
-  width: 64%;
-}
-.login-banner-in {
-  position: relative;
-  z-index: 1;
-  min-height: 300px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding-block: 32px;
-}
-.login-banner h1 {
-  font-family: var(--font-head);
-  font-size: 52px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
-}
-.login-tag {
-  margin-top: 8px;
-  max-width: 22ch;
-  font-size: 26px;
-  line-height: 1.2;
-}
-.login-bar {
-  width: 84px;
-  height: 8px;
-  margin: 22px 0 18px;
-  border-radius: 4px;
-  background: var(--accent);
-}
-.login-when {
-  font-size: 26px;
-  font-weight: 500;
-}
-.login-where {
-  margin-top: 6px;
-  font-size: 22px;
-  font-weight: 600;
+.login-link {
+  border: 0;
+  background: none;
+  padding: 8px 0;
+  font-size: 19px;
+  color: var(--deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
 }
 .login-main {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  padding-block: 36px 56px;
+  grid-template-columns: minmax(0, 0.83fr) minmax(0, 1fr);
+  gap: 22px;
+  margin-top: 40px;
+  padding-inline: 20px;
 }
-.login-card {
-  padding-right: 48px;
-}
-.login-tickets {
-  padding-left: 48px;
-  border-left: 1px solid var(--rule);
+.login-ticket {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 20px;
+  border-radius: 28px;
+  overflow: hidden;
+  color: #fff;
+  background: var(--deep);
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.14);
 }
-.login-main h2 {
+.login-photo {
+  flex: 1 1 300px;
+  min-height: 300px;
+  background: center / cover no-repeat;
+}
+/* Tear line with a notch cut from each side, like the tickets the app issues. */
+.login-info {
+  position: relative;
+  padding: 30px 48px 44px;
+  border-top: 2px dashed rgba(255, 255, 255, 0.85);
+}
+.login-info::before,
+.login-info::after {
+  content: '';
+  position: absolute;
+  top: -19px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f3f3f2;
+}
+.login-info::before {
+  left: -18px;
+}
+.login-info::after {
+  right: -18px;
+}
+.login-info h1 {
   font-family: var(--font-head);
-  font-size: 48px;
+  font-size: 54px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 0.98;
+}
+.login-tag {
+  margin: 14px 0 26px;
+  max-width: 24ch;
+  font-size: 23px;
+  line-height: 1.3;
+}
+.login-fact {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 12px;
+  font-size: 22px;
+  font-weight: 500;
+}
+.login-fact svg {
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+.login-card {
+  padding: 48px 52px 56px;
+  background: var(--surface);
+  border-radius: 28px;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
+}
+.login-card h2 {
+  margin-bottom: 26px;
+  font-family: var(--font-head);
+  font-size: 56px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.1;
+  color: var(--deep);
 }
-.login-sub {
-  margin: 6px 0 18px;
-  font-size: 19px;
-  color: var(--ink-2);
+.login-card .field > label {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--deep);
+}
+.login-card .input {
+  min-height: 62px;
+  font-size: 22px;
+  border-radius: 10px;
+}
+.login-card .btn.big {
+  min-height: 66px;
+  font-size: 26px;
+  font-weight: 700;
+  border-radius: 8px;
 }
 .login-card .btn.plain {
-  text-decoration: underline;
-  color: var(--navy);
-}
-.login-tickets h2 {
-  margin-bottom: 28px;
-}
-.btn.login-register {
-  border: 2px solid var(--deep, #14234f);
-  color: #14234f;
-  background: var(--surface);
   font-size: 22px;
-  font-weight: 700;
-  min-height: 64px;
+  color: var(--deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.login-more {
+  margin-top: 28px;
+  padding-top: 44px;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+.login-card .btn.login-register {
+  border: 2px solid var(--deep);
+  color: var(--deep);
+  background: var(--surface);
 }
 .btn.login-register:hover {
   background: var(--canvas);
 }
-.login-tickets > a:not(.btn) {
-  font-size: 20px;
-  color: var(--navy);
+.login-more a:not(.btn) {
+  font-size: 22px;
+  color: var(--deep);
+  text-underline-offset: 4px;
 }
-.login-demo {
-  margin-top: 20px;
-  padding-top: 18px;
-  border-top: 1px solid var(--rule);
+@media (max-width: 1000px) {
+  .login-info h1 {
+    font-size: 40px;
+  }
+  .login-card h2 {
+    font-size: 44px;
+  }
+  .login-info {
+    padding-inline: 28px;
+  }
+  .login-card {
+    padding: 36px 32px 40px;
+  }
 }
-.login-demo summary {
-  cursor: pointer;
-  list-style: none;
-  color: var(--navy);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  font-size: 18px;
-}
-.login-demo summary::-webkit-details-marker {
-  display: none;
-}
-.login-demo .list {
-  margin-top: 12px;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
-  max-height: 320px;
-  overflow-y: auto;
-}
-@media (max-width: 860px) {
-  .login-top,
-  .login-banner-in,
-  .login-main {
-    padding-inline: 16px;
+@media (max-width: 760px) {
+  .login {
+    padding: 12px 12px 32px;
   }
   .login-top {
-    min-height: 60px;
+    padding: 6px 16px;
   }
   .login-top img {
     height: 38px;
   }
-  .login-top a {
-    font-size: 15px;
-  }
-  .login-banner::after,
-  .login-banner.own-photo::after {
-    inset: 0;
-    width: auto;
-    max-width: none;
-    aspect-ratio: auto;
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--deep) 78%, transparent), color-mix(in srgb, var(--deep) 92%, transparent)),
-      var(--login-photo) center / cover no-repeat;
-  }
-  .login-banner-in {
-    min-height: 0;
-    padding-block: 24px;
-  }
-  .login-banner h1 {
-    font-size: 34px;
-  }
-  .login-tag {
-    font-size: 18px;
-    max-width: none;
-  }
-  .login-bar {
-    margin: 14px 0 12px;
-    height: 6px;
-    width: 60px;
-  }
-  .login-when {
-    font-size: 18px;
-  }
-  .login-where {
+  .login-link {
     font-size: 16px;
   }
   .login-main {
     grid-template-columns: 1fr;
-    padding-block: 24px 40px;
-    gap: 28px;
+    gap: 14px;
+    margin-top: 14px;
+    padding-inline: 0;
+  }
+  .login-ticket,
+  .login-card {
+    border-radius: 22px;
+  }
+  .login-photo {
+    flex: none;
+    min-height: 0;
+    height: 150px;
+  }
+  .login-info {
+    padding: 20px 24px 24px;
+  }
+  .login-info::before,
+  .login-info::after {
+    top: -13px;
+    width: 24px;
+    height: 24px;
+  }
+  .login-info::before {
+    left: -12px;
+  }
+  .login-info::after {
+    right: -12px;
+  }
+  .login-info h1 {
+    font-size: 30px;
+    line-height: 1.05;
+  }
+  .login-tag {
+    margin: 8px 0 14px;
+    font-size: 16px;
+    max-width: none;
+  }
+  .login-fact {
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 16px;
+  }
+  .login-fact svg {
+    width: 20px;
+    height: 20px;
   }
   .login-card {
-    padding-right: 0;
+    padding: 24px 20px 28px;
   }
-  .login-tickets {
-    padding: 24px 0 0;
-    border-left: 0;
-    border-top: 1px solid var(--rule);
-    gap: 16px;
-  }
-  .login-main h2 {
+  .login-card h2 {
+    margin-bottom: 16px;
     font-size: 34px;
   }
-  .login-tickets h2 {
-    margin-bottom: 8px;
-  }
-  .login-sub {
+  .login-card .field > label,
+  .login-card .btn.plain,
+  .login-more a:not(.btn) {
     font-size: 17px;
+  }
+  .login-card .input {
+    min-height: 52px;
+    font-size: 18px;
+  }
+  .login-card .btn.big {
+    min-height: 54px;
+    font-size: 19px;
+  }
+  .login-more {
+    margin-top: 18px;
+    padding-top: 24px;
+    gap: 20px;
   }
 }
 .login-preview {

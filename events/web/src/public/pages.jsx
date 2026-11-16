@@ -1312,6 +1312,7 @@ export function SignIn() {
   const [secret, setSecret] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [demo, setDemo] = useState(false);
   const done = async () => {
     const m = await refresh();
     nav(nextFor(m, params.get('next')), { replace: true });
@@ -1340,38 +1341,36 @@ export function SignIn() {
     <div className="login" style={themeVars(event?.design?.theme)}>
       <header className="login-top">
         <img src={logo} alt="BrainADZ Live" width="150" height="70" />
-        {event && (
-          <Link to={`/e/${event.slug}`}>
-            Exhibitors &amp; floor plan
-            <ArrowUpRight className="icon" aria-hidden="true" />
-          </Link>
+        {config.demo && (
+          <button type="button" className="login-link" onClick={() => setDemo(true)}>
+            Try a demo account
+          </button>
         )}
       </header>
-      <section
-        className={`login-banner ${bg ? 'own-photo' : ''}`}
-        style={{ '--login-photo': `url("${bg || hallPhoto}")` }}
-        aria-label="Exhibition"
-      >
-        <div className="login-banner-in">
-          {event ? (
-            <>
-              <h1>{event.name}</h1>
-              {event.tagline && <p className="login-tag">{event.tagline}</p>}
-              <span className="login-bar" aria-hidden="true" />
-              <p className="login-when">
-                {dateRange(event.startsOn, event.endsOn)} · {event.openTime}–{event.closeTime}
-              </p>
-              <p className="login-where">{[event.venueName, event.city].filter(Boolean).join(', ')}</p>
-            </>
-          ) : (
-            <h1>BrainADZ Events</h1>
-          )}
-        </div>
-      </section>
       <div className="login-main">
+        <section className="login-ticket" aria-label="Exhibition">
+          <div className="login-photo" style={{ backgroundImage: `url("${bg || hallPhoto}")` }} />
+          <div className="login-info">
+            {event ? (
+              <>
+                <h1>{event.name}</h1>
+                {event.tagline && <p className="login-tag">{event.tagline}</p>}
+                <p className="login-fact">
+                  <CalendarDays aria-hidden="true" />
+                  {dateRange(event.startsOn, event.endsOn)} · {event.openTime}–{event.closeTime}
+                </p>
+                <p className="login-fact">
+                  <MapPin aria-hidden="true" />
+                  {[event.venueName, event.city].filter(Boolean).join(', ')}
+                </p>
+              </>
+            ) : (
+              <h1>BrainADZ Events</h1>
+            )}
+          </div>
+        </section>
         <main id="main" className="login-card">
           <h2>Sign in</h2>
-          <p className="login-sub">For visitors, exhibitors and event staff.</p>
           <form className="stack" onSubmit={submit}>
             <Field label="Email address">
               <input
@@ -1428,40 +1427,39 @@ export function SignIn() {
               {mode === 'code' ? 'Staff sign in with a password' : 'Email me a code instead'}
             </button>
           </form>
-          {config.demo && (
-            <details className="login-demo">
-              <summary>Try a demo account</summary>
-              <div className="list">
-                {DEMO.map(([e, label]) => (
-                  <button
-                    key={e}
-                    className="list-row"
-                    onClick={() => run(() => post('/auth/login', { email: e, password: 'Events@2026' }).then(done))}
-                  >
-                    <span className="grow">
-                      <strong>{label}</strong>
-                      <br />
-                      <span className="muted small">{e}</span>
-                    </span>
-                  </button>
-                ))}
-                <div className="muted small">
-                  Password for all: Events@2026. Visitors sign in with an email code, for example aarav.mehta@meridianretail.example.
-                </div>
+          {event && (
+            <div className="login-more">
+              <Link className="btn big block login-register" to={`/e/${event.slug}/register`}>
+                Register for a ticket
+              </Link>
+              <div className="row between wrap">
+                <Link to={`/e/${event.slug}/register?find=1`}>Find my ticket</Link>
+                <Link to={`/e/${event.slug}`}>Exhibitors &amp; floor plan</Link>
               </div>
-            </details>
+            </div>
           )}
         </main>
-        {event && (
-          <section className="login-tickets" aria-label="Tickets">
-            <h2>Tickets</h2>
-            <Link className="btn big block login-register" to={`/e/${event.slug}/register`}>
-              Register for a ticket
-            </Link>
-            <Link to={`/e/${event.slug}/register?find=1`}>Find my ticket</Link>
-          </section>
-        )}
       </div>
+      {demo && (
+        <Dialog title="Try a demo account" onClose={() => setDemo(false)} sheet>
+          <div className="stack">
+            <div className="group">
+              {DEMO.map(([e, label]) => (
+                <button
+                  key={e}
+                  className="row-item"
+                  onClick={() => (setDemo(false), run(() => post('/auth/login', { email: e, password: 'Events@2026' }).then(done)))}
+                >
+                  <Row title={label} detail={e} chevron />
+                </button>
+              ))}
+            </div>
+            <p className="muted small">
+              Password for all: Events@2026. Visitors sign in with an email code, for example aarav.mehta@meridianretail.example.
+            </p>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }
