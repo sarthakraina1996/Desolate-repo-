@@ -6,6 +6,7 @@ import { Link, Navigate, Outlet, useLocation, useNavigate, useParams, useSearchP
 import {
   Accessibility,
   ArrowRight,
+  ArrowUpRight,
   Check,
   Crown,
   GraduationCap,
@@ -39,6 +40,7 @@ import {
 } from 'lucide-react';
 import { del, get, goTo, post, put } from '../api.js';
 import logo from '../assets/brainadz-live.png';
+import hallPhoto from '../assets/expo-hall.jpg';
 import { useMe } from '../App.jsx';
 import { Dialog, Field, Loaded, Loading, Notice, useAction, useImage, useLoad } from '../ui.jsx';
 import { AgendaList, HallPlan, PassCard, trackColour } from '../components.jsx';
@@ -1335,32 +1337,48 @@ export function SignIn() {
     return run(() => post('/auth/code/verify', { email, code: secret }).then(done));
   };
   return (
-    <div className="login" style={bg ? { '--login-photo': `url("${bg}")` } : undefined}>
-      <div className="login-in">
-        <section className="login-event" aria-label="Exhibition">
+    <div className="login" style={themeVars(event?.design?.theme)}>
+      <header className="login-top">
+        <img src={logo} alt="BrainADZ Live" width="150" height="70" />
+        {event && (
+          <Link to={`/e/${event.slug}`}>
+            Exhibitors &amp; floor plan
+            <ArrowUpRight className="icon" aria-hidden="true" />
+          </Link>
+        )}
+      </header>
+      <section
+        className={`login-banner ${bg ? 'own-photo' : ''}`}
+        style={{ '--login-photo': `url("${bg || hallPhoto}")` }}
+        aria-label="Exhibition"
+      >
+        <div className="login-banner-in">
           {event ? (
             <>
+              <h1>{event.name}</h1>
+              {event.tagline && <p className="login-tag">{event.tagline}</p>}
+              <span className="login-bar" aria-hidden="true" />
               <p className="login-when">
                 {dateRange(event.startsOn, event.endsOn)} · {event.openTime}–{event.closeTime}
               </p>
-              <h1>{event.name}</h1>
-              {event.tagline && <p className="login-tag">{event.tagline}</p>}
               <p className="login-where">{[event.venueName, event.city].filter(Boolean).join(', ')}</p>
             </>
           ) : (
             <h1>BrainADZ Events</h1>
           )}
-        </section>
+        </div>
+      </section>
+      <div className="login-main">
         <main id="main" className="login-card">
-          <img className="login-logo" src={logo} alt="BrainADZ Live" width="150" height="70" />
           <h2>Sign in</h2>
-          <p className="muted small">Visitors, exhibitors and event staff all sign in here.</p>
+          <p className="login-sub">For visitors, exhibitors and event staff.</p>
           <form className="stack" onSubmit={submit}>
-            <Field label="Email">
+            <Field label="Email address">
               <input
                 className="input"
                 type="email"
                 autoComplete="email"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => (setEmail(e.target.value), setSent(null))}
                 required
@@ -1407,26 +1425,12 @@ export function SignIn() {
               className="btn plain"
               onClick={() => (setMode(mode === 'code' ? 'password' : 'code'), setSecret(''), setSent(null), setError(null))}
             >
-              {mode === 'code' ? 'Staff: sign in with a password' : 'Email me a code instead'}
+              {mode === 'code' ? 'Staff sign in with a password' : 'Email me a code instead'}
             </button>
           </form>
-          {event && (
-            <div className="login-more">
-              <span className="muted small">New to {event.name}?</span>
-              <Link className="btn block" to={`/e/${event.slug}/register`}>
-                Register for a ticket
-              </Link>
-              <div className="row between wrap small">
-                <Link to={`/e/${event.slug}/register?find=1`}>Find my ticket</Link>
-                <Link to={`/e/${event.slug}`}>See the exhibitors and floor plan</Link>
-              </div>
-            </div>
-          )}
           {config.demo && (
             <details className="login-demo">
-              <summary>
-                <span className="demo-tag">Demo</span> Try a demo account
-              </summary>
+              <summary>Try a demo account</summary>
               <div className="list">
                 {DEMO.map(([e, label]) => (
                   <button
@@ -1448,6 +1452,15 @@ export function SignIn() {
             </details>
           )}
         </main>
+        {event && (
+          <section className="login-tickets" aria-label="Tickets">
+            <h2>Tickets</h2>
+            <Link className="btn big block login-register" to={`/e/${event.slug}/register`}>
+              Register for a ticket
+            </Link>
+            <Link to={`/e/${event.slug}/register?find=1`}>Find my ticket</Link>
+          </section>
+        )}
       </div>
     </div>
   );
